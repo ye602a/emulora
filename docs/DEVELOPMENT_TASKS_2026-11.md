@@ -45,5 +45,7 @@ Grain: study negative-density domain, density bins, 2-D power spectrum and spati
 Illuminants: study CIE Y normalization of scene, film and reference spectra.
 Deliver reproducible offline scripts/reports, not real-time rendering dependencies.
 
+Two Vulkan seeds at four flat density levels and 6 µm sampling were measured in 64×64 interior windows. Double-X silver density used identical RGB residuals. Portra 400 layered residuals showed distinct channel variances and near-zero between-channel correlation. Report variance, spatial autocorrelation and radial frequency power by density and stock. Separate scene, film and viewing spectra were integrated at 5 nm and normalized with the CIE 1931 Y-weighted integral. With equal Y, the Portra 400 sensitivity predicts distinct D55 and 2856 K channel responses. These are offline diagnostics under fixed input, with no added renderer dependency. [CIE observer data](https://cie.co.at/datatable/cie-1931-colour-matching-functions-2-degree-observer) · [vkdt normalization reference](https://github.com/hanatos/vkdt/commit/c4fd786a06e68addabac94898dd744958b959687)
+
 ## Batch 8 — Later features
 Evaluate edge codes/frame numbers/dates, 120/half-frame/XPan, complex light leaks, special perforations, variable-contrast paper and rem-jet optical behavior individually. Define physical stage, parameter contract, cache dependencies, resource cost, provenance and license before implementation.
