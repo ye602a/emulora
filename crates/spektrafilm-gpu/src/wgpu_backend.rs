@@ -2162,7 +2162,7 @@ impl WgpuBackend {
     ) -> CachedPipelineRef {
         let mut cache = self.pipeline_cache.lock().unwrap();
         let key = shader_source.as_ptr() as usize;
-        if let std::collections::hash_map::Entry::Vacant(entry) = cache.entry(key) {
+        let cached = cache.entry(key).or_insert_with(|| {
             let entries: Vec<wgpu::BindGroupLayoutEntry> = binding_types
                 .iter()
                 .enumerate()
@@ -2206,14 +2206,11 @@ impl WgpuBackend {
                     compilation_options: Default::default(),
                     cache: None,
                 });
-            entry.insert(CachedPipeline {
+            CachedPipeline {
                 bind_group_layout,
                 pipeline,
-            });
-        }
-        // Drop the guard but the underlying Arc keeps the entries alive.
-        // Return cloned handles.
-        let cached = cache.get(&key).unwrap();
+            }
+        });
         CachedPipelineRef {
             pipeline: cached.pipeline.clone(),
             layout: cached.bind_group_layout.clone(),
