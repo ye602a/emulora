@@ -25,6 +25,9 @@ pub struct Border135 {
     pub overscan: [u32; 4],
     #[serde(default)]
     pub registration: ScanRegistration,
+    /// Scene-linear exposure of the unmasked shoulder, relative to 18% grey.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub edge_exposure_centi_ev: Option<i32>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -109,6 +112,43 @@ impl Border135 {
             film_origin_px: origin,
             film_from_canvas,
             gate_half_mm: gate_half_mm.map(|pixels| pixels * pixel_pitch_mm * 0.5),
+        }))
+    }
+
+    pub(crate) fn prepare_gpu(
+        self,
+        content: [u32; 2],
+        film_format_mm: f32,
+    ) -> Result<Option<spektrafilm_gpu::FilmBorderGpuParams>, spektrafilm_gpu::output::OutputError>
+    {
+        use spektrafilm_gpu::{FilmBorderGpuParams, output::OutputError};
+        let Some(layout) = self
+            .layout(content, film_format_mm)
+            .map_err(|_| OutputError::InvalidFilmBorder)?
+        else {
+            return Ok(None);
+        };
+        let edge_exposure = self
+            .edge_exposure_centi_ev
+            .map_or(0.0, |ev| 0.18 * (ev as f32 / 100.0).exp2());
+        if !edge_exposure.is_finite() {
+            return Err(OutputError::InvalidFilmBorder);
+        }
+        let strip_half_mm = layout.gate_half_mm[1] + SHOULDER_MM;
+        Ok(Some(FilmBorderGpuParams {
+            canvas: layout.canvas,
+            _pad0: [0; 2],
+            content: layout.content,
+            origin_px: layout.film_origin_px,
+            gate_half_mm: layout.gate_half_mm,
+            film_from_canvas: layout.film_from_canvas,
+            strip_half_mm,
+            edge_exposure,
+            perforation_pitch_mm: PERFORATION_PITCH_MM,
+            perforation_corner_mm: PERFORATION_CORNER_MM,
+            perforation_half_mm: PERFORATION_HALF_SIZE_MM,
+            perforation_row_mm: strip_half_mm - PERFORATION_CENTER_INSET_MM,
+            _pad1: 0.0,
         }))
     }
 }
@@ -275,6 +315,7 @@ mod tests {
                 offset_px: [3, -6],
                 rotation_centi_degrees: 9000,
             },
+            ..Default::default()
         };
         let Layout135 {
             film_from_canvas,

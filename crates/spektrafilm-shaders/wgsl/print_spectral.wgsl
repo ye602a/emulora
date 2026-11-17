@@ -38,6 +38,7 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     let cmy_r = density_cmy[base];
     let cmy_g = density_cmy[base + 1u];
     let cmy_b = density_cmy[base + 2u];
+    let film_opacity = film_coverage(pixel_idx);
 
     var raw = vec3<f32>(0.0, 0.0, 0.0);
 
@@ -52,7 +53,7 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
         let cd_b = channel_density[cd_base + 2u];
         let bd = base_density[wl];
         let d = cmy_r * cd_r + cmy_g * cd_g + cmy_b * cd_b + bd;
-        let light = pow(10.0, -d) * illuminant[wl];
+        let light = pow(10.0, -d * film_opacity) * illuminant[wl];
         raw.x += light * sensitivity[cd_base];
         raw.y += light * sensitivity[cd_base + 1u];
         raw.z += light * sensitivity[cd_base + 2u];

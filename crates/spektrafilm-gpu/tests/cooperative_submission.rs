@@ -28,6 +28,7 @@ fn image(width: u32, height: u32) -> ImageBuf {
 
 fn params(image: &ImageBuf) -> FilmChainParams<'_> {
     FilmChainParams {
+        border_135: None,
         image,
         front: FrontPass::Mallett2019 {
             matrix: [[1., 0., 0.], [0., 1., 0.], [0., 0., 1.]],

@@ -88,6 +88,7 @@ impl NegativeKey {
         // decision here about which side of the cache boundary consumes it.
         let FilmChainParams {
             image,
+            border_135,
             front,
             film_log_exposure,
             film_density_curves_normalized,
@@ -132,6 +133,11 @@ impl NegativeKey {
         k.u32(image.height);
         k.usize(image.data.len());
         k.usize(std::mem::size_of::<spektrafilm_math::precision::Scalar>());
+        k.optional(border_135.as_ref(), |key, layout| {
+            for &word in bytemuck::cast_slice::<_, u32>(std::slice::from_ref(layout)) {
+                key.u32(word);
+            }
+        });
         match front {
             FrontPass::Hanatos2025 {
                 tc_lut,
@@ -581,6 +587,7 @@ mod tests {
 
     fn fixture<'a>(image: &'a ImageBuf, lut: &'a TcLut) -> FilmChainParams<'a> {
         FilmChainParams {
+            border_135: None,
             image,
             front: FrontPass::Hanatos2025 {
                 tc_lut: lut,

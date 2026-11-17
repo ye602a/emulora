@@ -682,6 +682,7 @@ impl Pipeline {
         consume: impl FnOnce(&spektrafilm_gpu::FilmChainParams<'_>) -> R,
     ) -> Result<Option<R>, spektrafilm_gpu::output::OutputError> {
         spektrafilm_gpu::output::validate_rgb_image(image)?;
+        let border = self.prepare_border_135(image)?;
         if self.tc_lut.is_none() && self.mallett_core.is_none() {
             return Ok(None);
         }
@@ -692,7 +693,20 @@ impl Pipeline {
             &self.print_illuminant,
             self.print_exposure_factor,
         );
-        Ok(self.with_gpu_params(image, &color_ref, consume))
+        Ok(self.with_gpu_params(image, border, &color_ref, consume))
+    }
+
+    fn prepare_border_135(
+        &self,
+        image: &ImageBuf,
+    ) -> Result<Option<spektrafilm_gpu::FilmBorderGpuParams>, spektrafilm_gpu::output::OutputError> {
+        if let Some(border) = self.params.border_135 {
+            return border.prepare_gpu(
+                [image.width, image.height],
+                self.params.camera.film_format_mm,
+            );
+        }
+        Ok(None)
     }
 
     /// Resize the working image by `io.upscale_factor` (bicubic), mirroring
@@ -734,13 +748,15 @@ impl Pipeline {
         backend: &dyn ComputeBackend,
         color_ref: &crate::color_reference::ColorReference,
     ) -> Option<ImageBuf> {
-        self.with_gpu_params(image, color_ref, |params| backend.try_run_film_chain(params))
+        let border = self.prepare_border_135(image).ok()?;
+        self.with_gpu_params(image, border, color_ref, |params| backend.try_run_film_chain(params))
             .flatten()
     }
 
     fn with_gpu_params<R>(
         &self,
         image: &ImageBuf,
+        border_135: Option<spektrafilm_gpu::FilmBorderGpuParams>,
         color_ref: &crate::color_reference::ColorReference,
         consume: impl FnOnce(&spektrafilm_gpu::FilmChainParams<'_>) -> R,
     ) -> Option<R> {
@@ -1222,12 +1238,14 @@ impl Pipeline {
 
         // Camera diffusion filter plan (downsampled sum-of-Gaussians) for the
         // resident chain. `None` when the filter is a no-op.
+        let [raster_width, raster_height] =
+            border_135.map_or([image.width, image.height], |border| border.canvas);
         let diffusion = if self.params.camera.diffusion_filter.active {
             spektrafilm_model::diffusion::diffusion_gpu_plan(
                 &self.params.camera.diffusion_filter.to_model(),
                 pix_um as f64,
-                image.width,
-                image.height,
+                raster_width,
+                raster_height,
             )
         } else {
             None
@@ -1238,8 +1256,8 @@ impl Pipeline {
                 spektrafilm_model::diffusion::diffusion_gpu_plan(
                     &self.params.enlarger.diffusion_filter.to_model(),
                     pix_um as f64,
-                    image.width,
-                    image.height,
+                    raster_width,
+                    raster_height,
                 )
             } else {
                 None
@@ -1247,6 +1265,7 @@ impl Pipeline {
 
         let params = spektrafilm_gpu::FilmChainParams {
             image,
+            border_135,
             front,
             film_log_exposure: &film_log_exp,
             film_density_curves_normalized: &film_curves_norm,

@@ -7,6 +7,9 @@ mod grain_iir;
 #[cfg(feature = "wgpu-backend")]
 #[path = "film_output.rs"]
 mod film_output;
+#[cfg(feature = "wgpu-backend")]
+#[path = "border_135_shaders.rs"]
+mod border_135_shaders;
 #[cfg(all(test, feature = "wgpu-backend"))]
 #[path = "work_image_tests.rs"]
 mod work_image_tests;
@@ -133,6 +136,15 @@ impl GrainReference {
             row_y: [matrix[3], matrix[4], matrix[5], 0.0],
             shape: [width, source[0], source[1], 1],
         }
+    }
+
+    fn in_canvas(mut self, border: &crate::FilmBorderGpuParams) -> Self {
+        let [left, top, _, _] = border.content;
+        for row in [&mut self.row_x, &mut self.row_y] {
+            row[2] -= row[0] * left as f32 + row[1] * top as f32;
+        }
+        self.shape[0] = border.canvas[0];
+        self
     }
 }
 
@@ -1047,10 +1059,14 @@ impl WgpuBackend {
             -> Result<Encoded, OutputError>,
         finish: impl FnOnce(Encoded) -> Result<R, OutputError>,
     ) -> Result<R, OutputError> {
+        use border_135_shaders as shaders;
         use wgpu::util::DeviceExt;
         options.check_cancelled()?;
+        let [width, height] = p.border_135.as_ref().map_or(
+            [p.image.width, p.image.height], |border| border.canvas,
+        );
         if let Some(region) = region {
-            region.validate(p.image.width, p.image.height)?;
+            region.validate(width, height)?;
         }
         let t_start = std::time::Instant::now();
         // Pull all references into locals so the existing body below
@@ -1074,13 +1090,18 @@ impl WgpuBackend {
         let scan_normalization = p.scan_normalization;
         let scan_xyz_to_rgb = p.scan_xyz_to_rgb;
 
-        let channels = crate::output::validate_rgb_image(image)?;
+        let input_channels = crate::output::validate_rgb_image(image)?;
+        let channels = if p.border_135.is_some() {
+            output_channel_count(width, height)?
+        } else {
+            input_channels
+        };
         let limits = self.device.limits();
         if channels as u64 * 4 > limits.max_buffer_size
             || channels as u64 * 4 > limits.max_storage_buffer_binding_size as u64
             || (channels / 3).div_ceil(1024) > limits.max_compute_workgroups_per_dimension
-            || image.width.div_ceil(16) > limits.max_compute_workgroups_per_dimension
-            || image.height.div_ceil(16) > limits.max_compute_workgroups_per_dimension
+            || width.div_ceil(16) > limits.max_compute_workgroups_per_dimension
+            || height.div_ceil(16) > limits.max_compute_workgroups_per_dimension
         {
             return Err(OutputError::DeviceLimitExceeded);
         }
@@ -1096,6 +1117,9 @@ impl WgpuBackend {
         }
         let n_pixels = channels / 3;
         let img_bytes = n_pixels as usize * 3 * 4;
+        let grain_reference = self.grain_reference.map(|reference| {
+            p.border_135.as_ref().map_or(reference, |border| reference.in_canvas(border))
+        });
 
         // Synthetic probes use this same device and compiled pipelines, but
         // never touch a photo's retained density or its publication ticket.
@@ -1105,7 +1129,7 @@ impl WgpuBackend {
             NegativeLookup::Bypass
         } else {
             self.negative_cache.lock().unwrap().begin_prepared(
-                p, options.source, self.grain_reference.as_ref(), img_bytes as u64,
+                p, options.source, grain_reference.as_ref(), img_bytes as u64,
             )
         };
         let (negative_hit, mut negative_publication) = match lookup {
@@ -1164,10 +1188,11 @@ impl WgpuBackend {
                 mapped_at_creation: true,
             });
             if let Some(input) = input_f32.as_ref() {
-                buf.slice(..)
+                let bytes = bytemuck::cast_slice(input);
+                buf.slice(..bytes.len() as u64)
                     .get_mapped_range_mut()
                     .expect("mapped input buffer")
-                    .copy_from_slice(bytemuck::cast_slice(input));
+                    .copy_from_slice(bytes);
             }
             buf.unmap();
             buf
@@ -1216,6 +1241,12 @@ impl WgpuBackend {
                     usage: wgpu::BufferUsages::UNIFORM,
                 })
         };
+        let border_uniform = p.border_135.as_ref().map(|layout| {
+            mk_uniform("film_border_135", bytemuck::bytes_of(layout))
+        });
+        let has_border = border_uniform.is_some();
+        let print_border = has_border && !p.scan_film;
+        let scan_border = has_border && p.scan_film;
 
         // ── Pre-compute every static GPU-side buffer ─────────────────────
         // Film spectral data (for printing pass).
@@ -1305,8 +1336,8 @@ impl WgpuBackend {
             print_normalization_factor as f32
         };
         let print_params = PrintParams {
-            width: image.width,
-            height: image.height,
+            width,
+            height,
             n_wavelengths: film_channel_density.len() as u32,
             normalization_factor: print_norm_for_shader,
             preflash: [preflash[0] as f32, preflash[1] as f32, preflash[2] as f32],
@@ -1315,8 +1346,8 @@ impl WgpuBackend {
         let print_params_buf = mk_uniform("print_params", bytemuck::bytes_of(&print_params));
 
         let print_density_params = DensityParams {
-            width: image.width,
-            height: image.height,
+            width,
+            height,
             k: print_log_exposure.len() as u32,
             uniform_grid: if is_uniform(print_log_exposure) { 1 } else { 0 },
             gamma_inv: [(1.0 / print_gamma) as f32; 3],
@@ -1349,8 +1380,8 @@ impl WgpuBackend {
             None => [1.0, 0.0, 0.0, skip_clamp],
         };
         let scan_params = ScanParams {
-            width: image.width,
-            height: image.height,
+            width,
+            height,
             n_wavelengths: scan_cd_src.len() as u32,
             normalization: scan_normalization as f32,
             col0: [s[0][0] as f32, s[1][0] as f32, s[2][0] as f32, 0.0],
@@ -1372,8 +1403,9 @@ impl WgpuBackend {
                 wgpu::BufferBindingType::Storage { read_only: false },
             ],
         );
-        let print_pipe = self.cached_pipeline(
-            include_str!("../../spektrafilm-shaders/wgsl/print_spectral.wgsl"),
+        let print_pipe = self.cached_border_pipeline(
+            shaders::PRINT,
+            shaders::PRINT_BORDER,
             &[
                 wgpu::BufferBindingType::Uniform,
                 wgpu::BufferBindingType::Storage { read_only: true },
@@ -1382,10 +1414,13 @@ impl WgpuBackend {
                 wgpu::BufferBindingType::Storage { read_only: true },
                 wgpu::BufferBindingType::Storage { read_only: true },
                 wgpu::BufferBindingType::Storage { read_only: false },
+                wgpu::BufferBindingType::Uniform,
             ],
+            print_border,
         );
-        let scan_pipe = self.cached_pipeline(
-            include_str!("../../spektrafilm-shaders/wgsl/scan_spectral.wgsl"),
+        let scan_pipe = self.cached_border_pipeline(
+            shaders::SCAN,
+            shaders::SCAN_BORDER,
             &[
                 wgpu::BufferBindingType::Uniform,
                 wgpu::BufferBindingType::Storage { read_only: true },
@@ -1396,7 +1431,9 @@ impl WgpuBackend {
                 wgpu::BufferBindingType::Storage { read_only: true },
                 wgpu::BufferBindingType::Storage { read_only: true },
                 wgpu::BufferBindingType::Storage { read_only: false },
+                wgpu::BufferBindingType::Uniform,
             ],
+            scan_border,
         );
 
         // ── Build bind groups (per dispatch, but no buffer creation) ─────
@@ -1436,8 +1473,8 @@ impl WgpuBackend {
                 crate::FrontPass::Mallett2019 { matrix } => (matrix, 0u32),
             };
             let front_params = FrontParams {
-                width: image.width,
-                height: image.height,
+                width,
+                height,
                 lut_size: front_lut_size,
                 _pad: 0,
                 col0: [m[0][0] as f32, m[1][0] as f32, m[2][0] as f32, 0.0],
@@ -1447,8 +1484,8 @@ impl WgpuBackend {
             let front_params_buf = mk_uniform("front_params", bytemuck::bytes_of(&front_params));
 
             let film_density_params = DensityParams {
-                width: image.width,
-                height: image.height,
+                width,
+                height,
                 k: film_log_exposure.len() as u32,
                 uniform_grid: if is_uniform(film_log_exposure) { 1 } else { 0 },
                 gamma_inv: [(1.0 / film_gamma) as f32; 3],
@@ -1464,14 +1501,17 @@ impl WgpuBackend {
                 crate::FrontPass::Hanatos2025 { tc_lut, .. } => {
                     let tc_lut_f32: Vec<f32> = tc_lut.data.iter().map(|&v| v as f32).collect();
                     let tc_lut_buf = mk_storage("tc_lut", bytemuck::cast_slice(&tc_lut_f32));
-                    let pipe = self.cached_pipeline(
-                        include_str!("../../spektrafilm-shaders/wgsl/hanatos2025_rgb_to_raw.wgsl"),
+                    let pipe = self.cached_border_pipeline(
+                        shaders::HANATOS,
+                        shaders::HANATOS_BORDER,
                         &[
                             wgpu::BufferBindingType::Uniform,
                             wgpu::BufferBindingType::Storage { read_only: true },
                             wgpu::BufferBindingType::Storage { read_only: true },
                             wgpu::BufferBindingType::Storage { read_only: false },
+                            wgpu::BufferBindingType::Uniform,
                         ],
+                        has_border,
                     );
                     let bg = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
                         label: Some("bg_hanatos"),
@@ -1493,18 +1533,22 @@ impl WgpuBackend {
                                 binding: 3,
                                 resource: buf_b.as_entire_binding(),
                             }, // raw_out
-                        ],
+                            shaders::uniform_entry(border_uniform.as_ref(), &front_params_buf, 4),
+                        ][..4 + usize::from(has_border)],
                     });
                     (pipe, bg, Some(tc_lut_buf))
                 }
                 crate::FrontPass::Mallett2019 { .. } => {
-                    let pipe = self.cached_pipeline(
-                        include_str!("../../spektrafilm-shaders/wgsl/mallett_rgb_to_raw.wgsl"),
+                    let pipe = self.cached_border_pipeline(
+                        shaders::MALLETT,
+                        shaders::MALLETT_BORDER,
                         &[
                             wgpu::BufferBindingType::Uniform,
                             wgpu::BufferBindingType::Storage { read_only: true },
                             wgpu::BufferBindingType::Storage { read_only: false },
+                            wgpu::BufferBindingType::Uniform,
                         ],
+                        has_border,
                     );
                     let bg = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
                         label: Some("bg_mallett"),
@@ -1522,7 +1566,8 @@ impl WgpuBackend {
                                 binding: 2,
                                 resource: buf_b.as_entire_binding(),
                             }, // raw_out
-                        ],
+                            shaders::uniform_entry(border_uniform.as_ref(), &front_params_buf, 3),
+                        ][..3 + usize::from(has_border)],
                     });
                     (pipe, bg, None)
                 }
@@ -1633,7 +1678,8 @@ impl WgpuBackend {
                     binding: 6,
                     resource: buf_b.as_entire_binding(),
                 }, // log_raw_print
-            ],
+                shaders::uniform_entry(border_uniform.as_ref(), &print_params_buf, 7),
+            ][..7 + usize::from(print_border)],
         });
         let bg_density_print = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("bg_density_print"),
@@ -1701,7 +1747,8 @@ impl WgpuBackend {
                     binding: 8,
                     resource: buf_b.as_entire_binding(),
                 }, // final rgb
-            ],
+                shaders::uniform_entry(border_uniform.as_ref(), &scan_params_buf, 9),
+            ][..9 + usize::from(scan_border)],
         });
 
         // ── Halation auxiliary buffers + bind groups (only if active) ────
@@ -1713,8 +1760,8 @@ impl WgpuBackend {
             build_halation_state(
                 &self.device,
                 hp,
-                image.width,
-                image.height,
+                width,
+                height,
                 &buf_a,
                 &buf_b,
                 self,
@@ -1732,7 +1779,7 @@ impl WgpuBackend {
         // before halation, matching the CPU filming order. Owns its own
         // downsampled scratch buffers.
         let diffusion_state = p.diffusion.as_ref().filter(|_| negative_hit.is_none()).map(|plan| {
-            build_diffusion_state(&self.device, plan, image.width, image.height, &buf_b, self)
+            build_diffusion_state(&self.device, plan, width, height, &buf_b, self)
         });
 
         let camera_lens_blur_state = p.camera_lens_blur_px.filter(|_| negative_hit.is_none()).and_then(|sigma| {
@@ -1740,8 +1787,8 @@ impl WgpuBackend {
                 build_simple_blur_state(
                     &self.device,
                     sigma,
-                    image.width,
-                    image.height,
+                    width,
+                    height,
                     &buf_b,
                     &buf_a,
                     "camera_lens",
@@ -1805,14 +1852,14 @@ impl WgpuBackend {
             }
             // 1b. Camera lens blur on raw, after camera diffusion and before halation.
             if let Some(bs) = camera_lens_blur_state.as_ref() {
-                let wg_xy = (image.width.div_ceil(16), image.height.div_ceil(16));
+                let wg_xy = (width.div_ceil(16), height.div_ceil(16));
                 bs.encode_passes(&mut encoder, wg_xy, &buf_b);
             }
             // 1b. Halation in-place on buf_b. Uses buf_a as blur scratch (the
             //     input RGB image is no longer needed), buf_c / buf_d for the
             //     scatter outputs and halation accumulator.
             if let Some(hs) = halation_state.as_ref() {
-                let wg_xy = (image.width.div_ceil(16), image.height.div_ceil(16));
+                let wg_xy = (width.div_ceil(16), height.div_ceil(16));
                 hs.encode_passes(&mut encoder, n_pixels, workgroup_size, wg_xy, &mut |encoder| {
                     if detailed {
                         stage_wait_ms += checkpoint(encoder)?;
@@ -1838,8 +1885,8 @@ impl WgpuBackend {
                 build_dir_state(
                     &self.device,
                     dp,
-                    image.width,
-                    image.height,
+                    width,
+                    height,
                     &buf_a,
                     &buf_b,
                     self,
@@ -1858,7 +1905,7 @@ impl WgpuBackend {
             // 3b. DIR couplers (operates on buf_a, mutates buf_b → log_raw_corrected,
             //     re-interps density curve back into buf_a).
             if let Some(ds) = dir_state.as_ref() {
-                let wg_xy = (image.width.div_ceil(16), image.height.div_ceil(16));
+                let wg_xy = (width.div_ceil(16), height.div_ceil(16));
                 ds.encode_passes(&mut encoder, n_pixels, workgroup_size, wg_xy, &mut |encoder| {
                     if detailed {
                         stage_wait_ms += checkpoint(encoder)?;
@@ -1880,16 +1927,17 @@ impl WgpuBackend {
                 build_grain_state(
                     &self.device,
                     gp,
-                    image.width,
-                    image.height,
+                    width,
+                    height,
                     &buf_a,
                     &buf_b,
                     self,
+                    grain_reference.unwrap_or_default(),
                 )
             });
             // 3c. Grain (in-place on buf_a, optional post-blur via buf_b mid).
             if let Some(gs) = grain_state.as_ref() {
-                let wg_xy = (image.width.div_ceil(16), image.height.div_ceil(16));
+                let wg_xy = (width.div_ceil(16), height.div_ceil(16));
                 gs.encode_passes(&mut encoder, n_pixels, workgroup_size, wg_xy);
             }
         }
@@ -1936,8 +1984,8 @@ impl WgpuBackend {
             build_unsharp_state(
                 &self.device,
                 up,
-                image.width,
-                image.height,
+                width,
+                height,
                 &buf_a,
                 &buf_b,
                 self,
@@ -1963,8 +2011,8 @@ impl WgpuBackend {
             build_glare_state(
                 &self.device,
                 gp,
-                image.width,
-                image.height,
+                width,
+                height,
                 &buf_a,
                 &buf_b,
                 self,
@@ -1976,8 +2024,8 @@ impl WgpuBackend {
                 build_simple_blur_state(
                     &self.device,
                     sigma,
-                    image.width,
-                    image.height,
+                    width,
+                    height,
                     &buf_b,
                     &buf_a,
                     "scanner_lens",
@@ -1990,7 +2038,7 @@ impl WgpuBackend {
             build_log_to_linear_state(&self.device, n_pixels, print_exposure_scale, &buf_b, self)
         });
         let enlarger_diffusion_state = p.enlarger_diffusion.as_ref().map(|plan| {
-            build_diffusion_state(&self.device, plan, image.width, image.height, &buf_b, self)
+            build_diffusion_state(&self.device, plan, width, height, &buf_b, self)
         });
         let enlarger_linear_to_log_state = p
             .enlarger_diffusion
@@ -2026,7 +2074,7 @@ impl WgpuBackend {
         dispatch(&mut encoder, &scan_pipe.pipeline, &bg_scan, n_pixels);
         // 6b. Glare (in place on buf_b).
         if let Some(gs) = glare_state.as_ref() {
-            let wg_xy = (image.width.div_ceil(16), image.height.div_ceil(16));
+            let wg_xy = (width.div_ceil(16), height.div_ceil(16));
             gs.encode_passes(&mut encoder, n_pixels, workgroup_size, wg_xy);
         }
         // 6c. Output gamut compression (in place on buf_b) — after glare,
@@ -2036,13 +2084,13 @@ impl WgpuBackend {
         }
         // 6d. Scanner lens blur — after glare/gamut, before unsharp.
         if let Some(bs) = scanner_lens_blur_state.as_ref() {
-            let wg_xy = (image.width.div_ceil(16), image.height.div_ceil(16));
+            let wg_xy = (width.div_ceil(16), height.div_ceil(16));
             bs.encode_passes(&mut encoder, wg_xy, &buf_b);
         }
         // 6d. Unsharp mask — last in-flight pass. Writes the final image
         //     back to buf_b so the readback path below is unchanged.
         if let Some(us) = unsharp_state.as_ref() {
-            let wg_xy = (image.width.div_ceil(16), image.height.div_ceil(16));
+            let wg_xy = (width.div_ceil(16), height.div_ceil(16));
             us.encode_passes(
                 &mut encoder,
                 n_pixels,
@@ -2060,9 +2108,9 @@ impl WgpuBackend {
         // Region extraction is strictly downstream of the complete physical
         // result. Consumers record copies/compute on this same encoder.
         let region_output = region.map(|region| {
-            self.encode_display_region(&mut encoder, &buf_b, image.width, image.height, region)
+            self.encode_display_region(&mut encoder, &buf_b, width, height, region)
         }).transpose()?;
-        let (width, height) = region.map_or((image.width, image.height), |r| (r.width, r.height));
+        let (width, height) = region.map_or((width, height), |r| (r.width, r.height));
         options.check_cancelled()?;
         let encoded = consume(&self.device, &mut encoder, FilmOutput {
             buffer: region_output.as_ref().unwrap_or(&buf_b),
@@ -2165,6 +2213,20 @@ impl WgpuBackend {
         CachedPipelineRef {
             pipeline: cached.pipeline.clone(),
             layout: cached.bind_group_layout.clone(),
+        }
+    }
+
+    fn cached_border_pipeline(
+        &self,
+        standard: &'static str,
+        bordered: &'static str,
+        layout: &[wgpu::BufferBindingType],
+        enabled: bool,
+    ) -> CachedPipelineRef {
+        if enabled {
+            self.cached_pipeline(bordered, layout)
+        } else {
+            self.cached_pipeline(standard, &layout[..layout.len() - 1])
         }
     }
 }
@@ -2327,7 +2389,7 @@ impl ComputeBackend for WgpuBackend {
         let output_bytes = vec![0u8; n_pixels as usize * 3 * 4];
 
         let result = self.dispatch_compute(
-            include_str!("../../spektrafilm-shaders/wgsl/scan_spectral.wgsl"),
+            border_135_shaders::SCAN,
             &[
                 GpuBuffer::uniform(bytemuck::bytes_of(&params)),
                 GpuBuffer::storage_ro(bytemuck::cast_slice(&input_f32)),
@@ -2396,7 +2458,7 @@ impl ComputeBackend for WgpuBackend {
         let output_bytes = vec![0u8; n_pixels as usize * 3 * 4];
 
         let result = self.dispatch_compute(
-            include_str!("../../spektrafilm-shaders/wgsl/print_spectral.wgsl"),
+            border_135_shaders::PRINT,
             &[
                 GpuBuffer::uniform(bytemuck::bytes_of(&params)),
                 GpuBuffer::storage_ro(bytemuck::cast_slice(&input_f32)),
@@ -2470,7 +2532,7 @@ impl ComputeBackend for WgpuBackend {
         let output_bytes = vec![0u8; n_pixels as usize * 3 * 4];
 
         let result = self.dispatch_compute(
-            include_str!("../../spektrafilm-shaders/wgsl/hanatos2025_rgb_to_raw.wgsl"),
+            border_135_shaders::HANATOS,
             &[
                 GpuBuffer::uniform(bytemuck::bytes_of(&params)),
                 GpuBuffer::storage_ro(bytemuck::cast_slice(&input_f32)),
@@ -5387,11 +5449,12 @@ fn build_grain_state(
     buf_a: &wgpu::Buffer,
     buf_b: &wgpu::Buffer,
     backend: &WgpuBackend,
+    reference: GrainReference,
 ) -> GrainState {
     use wgpu::util::DeviceExt;
     if gp.layers.is_some() {
         return GrainState::Layered(layered_grain::LayeredGrainState::new(
-            device, gp, width, height, buf_a, buf_b, backend,
+            device, gp, width, height, buf_a, buf_b, backend, reference,
         ));
     }
     let n_pixels = (width as usize) * (height as usize);
@@ -5438,7 +5501,7 @@ fn build_grain_state(
             gp.grain_uniformity[2],
             0.0,
         ],
-        reference: backend.grain_reference.unwrap_or_default(),
+        reference,
     };
     let params_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("grain_params"),

@@ -123,7 +123,7 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     }
 
     let base = pixel_idx * 3u;
-    let rgb = vec3<f32>(rgb_in[base], rgb_in[base + 1u], rgb_in[base + 2u]);
+    let rgb = exposure_rgb(pixel_idx);
 
     // RGB → CAT-adapted XYZ via the combined matrix (CAT02 + colorspace).
     let xyz = params.rgb_to_xyz_adapted * rgb;

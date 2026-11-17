@@ -56,6 +56,7 @@ impl LayeredGrainState {
         a: &wgpu::Buffer,
         b: &wgpu::Buffer,
         backend: &WgpuBackend,
+        reference: GrainReference,
     ) -> Self {
         let g = gp.layers.as_ref().expect("layered grain parameters");
         let blur_plan = GrainBlurPlan::new(gp).expect("layered grain parameters");
@@ -91,7 +92,7 @@ impl LayeredGrainState {
                 reference: GrainReference,
             }
             let params = P {
-                reference: backend.grain_reference.unwrap_or_else(bytemuck::Zeroable::zeroed),
+                reference,
                 shape: [n, width, height, gp.base_seed],
                 control: [g.curve_len, g.positive as u32, op, layer],
                 values,
@@ -299,7 +300,10 @@ mod tests {
             usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
-        let state = super::super::build_grain_state(&backend.device, gp, width, height, &a, &b, backend);
+        let state = super::super::build_grain_state(
+            &backend.device, gp, width, height, &a, &b, backend,
+            backend.grain_reference.unwrap_or_default(),
+        );
         let mut first: Option<Vec<f32>> = None;
         for _ in 0..2 {
             backend
@@ -416,6 +420,7 @@ mod tests {
         // Small, valid spectral inputs keep this a public full-chain check,
         // without relying on a particular film profile or malformed dummy data.
         let chain = |grain| crate::FilmChainParams {
+            border_135: None,
             image: &input,
             front: crate::FrontPass::Mallett2019 {
                 matrix: [[1., 0., 0.], [0., 1., 0.], [0., 0., 1.]],
