@@ -28,6 +28,8 @@ Implement basic gate mask, film presence, perforations and edge exposure. Spektr
 ## Batch 4 — Audit existing stocks
 Audit profiles, stock setup, print pairing, monochrome/positive/negative classes and calibration coverage. Choose a small number of valuable stocks for response and reference-image validation. Loadability alone does not mean all output paths are validated. Do not bulk-enable stocks to inflate counts.
 
+The resident paper route was exercised with existing Portra 160, 400 and 800 profiles and Portra Endura at −1.5, 0 and +1.5 EV. All channel ramps were monotonic. At 0 EV, the three 18% patches agreed to one rounded RGB8 code across profiles. Skin, green foliage and a saturated red subject were inspected in photographs. Portra 160 showed a modest reduction in red saturation while retaining a similar neutral and skin response. Portra 800 remains a valid candidate for a native-size grain and low-light comparison. The available profiles and calibration defaults are retained.
+
 ## Batch 5 — Research monochrome profile conversion
 Evaluate SpektraLab's Tri-X 400, T-Max 100, Acros II and HP5 Plus. Their three-column expanded representation differs semantically from RS's single-column monochrome representation. First create a conversion specification, reproducible script, density-conservation and response validation. Ilford Multigrade IV RC is a multi-emulsion variable-contrast paper and needs separate modeling.
 
