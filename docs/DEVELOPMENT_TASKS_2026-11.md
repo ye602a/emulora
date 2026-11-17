@@ -10,6 +10,8 @@ Run applicable CPU/GPU, Vulkan, real-photo, device-lifecycle, cache, IIR, grain,
 ## Batch 1 — Fuse blur final-axis accumulation
 Investigate whether the current blur→add_scaled path writes an intermediate that can be avoided. Use the darktable d996f081 final-axis accumulation idea as a reference. Preserve kernel, radius, sampling, boundaries, precision and parameter semantics. Validate CPU/GPU output, accepted reference images, max/RMS error, pass count, traffic, peak resources and cold/warm timings. Never claim speedup without measurements.
 
+The Windows Vulkan experiment fused the vertical halation blur into the existing bounce accumulator. Three bounces saved three dispatches and 72 bytes of logical intermediate traffic per pixel. On a GTX 1080 Ti (582.78), repeated warm medians were 41.85 ms versus 47.61 ms for a 1601×1067 synthetic render and 239.41 ms versus 243.30 ms for a 2615×3269 photograph. Peak memory above idle was the same in the sampled run. The photograph's largest absolute f32 difference was 7.33e-6 and RMS difference was 3.75e-8. The existing passes were retained.
+
 ## Batch 2 — Basic 135 border geometry contract
 Define host-independent data and coordinates:
 - separate content and film-canvas dimensions;
