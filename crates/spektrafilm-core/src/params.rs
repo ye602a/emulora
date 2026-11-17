@@ -695,6 +695,8 @@ impl Default for SettingsParams {
 /// Top-level runtime parameters. Combines all sub-parameter groups.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RuntimeParams {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub border_135: Option<crate::border_135::Border135>,
     #[serde(default)]
     pub camera: CameraParams,
     #[serde(default)]
@@ -714,6 +716,7 @@ pub struct RuntimeParams {
 impl Default for RuntimeParams {
     fn default() -> Self {
         Self {
+            border_135: None,
             camera: CameraParams::default(),
             enlarger: EnlargerParams::default(),
             scanner: ScannerParams::default(),
