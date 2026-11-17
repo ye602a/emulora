@@ -38,6 +38,8 @@ A fixed [SpektraLab data revision](https://github.com/JamesQiu2005/SpektraLab/tr
 ## Batch 6 — CPU/GPU diffusion differences
 Existing differences predate recent integration: CPU uses per-channel radii and a multi-Gaussian tail approximation; parts of GPU use averaged radii and a different tail approximation. Compare point spread, line spread, step edges, grayscale, RGB patches and real photographs. Quantify spatial response, tail energy, color fringes and visibility. If changes are needed, create a versioned model separately from performance work.
 
+On GTX 1080 Ti (582.78), a 5 µm sample of existing color-negative scatter and halation gave CPU versus Vulkan point-response 95% radii of R 65/30, G 45/25 and B 40/25 µm. The tails beyond 20 µm carried 26.5–35.0% versus 8.5–14.1% of the respective kernels. The tested Black Pro-Mist setting had closer 95% radii (R 335/335, G 265/265, B 170/175 µm) with a red edge-response difference. For a 513×513 real crop, comparing the effect-on minus effect-off print within each backend put the differences near 1.0–1.5 display codes RMS. Local red peaks were 34 codes for scatter/halation and 16 for lens diffusion. An optical model revision can be evaluated independently against these fixed inputs.
+
 ## Batch 7 — Offline grain and illuminant research
 Grain: study negative-density domain, density bins, 2-D power spectrum and spatial correlation. Color-dye grain needs its own analysis; do not reuse monochrome silver-grain conclusions.
 Illuminants: study CIE Y normalization of scene, film and reference spectra.
