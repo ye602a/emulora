@@ -33,6 +33,8 @@ The resident paper route was exercised with existing Portra 160, 400 and 800 pro
 ## Batch 5 — Research monochrome profile conversion
 Evaluate SpektraLab's Tri-X 400, T-Max 100, Acros II and HP5 Plus. Their three-column expanded representation differs semantically from RS's single-column monochrome representation. First create a conversion specification, reproducible script, density-conservation and response validation. Ilford Multigrade IV RC is a multi-emulsion variable-contrast paper and needs separate modeling.
 
+A fixed [SpektraLab data revision](https://github.com/JamesQiu2005/SpektraLab/tree/1aa6f4d8a8b01fc7e1347234d5ca7649bd944e94/engine/resources_product) was converted offline. Collapse triplicated sensitivity, characteristic curves, layers and CDF parameters to one channel. Sum the three silver-density weights and retain the exposure axis and base density. The four profiles each preserve 256 response points and 81 wavelengths. Maximum double-precision differences were 4.44e-16 in optical density and 1.11e-16 in transmission. The stock loader and a diagnostic Vulkan ramp passed for all four. The fixed revision credits Hanze Qiu and lists the data under CC BY-SA 4.0. Production stock and multi-emulsion paper resources are a separate scope.
+
 ## Batch 6 — CPU/GPU diffusion differences
 Existing differences predate recent integration: CPU uses per-channel radii and a multi-Gaussian tail approximation; parts of GPU use averaged radii and a different tail approximation. Compare point spread, line spread, step edges, grayscale, RGB patches and real photographs. Quantify spatial response, tail energy, color fringes and visibility. If changes are needed, create a versioned model separately from performance work.
 
