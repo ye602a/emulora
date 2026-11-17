@@ -49,3 +49,5 @@ Two Vulkan seeds at four flat density levels and 6 µm sampling were measured in
 
 ## Batch 8 — Later features
 Evaluate edge codes/frame numbers/dates, 120/half-frame/XPan, complex light leaks, special perforations, variable-contrast paper and rem-jet optical behavior individually. Define physical stage, parameter contract, cache dependencies, resource cost, provenance and license before implementation.
+
+See the [extension studies](EXTENDED_FILM_AND_PRINT.md) for the candidate contracts, cost estimates, provenance and acceptance cases.
