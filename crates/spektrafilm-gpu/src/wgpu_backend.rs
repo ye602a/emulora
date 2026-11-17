@@ -138,12 +138,13 @@ impl GrainReference {
         }
     }
 
-    fn in_canvas(mut self, border: &crate::FilmBorderGpuParams) -> Self {
-        let [left, top, _, _] = border.content;
+    fn in_canvas(mut self, [left, top]: [u32; 2], width: u32) -> Self {
         for row in [&mut self.row_x, &mut self.row_y] {
             row[2] -= row[0] * left as f32 + row[1] * top as f32;
         }
-        self.shape[0] = border.canvas[0];
+        self.shape[0] = width;
+        // Continue the stochastic field beyond the source under physical film.
+        self.shape[3] = 2;
         self
     }
 }
@@ -1118,7 +1119,10 @@ impl WgpuBackend {
         let n_pixels = channels / 3;
         let img_bytes = n_pixels as usize * 3 * 4;
         let grain_reference = self.grain_reference.map(|reference| {
-            p.border_135.as_ref().map_or(reference, |border| reference.in_canvas(border))
+            p.border_135.as_ref().map_or(reference, |border| {
+                let [left, top, _, _] = border.content;
+                reference.in_canvas([left, top], border.canvas[0])
+            })
         });
 
         // Synthetic probes use this same device and compiled pipelines, but

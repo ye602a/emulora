@@ -388,6 +388,32 @@ mod tests {
     }
 
     #[test]
+    fn border_continues_source_grain_without_repeating_the_edge() {
+        let Some(mut backend) = WgpuBackend::new() else {
+            assert!(std::env::var_os("SPEKTRAFILM_REQUIRE_GPU").is_none());
+            return;
+        };
+        let reference = GrainReference::new([1., 0., 0., 0., 1., 0.], [32, 32], 32);
+        for sampling in [None, Some([2., 1.])] {
+            let mut gp = parameters();
+            gp.layers.as_mut().unwrap().output_sampling = sampling;
+            backend.configure_grain_reference(Some(reference));
+            let original = render_size(&backend, &gp, [32, 32]);
+            backend.configure_grain_reference(Some(reference.in_canvas([8, 0], 48)));
+            let expanded = render_size(&backend, &gp, [48, 32]);
+            for (old_row, new_row) in original.chunks_exact(32*3).zip(expanded.chunks_exact(48*3)) {
+                assert_eq!(old_row, &new_row[8*3..40*3]);
+            }
+            for x in [0, 46] {
+                assert!((0..32).any(|y| {
+                    let i = (y*48+x)*3;
+                    expanded[i..i+3] != expanded[i+3..i+6]
+                }));
+            }
+        }
+    }
+
+    #[test]
     fn actual_gpu_multilayer_requires_iir_capability_before_cache_or_consumer() {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::VULKAN,
