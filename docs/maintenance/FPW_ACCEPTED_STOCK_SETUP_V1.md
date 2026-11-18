@@ -60,13 +60,12 @@ The required order is: validate/resolve stock → apply metadata halation defaul
 → ordinary `new_with_spectral` calibration → apply accepted slide DIR values.
 The ordinary constructor's existing B&W channel-0 normalization runs between the
 two steps. A calibrated pipeline retains the resolved version/stock selection.
-`with_params` reapplies halation before its ordinary film-specific normalization
-and slide DIR after it, preserving both slide values and B&W broadcasting.
-
-This does not expand `with_params` into a recalibration API. Its existing rule
-still applies: changes that affect spectral calibration require a new pipeline.
-For runtime-only edits, start from the calibrated `pipeline.params.clone()` so
-resolved neutral filters and other calibration inputs are retained.
+On a cache hit, `Pipeline::refreshed(params)` reapplies halation before film-specific
+normalization and slide DIR after it. The caller can supply its original recipe with
+runtime edits. RS restores the database neutral pack selected during calibration.
+A return value of `None` asks the caller to run the same constructor again with the
+original profiles, resource directory and accepted setup. Propagate any constructor
+error. A changed film density gamma, for example, needs a new midgray factor.
 Changing profile or accepted setup also requires a new pipeline. A host retaining
 calibrated pipelines includes the setup version and route in that pipeline's key.
 

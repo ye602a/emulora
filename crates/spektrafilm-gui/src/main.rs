@@ -83,7 +83,7 @@ fn main() -> eframe::Result<()> {
     eframe::run_native(
         "spektrafilm",
         options,
-        Box::new(|cc| Ok(Box::new(App::new(cc, backend, initial_image)))),
+        Box::new(|_| Ok(Box::new(App::new(backend, initial_image)))),
     )
 }
 
@@ -206,8 +206,7 @@ struct App {
     /// so the Save button can write it without re-running the pipeline.
     output_image: Option<ImageBuf>,
     output_tex: Option<egui::TextureHandle>,
-    pipeline_cache_key: Option<String>,
-    pipeline_cache: Option<Pipeline>,
+    pipeline_cache: Option<((String, String), Pipeline)>,
     last_render_ms: f32,
     last_pipeline_build_ms: f32,
     last_input_clone_ms: f32,
@@ -290,12 +289,9 @@ struct ExportJob {
 
 impl App {
     fn new(
-        cc: &eframe::CreationContext<'_>,
         backend: Arc<dyn ComputeBackend>,
         initial_image: Option<PathBuf>,
     ) -> Self {
-        let _ = cc;
-
         let data_dir = pick_data_dir();
         let (films, papers) = scan_profiles(&data_dir);
         let film_name = pick_default_stock(&films, "kodak_gold_200");
@@ -335,7 +331,6 @@ impl App {
             image: None,
             output_image: None,
             output_tex: None,
-            pipeline_cache_key: None,
             pipeline_cache: None,
             last_render_ms: 0.0,
             last_pipeline_build_ms: 0.0,
@@ -401,26 +396,26 @@ impl App {
         params: &RuntimeParams,
     ) -> Result<(Pipeline, f32), String> {
         let t = Instant::now();
-        let key = preview_pipeline_cache_key(film_name, print_name, params);
-        if self.pipeline_cache_key.as_deref() == Some(key.as_str())
-            && let Some(pipeline) = self.pipeline_cache.as_ref()
-        {
-            return Ok((pipeline.clone().with_params(params.clone()), t.elapsed().as_secs_f32() * 1000.0));
-        }
-
-        let film = profile::load_profile_by_name(&self.data_dir, film_name)
-            .map_err(|e| format!("film profile '{film_name}': {e}"))?;
         let effective_print_name = if params.io.scan_film {
             film_name
         } else {
             print_name
         };
+        let key = (film_name.to_owned(), effective_print_name.to_owned());
+        if let Some((profiles, pipeline)) = &self.pipeline_cache
+            && profiles == &key
+            && let Some(refreshed) = pipeline.refreshed(params.clone())
+        {
+            return Ok((refreshed, t.elapsed().as_secs_f32() * 1000.0));
+        }
+
+        let film = profile::load_profile_by_name(&self.data_dir, film_name)
+            .map_err(|e| format!("film profile '{film_name}': {e}"))?;
         let print = profile::load_profile_by_name(&self.data_dir, effective_print_name)
             .map_err(|e| format!("print profile '{effective_print_name}': {e}"))?;
         let pipeline = Pipeline::new_with_spectral(film, print, params.clone(), &self.data_dir)
             .map_err(|e| format!("pipeline build: {e}"))?;
-        self.pipeline_cache_key = Some(key);
-        self.pipeline_cache = Some(pipeline.clone());
+        self.pipeline_cache = Some((key, pipeline.clone()));
         Ok((pipeline, t.elapsed().as_secs_f32() * 1000.0))
     }
 
@@ -442,7 +437,9 @@ impl App {
         let film_name = self.film_name.clone();
         let print_name = self.print_name.clone();
         let mut params = self.params.clone();
-        let (pipeline_template, pipeline_build_ms) =
+        let working_factor = params.io.upscale_factor;
+        params.io.upscale_factor = 1.0;
+        let (pipeline, pipeline_build_ms) =
             match self.preview_pipeline(&film_name, &print_name, &params) {
                 Ok(p) => p,
                 Err(msg) => {
@@ -462,7 +459,6 @@ impl App {
                 // and the user gets a uselessly vague status line.
                 let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                     let t_total = Instant::now();
-                    let working_factor = params.io.upscale_factor;
                     let t_scale = Instant::now();
                     let scaled_image = if working_factor <= 0.0 || (working_factor - 1.0).abs() < 1e-6 {
                         None
@@ -470,8 +466,6 @@ impl App {
                         Some(rescale_preview_input_fast(image.clone(), working_factor))
                     };
                     let scale_ms = t_scale.elapsed().as_secs_f32() * 1000.0;
-                    params.io.upscale_factor = 1.0;
-                    let pipeline = pipeline_template.with_params(params);
                     let t = Instant::now();
                     let output = match scaled_image {
                         Some(image) => pipeline.try_process(image, backend.as_ref()),
@@ -940,7 +934,7 @@ impl App {
                 // letting it silently affect nothing.
                 if self.params.io.scan_film {
                     ui.label(
-                        egui::RichText::new("Slide film — scanned directly (no print paper).")
+                        egui::RichText::new("Film scanned directly (no print paper).")
                             .italics()
                             .small(),
                     );
@@ -1188,7 +1182,7 @@ impl App {
         egui::CollapsingHeader::new("Glare")
             .default_open(false)
             .show(ui, |ui| {
-                let g = &mut self.params.print_render.glare;
+                let g = self.params.scan_glare_mut();
                 let mut changed = false;
                 changed |= ui.checkbox(&mut g.active, "Active").changed();
                 changed |= ui
@@ -1206,56 +1200,58 @@ impl App {
             });
 
         // ── Print curves (s023 morph) ───────────────────────────────────
-        egui::CollapsingHeader::new("Print curves")
-            .default_open(false)
-            .show(ui, |ui| {
-                let m = &mut self.params.print_render.density_curves_morph;
-                let mut changed = false;
-                changed |= ui
-                    .checkbox(&mut m.active, "Morph density curves")
-                    .on_hover_text(
-                        "Rebuild the print density curves from the profile's parametric \
-                         model with coupled-gamma morphing. Off = use the stored curves.",
-                    )
-                    .changed();
-                if m.active {
+        if !self.params.io.scan_film {
+            egui::CollapsingHeader::new("Print curves")
+                .default_open(false)
+                .show(ui, |ui| {
+                    let m = &mut self.params.print_render.density_curves_morph;
+                    let mut changed = false;
                     changed |= ui
-                        .add(egui::Slider::new(&mut m.gamma_factor, 0.5..=2.0).text("Gamma"))
-                        .changed();
-                    changed |= ui
-                        .add(
-                            egui::Slider::new(&mut m.gamma_factor_fast, 0.5..=2.0)
-                                .text("Gamma fast"),
+                        .checkbox(&mut m.active, "Morph density curves")
+                        .on_hover_text(
+                            "Rebuild the print density curves from the profile's parametric \
+                             model with coupled-gamma morphing. Off = evaluate the fitted curve without morphing.",
                         )
                         .changed();
-                    changed |= ui
-                        .add(
-                            egui::Slider::new(&mut m.gamma_factor_slow, 0.5..=2.0)
-                                .text("Gamma slow"),
-                        )
-                        .changed();
-                    changed |= ui
-                        .add(egui::Slider::new(&mut m.gamma_factor_red, 0.5..=2.0).text("Gamma R"))
-                        .changed();
-                    changed |= ui
-                        .add(
-                            egui::Slider::new(&mut m.gamma_factor_green, 0.5..=2.0).text("Gamma G"),
-                        )
-                        .changed();
-                    changed |= ui
-                        .add(egui::Slider::new(&mut m.gamma_factor_blue, 0.5..=2.0).text("Gamma B"))
-                        .changed();
-                    changed |= ui
-                        .add(
-                            egui::Slider::new(&mut m.developer_exhaustion, 0.0..=1.0)
-                                .text("Developer exhaustion"),
-                        )
-                        .changed();
-                }
-                if changed {
-                    self.dirty = true;
-                }
-            });
+                    if m.active {
+                        changed |= ui
+                            .add(egui::Slider::new(&mut m.gamma_factor, 0.5..=2.0).text("Gamma"))
+                            .changed();
+                        changed |= ui
+                            .add(
+                                egui::Slider::new(&mut m.gamma_factor_fast, 0.5..=2.0)
+                                    .text("Gamma fast"),
+                            )
+                            .changed();
+                        changed |= ui
+                            .add(
+                                egui::Slider::new(&mut m.gamma_factor_slow, 0.5..=2.0)
+                                    .text("Gamma slow"),
+                            )
+                            .changed();
+                        changed |= ui
+                            .add(egui::Slider::new(&mut m.gamma_factor_red, 0.5..=2.0).text("Gamma R"))
+                            .changed();
+                        changed |= ui
+                            .add(
+                                egui::Slider::new(&mut m.gamma_factor_green, 0.5..=2.0).text("Gamma G"),
+                            )
+                            .changed();
+                        changed |= ui
+                            .add(egui::Slider::new(&mut m.gamma_factor_blue, 0.5..=2.0).text("Gamma B"))
+                            .changed();
+                        changed |= ui
+                            .add(
+                                egui::Slider::new(&mut m.developer_exhaustion, 0.0..=1.0)
+                                    .text("Developer exhaustion"),
+                            )
+                            .changed();
+                    }
+                    if changed {
+                        self.dirty = true;
+                    }
+                });
+        }
 
         // ── Scanner ─────────────────────────────────────────────────────
         egui::CollapsingHeader::new("Scanner")
@@ -1349,58 +1345,60 @@ impl App {
             });
 
         // ── Enlarger ────────────────────────────────────────────────────
-        egui::CollapsingHeader::new("Enlarger")
-            .default_open(false)
-            .show(ui, |ui| {
-                let e = &mut self.params.enlarger;
-                let mut changed = false;
-                changed |= ui
-                    .add(
-                        egui::Slider::new(&mut e.print_exposure, 0.1..=5.0)
-                            .text("Print exposure")
-                            .logarithmic(true),
-                    )
-                    .changed();
-                changed |= ui
-                    .add(
-                        egui::Slider::new(&mut e.m_filter_shift, -50.0..=50.0)
-                            .text("Magenta filter shift"),
-                    )
-                    .changed();
-                changed |= ui
-                    .add(
-                        egui::Slider::new(&mut e.y_filter_shift, -50.0..=50.0)
-                            .text("Yellow filter shift"),
-                    )
-                    .changed();
-                changed |= ui
-                    .add(
-                        egui::Slider::new(&mut e.preflash_exposure, 0.0..=0.5)
-                            .text("Preflash exposure"),
-                    )
-                    .on_hover_text(
-                        "Uniform low pre-exposure of the print through the film base. \
-                         Lifts shadow density and lowers print contrast. 0 = off.",
-                    )
-                    .changed();
-                if e.preflash_exposure > 0.0 {
+        if !self.params.io.scan_film {
+            egui::CollapsingHeader::new("Enlarger")
+                .default_open(false)
+                .show(ui, |ui| {
+                    let e = &mut self.params.enlarger;
+                    let mut changed = false;
                     changed |= ui
                         .add(
-                            egui::Slider::new(&mut e.preflash_m_filter_shift, -50.0..=50.0)
-                                .text("Preflash magenta shift"),
+                            egui::Slider::new(&mut e.print_exposure, 0.1..=5.0)
+                                .text("Print exposure")
+                                .logarithmic(true),
                         )
                         .changed();
                     changed |= ui
                         .add(
-                            egui::Slider::new(&mut e.preflash_y_filter_shift, -50.0..=50.0)
-                                .text("Preflash yellow shift"),
+                            egui::Slider::new(&mut e.m_filter_shift, -50.0..=50.0)
+                                .text("Magenta filter shift"),
                         )
                         .changed();
-                }
-                if changed {
-                    self.dirty = true;
-                }
-            });
+                    changed |= ui
+                        .add(
+                            egui::Slider::new(&mut e.y_filter_shift, -50.0..=50.0)
+                                .text("Yellow filter shift"),
+                        )
+                        .changed();
+                    changed |= ui
+                        .add(
+                            egui::Slider::new(&mut e.preflash_exposure, 0.0..=0.5)
+                                .text("Preflash exposure"),
+                        )
+                        .on_hover_text(
+                            "Uniform low pre-exposure of the print through the film base. \
+                             Lifts shadow density and lowers print contrast. 0 = off.",
+                        )
+                        .changed();
+                    if e.preflash_exposure > 0.0 {
+                        changed |= ui
+                            .add(
+                                egui::Slider::new(&mut e.preflash_m_filter_shift, -50.0..=50.0)
+                                    .text("Preflash magenta shift"),
+                            )
+                            .changed();
+                        changed |= ui
+                            .add(
+                                egui::Slider::new(&mut e.preflash_y_filter_shift, -50.0..=50.0)
+                                    .text("Preflash yellow shift"),
+                            )
+                            .changed();
+                    }
+                    if changed {
+                        self.dirty = true;
+                    }
+                });
+        }
 
         // ── Output ──────────────────────────────────────────────────────
         egui::CollapsingHeader::new("Output")
@@ -1736,53 +1734,6 @@ fn fps_label(ms: f32) -> &'static str {
     } else {
         ""
     }
-}
-
-fn preview_pipeline_cache_key(
-    film_name: &str,
-    print_name: &str,
-    params: &RuntimeParams,
-) -> String {
-    serde_json::json!({
-        "film": film_name,
-        "print": print_name,
-        "film_dev": params.film_render.development_time,
-        "print_dev": params.print_render.development_time,
-        "scan_film": params.io.scan_film,
-        "input_color_space": params.io.input_color_space,
-        "input_cctf_decoding": params.io.input_cctf_decoding,
-        "input_gamut": params.io.input_gamut_compress,
-        "output_color_space": params.io.output_color_space,
-        "output_gamut": params.io.output_gamut_compress,
-        "settings": {
-            "rgb_to_raw_method": params.settings.rgb_to_raw_method,
-            "apply_hanatos2025_adaptation_window": params.settings.apply_hanatos2025_adaptation_window,
-            "apply_hanatos2025_adaptation_surface": params.settings.apply_hanatos2025_adaptation_surface,
-            "spectral_gaussian_blur": params.settings.spectral_gaussian_blur,
-            "lut_resolution": params.settings.lut_resolution,
-            "neutral_print_filters_from_database": params.settings.neutral_print_filters_from_database,
-            "use_cat16": params.settings.use_cat16,
-        },
-        "enlarger": {
-            "illuminant": params.enlarger.illuminant,
-            "c_filter_neutral": params.enlarger.c_filter_neutral,
-            "m_filter_neutral": params.enlarger.m_filter_neutral,
-            "y_filter_neutral": params.enlarger.y_filter_neutral,
-            "m_filter_shift": params.enlarger.m_filter_shift,
-            "y_filter_shift": params.enlarger.y_filter_shift,
-            "preflash_exposure": params.enlarger.preflash_exposure,
-            "preflash_m_filter_shift": params.enlarger.preflash_m_filter_shift,
-            "preflash_y_filter_shift": params.enlarger.preflash_y_filter_shift,
-            "normalize_print_exposure": params.enlarger.normalize_print_exposure,
-            "print_exposure_compensation": params.enlarger.print_exposure_compensation,
-        },
-        "exposure_compensation_ev": if params.enlarger.print_exposure_compensation {
-            params.camera.exposure_compensation_ev
-        } else {
-            0.0
-        },
-    })
-    .to_string()
 }
 
 fn rescale_preview_input_fast(image: Arc<ImageBuf>, factor: f32) -> ImageBuf {
@@ -2361,4 +2312,27 @@ fn tag_metal_layer_srgb<H: raw_window_handle::HasWindowHandle>(h: &H) -> Result<
         tracing::info!("tagged CAMetalLayer.colorspace = sRGB");
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn print_controls_follow_preview_route() {
+        let mut app = App::new(Arc::new(spektrafilm_gpu::cpu_backend::CpuBackend), None);
+        let ctx = egui::Context::default();
+        for scan_film in [true, false, true] {
+            app.params.io.scan_film = scan_film;
+            let mut frame = ctx.run_ui(Default::default(), |ui| app.controls_panel(ui, &ctx));
+            frame.textures_delta.clear();
+            let labels: Vec<_> = frame.shapes.iter().filter_map(|s| match &s.shape {
+                egui::Shape::Text(t) => Some(t.galley.text()),
+                _ => None,
+            }).collect();
+            assert!(labels.contains(&"Glare"));
+            assert_eq!(labels.contains(&"Enlarger"), !scan_film);
+            assert_eq!(labels.contains(&"Print curves"), !scan_film);
+        }
+    }
 }

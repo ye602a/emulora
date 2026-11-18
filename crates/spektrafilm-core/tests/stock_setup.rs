@@ -187,13 +187,11 @@ fn runtime_refresh_keeps_accepted_slide_controls_and_bw_broadcast() {
         )
         .unwrap();
         let factor = pipeline.print_exposure_factor().to_bits();
-        // Retain the constructor's resolved neutral filters and all other
-        // calibration inputs; only runtime-safe controls change on reuse.
-        let mut changed = pipeline.params.clone();
+        let mut changed = original;
         changed.camera.exposure_compensation_ev = -0.2;
         changed.enlarger.print_exposure = 0.8;
         changed.scanner.unsharp_mask = [0.4, 0.5];
-        let refreshed = pipeline.with_params(changed.clone());
+        let refreshed = pipeline.refreshed(changed.clone()).unwrap();
         let expected = pinned_adapter(stock, route, film, paper, changed);
         assert_eq!(refreshed.accepted_stock_setup(), Some(selection));
         assert_eq!(refreshed.print_exposure_factor().to_bits(), factor);

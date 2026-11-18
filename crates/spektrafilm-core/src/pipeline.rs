@@ -56,6 +56,22 @@ use crate::spectral_service;
 use crate::stages;
 use crate::stock_setup::{AcceptedStockSetup, ResolvedStockSetup};
 
+fn validate_spectral_input(params: &RuntimeParams) -> Result<(), String> {
+    if params.io.input_cctf_decoding {
+        return Err("spectral input must be linear (decode the input transfer function before rendering)".into());
+    }
+    if params.camera.filter_uv[0] != 0.0 || params.camera.filter_ir[0] != 0.0 {
+        return Err("camera filter_uv/filter_ir transmission is not implemented".into());
+    }
+    if params.settings.apply_hanatos2025_adaptation_surface {
+        return Err("Hanatos adaptation surface is not implemented".into());
+    }
+    if params.settings.spectral_gaussian_blur != 0.0 {
+        return Err("spectral_gaussian_blur is not implemented".into());
+    }
+    Ok(())
+}
+
 fn apply_film_specific_params(film: &Profile, params: &mut RuntimeParams) {
     if film.is_positive() {
         params.film_render.dir_couplers.gamma_samelayer_rgb = [0.12, 0.08, 0.06];
@@ -97,6 +113,46 @@ fn apply_film_specific_params(film: &Profile, params: &mut RuntimeParams) {
     }
 }
 
+/// Inputs consumed before dispatch. Profiles and resource generations belong
+/// to the caller's cache identity. Database neutrals override manual values.
+#[derive(Clone, PartialEq)]
+struct CalibrationInputs {
+    method: String,
+    window: bool,
+    cat16: bool,
+    input_gamut: crate::params::InputGamutCompressParams,
+    development: [Option<f64>; 2],
+    film_gamma: f32,
+    illuminant: String,
+    database: bool,
+    manual_neutrals: Option<[f32; 3]>,
+    shifts: [f32; 2],
+    preflash: [f32; 3],
+    normalize: bool,
+    compensated_ev: Option<f32>,
+}
+
+impl CalibrationInputs {
+    fn from_params(p: &RuntimeParams, database_hit: bool) -> Self {
+        let e = &p.enlarger;
+        Self {
+            method: p.settings.rgb_to_raw_method.clone(),
+            window: p.settings.apply_hanatos2025_adaptation_window,
+            cat16: p.settings.use_cat16,
+            input_gamut: p.io.input_gamut_compress.clone(),
+            development: [p.film_render.development_time, p.print_render.development_time],
+            film_gamma: p.film_render.density_curve_gamma,
+            illuminant: e.illuminant.clone(),
+            database: p.settings.neutral_print_filters_from_database,
+            manual_neutrals: (!database_hit).then_some([e.c_filter_neutral, e.m_filter_neutral, e.y_filter_neutral]),
+            shifts: [e.m_filter_shift, e.y_filter_shift],
+            preflash: [e.preflash_exposure, e.preflash_m_filter_shift, e.preflash_y_filter_shift],
+            normalize: e.normalize_print_exposure,
+            compensated_ev: e.print_exposure_compensation.then_some(p.camera.exposure_compensation_ev),
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct Pipeline {
     pub film: Profile,
@@ -122,6 +178,8 @@ pub struct Pipeline {
     output_gamut: crate::gamut_compression::OutputGamutCompress,
     /// Opt-in accepted host stock constants, separate from general defaults.
     accepted_stock_setup: Option<ResolvedStockSetup>,
+    calibration: Option<CalibrationInputs>,
+    database_neutrals: Option<[f32; 3]>,
 }
 
 impl Pipeline {
@@ -151,11 +209,21 @@ impl Pipeline {
         self.accepted_stock_setup.map(ResolvedStockSetup::selection)
     }
 
-    /// Return a copy of this calibrated pipeline with updated runtime params.
-    /// Callers must only use this when the calibration-affecting inputs match
-    /// the pipeline that was originally built.
-    pub fn with_params(mut self, params: RuntimeParams) -> Self {
-        let mut params = params;
+    /// Refresh a spectral pipeline for the same profiles, resources and stock setup.
+    /// On `None`, rebuild from the original profiles and propagate constructor errors.
+    /// Resource changes always require a new pipeline.
+    pub fn refreshed(&self, mut params: RuntimeParams) -> Option<Self> {
+        validate_spectral_input(&params).ok()?;
+        let key = CalibrationInputs::from_params(&params, self.database_neutrals.is_some());
+        if self.calibration.as_ref() != Some(&key) {
+            return None;
+        }
+        if let Some([c, m, y]) = self.database_neutrals {
+            params.enlarger.c_filter_neutral = c;
+            params.enlarger.m_filter_neutral = m;
+            params.enlarger.y_filter_neutral = y;
+        }
+        let mut next = self.clone();
         if let Some(setup) = self.accepted_stock_setup {
             setup.before_calibration(&mut params);
         }
@@ -163,12 +231,12 @@ impl Pipeline {
         if let Some(setup) = self.accepted_stock_setup {
             setup.after_calibration(&mut params);
         }
-        self.output_gamut = crate::gamut_compression::OutputGamutCompress::build(
+        next.output_gamut = crate::gamut_compression::OutputGamutCompress::build(
             &params.io.output_gamut_compress,
             &params.io.output_color_space,
         );
-        self.params = params;
-        self
+        next.params = params;
+        Some(next)
     }
 }
 
@@ -203,6 +271,8 @@ impl Pipeline {
             preflash_raw: [0.0; 3],
             output_gamut,
             accepted_stock_setup: None,
+            calibration: None,
+            database_neutrals: None,
         }
     }
 
@@ -232,19 +302,7 @@ impl Pipeline {
         mut params: RuntimeParams,
         data_dir: &Path,
     ) -> Result<Self, String> {
-        if params.io.input_cctf_decoding {
-            return Err("spectral input must be linear (decode the input transfer function before rendering)".into());
-        }
-        if params.camera.filter_uv[0] != 0.0 || params.camera.filter_ir[0] != 0.0 {
-            return Err("camera filter_uv/filter_ir transmission is not implemented".into());
-        }
-        if params.settings.apply_hanatos2025_adaptation_surface {
-            return Err("Hanatos adaptation surface is not implemented".into());
-        }
-        if params.settings.spectral_gaussian_blur != 0.0 {
-            return Err("spectral_gaussian_blur is not implemented".into());
-        }
-
+        validate_spectral_input(&params)?;
         // B&W profiles: collapse the development-time family to the selected
         // time and broadcast the single channel onto the 3-channel engine
         // layout. Must happen before anything reads the profile data.
@@ -266,7 +324,7 @@ impl Pipeline {
         // f32 here costs ~4e-8 precision through the `10^(-cc/100)` step.
         let mut neutral_cmy_f64: Option<[f64; 3]> = None;
         if params.settings.neutral_print_filters_from_database {
-            let db = crate::neutral_filters::NeutralFilters::load(data_dir);
+            let db = crate::neutral_filters::NeutralFilters::load(data_dir)?;
             let print_stock = print.info.stock.as_deref().unwrap_or("");
             let film_stock = film.info.stock.as_deref().unwrap_or("");
             if let Some([c, m, y]) = db.lookup(print_stock, &params.enlarger.illuminant, film_stock)
@@ -499,6 +557,7 @@ impl Pipeline {
             &params.io.output_gamut_compress,
             &params.io.output_color_space,
         );
+        let calibration = CalibrationInputs::from_params(&params, neutral_cmy_f64.is_some());
         Ok(Self {
             film,
             print,
@@ -511,6 +570,8 @@ impl Pipeline {
             preflash_raw,
             output_gamut,
             accepted_stock_setup: None,
+            calibration: Some(calibration),
+            database_neutrals: neutral_cmy_f64.map(|v| v.map(|x| x as f32)),
         })
     }
 

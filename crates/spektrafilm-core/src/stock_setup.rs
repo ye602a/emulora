@@ -99,7 +99,7 @@ impl AcceptedStockSetup {
 }
 
 /// The validated selection belongs to one calibrated pipeline/profile.
-/// Keeping it avoids reinterpreting an unchecked stock name in `with_params`.
+/// Keeping it avoids reinterpreting an unchecked stock name on refresh.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct ResolvedStockSetup {
     selection: AcceptedStockSetup,

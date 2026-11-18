@@ -713,6 +713,17 @@ pub struct RuntimeParams {
     pub settings: SettingsParams,
 }
 
+impl RuntimeParams {
+    /// Glare for the material selected for scanning.
+    pub fn scan_glare_mut(&mut self) -> &mut GlareParams {
+        if self.io.scan_film {
+            &mut self.film_render.glare
+        } else {
+            &mut self.print_render.glare
+        }
+    }
+}
+
 impl Default for RuntimeParams {
     fn default() -> Self {
         Self {

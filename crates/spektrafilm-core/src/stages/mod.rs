@@ -236,7 +236,7 @@ mod integration_tests {
 
         let pipeline = Pipeline::new_with_spectral(film, print, params.clone(), &dir)
             .unwrap()
-            .with_params(params);
+            .refreshed(params).unwrap();
         assert_eq!(
             pipeline
                 .params
@@ -244,7 +244,7 @@ mod integration_tests {
                 .dir_couplers
                 .gamma_samelayer_rgb,
             [0.12, 0.08, 0.06],
-            "GUI-style with_params must preserve positive-film DIR parameters"
+            "GUI refresh must preserve positive-film DIR parameters"
         );
         let result = pipeline.process(img, &backend);
         let mut clipped_low = 0usize;

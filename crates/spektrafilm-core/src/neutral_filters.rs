@@ -7,8 +7,6 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use serde::Deserialize;
-
 /// Nested map: print_stock → illuminant → film_stock → [c, m, y].
 type FilterDb = HashMap<String, HashMap<String, HashMap<String, [f64; 3]>>>;
 
@@ -20,14 +18,15 @@ pub struct NeutralFilters {
 impl NeutralFilters {
     /// Load the JSON database from `<data_dir>/filters/neutral_print_filters.json`.
     /// Returns an empty database if the file is missing — matches Python's behavior.
-    pub fn load(data_dir: &Path) -> Self {
+    pub fn load(data_dir: &Path) -> Result<Self, String> {
         let path = data_dir.join("filters").join("neutral_print_filters.json");
-        let db = std::fs::read_to_string(&path)
-            .ok()
-            .and_then(|s| serde_json::from_str::<RawDb>(&s).ok())
-            .map(|raw| raw.0)
-            .unwrap_or_default();
-        Self { db }
+        let db = match std::fs::read_to_string(&path) {
+            Ok(json) => serde_json::from_str::<FilterDb>(&json)
+                .map_err(|e| format!("{}: {e}", path.display()))?,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => FilterDb::new(),
+            Err(e) => return Err(format!("{}: {e}", path.display())),
+        };
+        Ok(Self { db })
     }
 
     /// Look up filter CC values for a (print_stock, illuminant, film_stock) combination.
@@ -45,6 +44,3 @@ impl NeutralFilters {
             .copied()
     }
 }
-
-#[derive(Deserialize)]
-struct RawDb(FilterDb);
