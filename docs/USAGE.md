@@ -72,7 +72,7 @@ spektrafilm process photo.png --film kodak_tri_x_400 --params soft.json -o soft-
 
 The same recipe works with `export-lut`. Grade IDs are strings so 00 and 0 stay distinct. A graded print requires the TH-KG3 illuminant. The grade sets neutral filtration and a calibrated exposure multiplier. Manual print exposure and filter shifts remain relative trims. An explicit grade with ordinary paper returns a construction error. A direct film scan bypasses paper controls. Changing grades requests a calibrated pipeline rebuild. On resident Vulkan, the existing developed negative remains reusable with the same source identity.
 
-See the [silver profile provenance and calibration](../data/SPEKTRALAB_BW_NOTICE.md) for the film processes, fit method, grade-5 limit and regeneration commands.
+See the [silver profile provenance and calibration](../data/SPEKTRALAB_BW_NOTICE.md) for the film processes, fit method and regeneration commands. Grades 4 and 5 give modestly different hard prints. A midgray-matched trial between them was too close to both to qualify as a separate 4½ setting. [Gray ramp and photographic comparison](ENGINE_STUDIES.md#multigrade-iv-rc-at-the-hard-end)
 
 ### Spectral CUBE export
 

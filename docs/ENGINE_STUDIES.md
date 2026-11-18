@@ -56,6 +56,33 @@ The conversion study covers Tri-X 400, T-Max 100, Acros II and HP5 Plus.
 
 A fixed [SpektraLab data revision](https://github.com/JamesQiu2005/SpektraLab/tree/1aa6f4d8a8b01fc7e1347234d5ca7649bd944e94/engine/resources_product) was converted offline. Collapse triplicated sensitivity, characteristic curves, layers and CDF parameters to one channel. Sum the three silver-density weights and retain the exposure axis and base density. The four profiles each preserve 256 response points and 81 wavelengths. Maximum double-precision differences were 4.44e-16 in optical density and 1.11e-16 in transmission. The stock loader and a diagnostic Vulkan ramp passed for all four. The fixed revision credits Hanze Qiu and lists the data under CC BY-SA 4.0. The four negatives subsequently entered production with a separately calibrated three-emulsion paper. [Production resources and full grades](../data/SPEKTRALAB_BW_NOTICE.md)
 
+## Multigrade IV RC at the hard end
+
+The calibrated RS TH-KG3 head gives R 60.00 at grade 4 and R 57.30 at grade 5. Lower R denotes a narrower exposure range and a harder paper. Keep the seven shipped settings. The measurements below do not support assigning a calibrated 4½ label. Softer half grades were outside this comparison.
+
+**Head, paper and measurement.** Run `cargo run --locked -p spektrafilm-core --example fit_multigrade -- --hard-grades`. Diagnostics use the production enlarger spectrum, fitted emulsion curves and bundled sensitivities. R is 100 times the log-exposure interval from 0.04 above base to 90% of maximum net density. Changing the exposure multiplier translates both crossing points equally.
+
+| Controlled change | Model R | Interpretation |
+|---|---:|---|
+| Increase magenta from 250 to 1000 M | 57.30 → 57.24 | The head's spectral transmission has nearly saturated. A 1 CC scan from 1000 M through clear to 250 Y found its minimum at 1000 M. |
+| Ideal shortpass, TH-KG3 below 440 / 460 / 480 nm | 60.34 / 60.06 / 54.11 | Removing green light changes relative emulsion exposures. The bluest band alone gives a softer result than the 480 nm cutoff. |
+| Vary effective blue/green mixture, 1001 points | minimum 53.80 | Normalized sensitivity ratios at all 81 wavelengths lie on the line between the 430 and 530 nm responses (maximum residual 2.3e-16). A nonnegative spectrum produces a weighted mixture on this line. The best sampled mixture still misses the published 40 by about 14 R. |
+| Stored vs fitted curves at 250 M; resample fitted CDFs at 8193 points | 57.30366 for both production tables; 57.20466 on the dense grid | Interpolation contributes about 0.10 R. The central 10%–80% width is 32.55 and describes a different interval. |
+
+The dominant limitation is the combination of the **estimated silver-emulsion sensitivities and characteristic curves**. The comparison cannot identify which fitted emulsion parameter should change. The dichroic head accounts for a further few R relative to the best sampled spectrum. Increasing the M cap or changing the midgray exposure would give little or no benefit.
+
+**Other implementations.** ILFORD publishes half steps for its dedicated filter set and different recipes by head type. Its colour-head guide warns of reduced peak contrast and calls for testing the individual head. RH Designs likewise provides head-specific filtration and allows paper calibration. SpektraLab ships seven whole-grade packs. Its grade 4 and 5 use 39.1 and 151.7 M; running those settings through RS gives R 65.79 and 57.86. LAB's regression checks ordering and separation of grades 00, 2 and 5 through a negative. These are different checks from HARMAN's paper-only ISO R table. The public OFX main renderer (86476af) and upstream Python main (3bb2c2d) provided no matching Multigrade half-grade calibration in the inspected source. [ILFORD head guidance](https://www.ilfordphoto.com/wp/wp-content/uploads/2017/03/Contrast-control-for-Ilford-Multigrade.pdf) · [IV RC paper data](https://www.ilfordphoto.com/wp/wp-content/uploads/2021/01/MULTIGRADE-IV-RC-Papers-060619.pdf) · [RH Designs](https://rhdesigns.co.uk/filter-settings) · [LAB packs](https://github.com/JamesQiu2005/SpektraLab/blob/b51e672/engine/resources_product/paper_grades.json) · [LAB checks](https://github.com/JamesQiu2005/SpektraLab/blob/b51e672/engine/tests/bw_checks.py)
+
+**Output check.** A trial half step targets the midpoint of the *attainable* R values, 58.65, with 114.98 M and a midgray-matched paper exposure of 1.34919. Reproduce it using the normal grade-4 recipe with `enlarger.m_filter_shift = 28.720576` and `enlarger.print_exposure = 1.00152943`. Use Tri-X 400, clear camera filter, manual exposure, sRGB input and encoded sRGB output. Disable grain, halation and highlight boost, DIR, glare and scanner sharpening. Render with `process --raw-out`. Compare absolute green-channel differences before file quantization in 0–255 code units.
+
+| Input, Windows resident Vulkan | 4 → trial, p95 | Trial → 5, p95 | 4 → 5, p95 | Pixels with 4 → 5 difference ≥2 |
+|---|---:|---:|---:|---:|
+| Neutral PNG ramp, all 256 input codes | 1.66 | 1.38 | 3.01 | 16.0% |
+| Colour costume portrait, 341 × 512 | 1.66 | 1.35 | 2.98 | 13.7% |
+| Grayscale camera photograph, 512 × 512 | 1.77 | 1.50 | 3.22 | 28.3% |
+
+The repeat grade-4 green-channel buffers matched exactly. Neither adjacent trial step reached two code values anywhere in these three outputs. The endpoints show a modest difference in midtone detail; the trial looks very close to both at preview size. These values describe the test outputs, not a general visual threshold. Physical 4½ characterization would need a matching paper/head step-wedge measurement. [Public grayscale input](https://github.com/scikit-image/scikit-image/blob/v0.25.2/skimage/data/camera.png)
+
 ## CPU and Vulkan diffusion
 
 On GTX 1080 Ti (582.78), a 5 µm sample of existing color-negative scatter and halation gave CPU versus Vulkan point-response 95% radii of R 65/30, G 45/25 and B 40/25 µm. The tails beyond 20 µm carried 26.5–35.0% versus 8.5–14.1% of the respective kernels. The tested Black Pro-Mist setting had closer 95% radii (R 335/335, G 265/265, B 170/175 µm) with a red edge-response difference. For a 513×513 real crop, comparing the effect-on minus effect-off print within each backend put the differences near 1.0–1.5 display codes RMS. Local red peaks were 34 codes for scatter/halation and 16 for lens diffusion. An optical model revision can be evaluated independently against these fixed inputs.
