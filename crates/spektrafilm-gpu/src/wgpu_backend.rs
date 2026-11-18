@@ -1852,7 +1852,7 @@ impl WgpuBackend {
             // 1a. Camera diffusion filter in-place on buf_b (raw), before
             //     halation — mirrors the CPU filming order.
             if let Some(ds) = diffusion_state.as_ref() {
-                ds.encode_passes(&mut encoder, &buf_b);
+                ds.encode_passes(&mut encoder);
             }
             // 1b. Camera lens blur on raw, after camera diffusion and before halation.
             if let Some(bs) = camera_lens_blur_state.as_ref() {
@@ -2063,7 +2063,7 @@ impl WgpuBackend {
                 enlarger_linear_to_log_state.as_ref(),
             ) {
                 l2l.encode_passes(&mut encoder, n_pixels);
-                ds.encode_passes(&mut encoder, &buf_b);
+                ds.encode_passes(&mut encoder);
                 l2g.encode_passes(&mut encoder, n_pixels);
             }
             // 5. Density curve (print, raw curves): buf_b → buf_a (density_print)
@@ -3171,8 +3171,8 @@ struct GridJob {
     out_h: u32,
 }
 
-/// Pre-built camera diffusion-filter passes for the resident chain. Operates
-/// on `buf_b` (raw film exposure, after hanatos / before halation):
+/// Camera and enlarger diffusion on linear exposure in the resident chain.
+/// Both stages use the same sequence:
 /// downsample buf_b → small, blur the small image at each Gaussian component
 /// accumulating per-channel, upsample the scattered field, then mix
 /// `buf_b = (1-p_s)·buf_b + p_s·scattered`. Owns all scratch buffers so they
@@ -3181,23 +3181,18 @@ struct GridJob {
 struct DiffusionState {
     small_w: u32,
     small_h: u32,
-    n_full: u32,
     n_small: u32,
-    // Owned buffers (keepalive for the bind groups + clear/copy targets).
+    // Reduced-resolution working buffers; only the accumulator needs clearing.
     _small_in: wgpu::Buffer,
     _small_mid: wgpu::Buffer,
     _small_out: wgpu::Buffer,
     small_acc: wgpu::Buffer,
-    _upsampled: wgpu::Buffer,
-    buf_mix: wgpu::Buffer,
     blur_pipe_h: CachedPipelineRef,
     blur_pipe_v: CachedPipelineRef,
     downsample: GridJob,
     blur_jobs: Vec<BlurJob>,
     accumulate: Vec<DispatchJob>,
     upsample: GridJob,
-    mix1: DispatchJob,
-    mix2: DispatchJob,
 }
 
 #[cfg(feature = "wgpu-backend")]
@@ -3212,9 +3207,7 @@ fn build_diffusion_state(
     use wgpu::util::DeviceExt;
     let small_w = plan.small_w;
     let small_h = plan.small_h;
-    let n_full = (width as usize) * (height as usize);
     let n_small = (small_w as usize) * (small_h as usize);
-    let full_bytes = (n_full * 3 * 4) as u64;
     let small_bytes = (n_small * 3 * 4) as u64;
 
     let mk = |label: &str, bytes: u64| {
@@ -3231,8 +3224,6 @@ fn build_diffusion_state(
     let small_mid = mk("diff_small_mid", small_bytes);
     let small_out = mk("diff_small_out", small_bytes);
     let small_acc = mk("diff_small_acc", small_bytes);
-    let upsampled = mk("diff_upsampled", full_bytes);
-    let buf_mix = mk("diff_mix", full_bytes);
 
     // ── Downsample buf_b → small_in ───────────────────────────────────
     let grid_layout = &[
@@ -3260,8 +3251,8 @@ fn build_diffusion_state(
         out_w: u32,
         out_h: u32,
         inv_factor: f32,
-        _p0: u32,
-        _p1: u32,
+        direct: f32,
+        scatter: f32,
         _p2: u32,
     }
     let down_pipe = backend.cached_pipeline(
@@ -3466,9 +3457,9 @@ fn build_diffusion_state(
         });
     }
 
-    // ── Upsample small_acc → upsampled (full res) ────────────────────
+    // Each invocation reads only its own direct pixel and mixes scatter in place.
     let up_pipe = backend.cached_pipeline(
-        include_str!("../../spektrafilm-shaders/wgsl/upsample_bilinear.wgsl"),
+        include_str!("../../spektrafilm-shaders/wgsl/diffusion_upsample_mix.wgsl"),
         grid_layout,
     );
     let up_params = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -3479,8 +3470,8 @@ fn build_diffusion_state(
             out_w: width,
             out_h: height,
             inv_factor: 1.0 / plan.d as f32,
-            _p0: 0,
-            _p1: 0,
+            direct: 1.0 - plan.p_s,
+            scatter: plan.p_s,
             _p2: 0,
         }),
         usage: wgpu::BufferUsages::UNIFORM,
@@ -3499,7 +3490,7 @@ fn build_diffusion_state(
             },
             wgpu::BindGroupEntry {
                 binding: 2,
-                resource: upsampled.as_entire_binding(),
+                resource: buf_b.as_entire_binding(),
             },
         ],
     });
@@ -3510,87 +3501,27 @@ fn build_diffusion_state(
         out_h: height,
     };
 
-    // ── Mix: buf_mix = (1-p_s)*buf_b + p_s*upsampled (then copied to buf_b)
-    let add_pipe = backend.cached_pipeline(
-        include_str!("../../spektrafilm-shaders/wgsl/add_scaled.wgsl"),
-        &[
-            wgpu::BufferBindingType::Uniform,
-            wgpu::BufferBindingType::Storage { read_only: true },
-            wgpu::BufferBindingType::Storage { read_only: false },
-        ],
-    );
-    #[repr(C)]
-    #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-    struct AddScaledParams {
-        n_pixels: u32,
-        scale: f32,
-        clear_first: u32,
-        _pad: u32,
-    }
-    let mk_add = |label: &str, src: &wgpu::Buffer, scale: f32, clear: u32| -> DispatchJob {
-        let pb = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some(label),
-            contents: bytemuck::bytes_of(&AddScaledParams {
-                n_pixels: n_full as u32,
-                scale,
-                clear_first: clear,
-                _pad: 0,
-            }),
-            usage: wgpu::BufferUsages::UNIFORM,
-        });
-        let bg = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some(label),
-            layout: &add_pipe.layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: pb.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: src.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: buf_mix.as_entire_binding(),
-                },
-            ],
-        });
-        DispatchJob {
-            _params_buf: pb,
-            pipeline: add_pipe.clone(),
-            bg,
-        }
-    };
-    let mix1 = mk_add("diff_mix1", buf_b, 1.0 - plan.p_s, 1);
-    let mix2 = mk_add("diff_mix2", &upsampled, plan.p_s, 0);
-
     DiffusionState {
         small_w,
         small_h,
-        n_full: n_full as u32,
         n_small: n_small as u32,
         _small_in: small_in,
         _small_mid: small_mid,
         _small_out: small_out,
         small_acc,
-        _upsampled: upsampled,
-        buf_mix,
         blur_pipe_h,
         blur_pipe_v,
         downsample,
         blur_jobs,
         accumulate,
         upsample,
-        mix1,
-        mix2,
     }
 }
 
 #[cfg(feature = "wgpu-backend")]
 impl DiffusionState {
-    /// Encode the diffusion onto `buf_b` (in place: result copied back).
-    fn encode_passes(&self, encoder: &mut wgpu::CommandEncoder, buf_b: &wgpu::Buffer) {
+    /// Encode diffusion onto the full-resolution buffer bound at construction.
+    fn encode_passes(&self, encoder: &mut wgpu::CommandEncoder) {
         let grid = |g: &GridJob, enc: &mut wgpu::CommandEncoder| {
             let mut pass = enc.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("diff_grid"),
@@ -3639,9 +3570,6 @@ impl DiffusionState {
             linear(a, self.n_small, encoder);
         }
         grid(&self.upsample, encoder);
-        linear(&self.mix1, self.n_full, encoder);
-        linear(&self.mix2, self.n_full, encoder);
-        encoder.copy_buffer_to_buffer(&self.buf_mix, 0, buf_b, 0, (self.n_full as u64) * 3 * 4);
     }
 }
 

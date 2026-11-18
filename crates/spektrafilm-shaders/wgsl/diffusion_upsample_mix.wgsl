@@ -1,7 +1,7 @@
 // Bilinear upsample of an interleaved 3-channel image, inverting the
 // `downsample_area` block mapping (sample centre at `(x + 0.5)/factor − 0.5`
 // in small-pixel coords). Each thread produces one output pixel. Mirrors the
-// CPU `upsample_bilinear` used by the diffusion filter.
+// CPU `upsample_bilinear`, then mixes scatter into the original pixel.
 
 struct Params {
     in_w: u32,
@@ -9,8 +9,8 @@ struct Params {
     out_w: u32,
     out_h: u32,
     inv_factor: f32, // 1.0 / factor
-    _p0: u32,
-    _p1: u32,
+    direct: f32,
+    scatter: f32,
     _p2: u32,
 }
 
@@ -44,6 +44,7 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     for (var c = 0u; c < 3u; c++) {
         let top = sample(x0, y0, c) * (1.0 - wx) + sample(x1, y0, c) * wx;
         let bot = sample(x0, y1, c) * (1.0 - wx) + sample(x1, y1, c) * wx;
-        output[o + c] = top * (1.0 - wy) + bot * wy;
+        let scattered = top * (1.0 - wy) + bot * wy;
+        output[o + c] = params.direct * output[o + c] + params.scatter * scattered;
     }
 }
