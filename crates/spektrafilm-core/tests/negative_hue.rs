@@ -193,3 +193,66 @@ fn calibration_follows_local_dir_and_bypasses_non_colour_prints() {
         assert_eq!(render(&on), render(&build(film, paper, p.clone()).unwrap()));
     }
 }
+
+#[test]
+fn manual_filtration_reprints_the_same_negative_and_rejects_hue_reconstruction() {
+    let Some(gpu) = WgpuBackend::new() else {
+        assert!(std::env::var_os("SPEKTRAFILM_REQUIRE_GPU").is_none());
+        return;
+    };
+    gpu.configure_negative_cache(true);
+    let input = patches();
+    let mut p = recipe();
+    let mut first_print = None;
+    for (i, (y, m)) in [
+        (0.0, 0.0),
+        (5.0, 0.0),
+        (0.0, -5.0),
+        (10.0, -10.0),
+        (0.0, 0.0),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        p.enlarger.y_filter_shift = y;
+        p.enlarger.m_filter_shift = m;
+        p.print_render.negative_hue = true;
+        let build_print = |p| build("kodak_ektar_100", "kodak_endura_premier", p);
+        if y != 0.0 || m != 0.0 {
+            let error = build_print(p.clone()).err().expect("trim must be rejected");
+            assert!(error.contains("zero enlarger Y/M shifts"), "{error}");
+            p.print_render.negative_hue = false;
+        }
+        let pipe = build_print(p.clone()).unwrap();
+        let cpu = pipe.try_process(input.clone(), &CpuBackend).unwrap();
+        let resident = pipe
+            .process_resident_with_options(
+                &input,
+                &gpu,
+                FilmRenderOptions {
+                    source: Some(SourceIdentity(804)),
+                    ..Default::default()
+                },
+            )
+            .unwrap()
+            .unwrap();
+        assert!(
+            resident
+                .data
+                .iter()
+                .zip(&cpu.data)
+                .all(|(a, b)| (a - b).abs() < 0.001)
+        );
+        if i == 0 {
+            first_print = Some(resident.data);
+        } else if y == 0.0 && m == 0.0 {
+            assert_eq!(Some(resident.data), first_print);
+        } else {
+            // The neutral gray patch must show the actual optical trim.
+            let gray = &resident.data[12..];
+            assert!(gray.iter().any(|v| (v - gray[1]).abs() > 0.005));
+        }
+        let stats = gpu.negative_cache_stats();
+        assert_eq!((stats.misses, stats.hits, stats.stores), (1, i as u64, 1));
+    }
+}
