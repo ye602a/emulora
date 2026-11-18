@@ -107,6 +107,32 @@ Each changed PNG sample moved one code. The smaller photo's RMS differences were
 
 **Temporary GPU memory.** In separate single-frame camera renders, sample `device.generate_allocator_report()` immediately before returning the constructed diffusion state. Live device allocations were 28.49 → 19.46 MiB for the point field (2× grid reduction), and 96.06 → 60.00 MiB for the smaller photo (4×). Reserved Vulkan blocks were 192 MiB in all four runs. This sample measures live allocations at that stage; whole-process peak residency was not sampled. Keep the allocator instrumentation out of the render loop. The timing and output comparisons used uninstrumented builds.
 
+## Negative-derived print hue (batch 7)
+
+Blue and violet fabrics retained more of the input photograph's hue. Skin results depended on grain and DIR. RS offers this as an optional colour print look. Optical remains the default. [Usage](USAGE.md#hue-from-negative)
+
+LAB main at `b51e672` develops a polar calibration sheet and builds a map from normalized layer-exposure ratios to Oklab chromaticity. The slope of each inverse characteristic curve and the chroma at print lightness determine how far the optical hue turns. A boundary scanned from six faces of the paper dye-density box limits chroma. LAB uses an Apple-only node with separate minilab and DI gates. RS prepares tables from its own spectral front, local DIR, effective paper curves and viewing illuminant. No LAB binaries, baked tables or new profile data are distributed. [LAB calibration](https://github.com/JamesQiu2005/SpektraLab/blob/b51e672/engine/src/core/negative_hue.cpp) · [LAB pixel operation](https://github.com/JamesQiu2005/SpektraLab/blob/b51e672/engine/src/shaders/negative_hue.metal) · [LAB checks](https://github.com/JamesQiu2005/SpektraLab/blob/b51e672/engine/tests/negative_hue_checks.py)
+
+### Same-negative photograph comparison
+
+Portra 400 / Portra Endura, Hanatos, fixed exposure, database neutral filtration, sRGB input and linear sRGB output. Halation, glare, output gamut compression and scanner sharpening were off. The reference harness fed the **same dumped RS negative density** and its optical print into reconstruction. It used LAB's compiled C++ layer, exposure-map and gamut builders with RS calibration patches and a host transcription of the pixel math. Its gamut used the stored paper curves; the native implementation uses the fitted or morphed curves actually consumed by RS. Across four clean photos, native CPU and the offline reconstruction differed by at most 0.00049 in linear RGB. Native CPU and Vulkan differed by at most 0.000040 on those photos. No Metal product or physical paper prints were measured.
+
+Median absolute circular Oklab hue error in degrees against the digital input, **optical → reconstructed**. Each cell compares one developed negative. The clean column uses the 35 mm setting. The other two use the same spatial DIR and a 5 µm pitch, changing only grain. Source pixels with L ≤ 0.19 or chroma ≤ 0.035 are excluded.
+
+| Source region | No DIR or grain | DIR, no grain | DIR and grain |
+| --- | ---: | ---: | ---: |
+| 03, blue cap (1,698 pixels) | 21.57 → 0.01 | 18.01 → 3.80 | 17.88 → 9.18 |
+| 03, saturated caps (48,321) | 13.29 → 0.03 | 14.83 → 0.76 | 13.53 → 3.27 |
+| Purple/magenta silk (73,461) | 8.18 → 0.01 | 13.20 → 2.20 | 14.69 → 5.20 |
+| 04, cheek (5,451) | 5.11 → 0.02 | 1.19 → 1.13 | 13.21 → 18.04 |
+| 15, cheek (2,120) | 2.83 → 0.01 | 1.85 → 2.33 | 6.27 → 9.32 |
+
+The yellow-green cap printed ochre optically. The reconstructed print moved it toward yellow-green. The sari's blues and purples separated more clearly while fold shading remained. Grain increased pixel-to-pixel skin colour variation. On the grain-on offline comparison, averaging linear RGB in 5×5 blocks put the 04 cheek at 5.58 → 7.07° and 15 at 3.36 → 3.19°. This is a source-hue preference, with no measured scene reflectance target.
+
+To repeat, use upright Kodak PhotoCD 03, 04 and 15. The cheek rectangles in fractional source coordinates are x 0.27–0.44, y 0.47–0.56 (04) and x 0.53–0.60, y 0.50–0.58 (15). The blue cap uses x 0.78–0.92, y 0.54–0.86 and hue 240–315°. The saturated cap region uses y 0.18–0.84 and C > 0.12. The 500×610 sari preview uses hue 265–355°. A separate 1,440-patch chart sampled HSV hue every 3°, saturation 0.30/0.65/1 and value 0.20/0.45/0.70/0.95, rounded to sRGB8. The 313 eligible blue/violet patches (source Oklab hue 245–325°) measured 19.02 → 0.01° in the clean print. Compare CLI `process --raw-out` results with only `print_render.negative_hue` switched. [Kodak suite](https://r0k.us/graphics/kodak/) · [Sari photograph by the Peloponnesian Folklore Foundation, CC BY-SA 4.0](https://commons.wikimedia.org/wiki/File:Folded_sari_in_purple_and_magenta_shot-silk_with_gold_pattern,_1970.jpg)
+
+On RTX 3060 Ti Vulkan, optical → reconstructed → optical → reconstructed gave one negative miss/store and three hits. Switching back reproduced the optical CPU output exactly. With an eligible snapshot, the GPU reads the negative directly from that snapshot. Without one it preserves the negative and uses one temporary RGB f32 plane for paper density. Neither path adds a host readback. The 135 rebate and perforations matched the optical Vulkan render with spatial scanner effects off. Regressions also cover neutral gray, a second pair (Gold 200 / Crystal Archive Type II), local DIR refresh, direct scan, slide and silver bypass. Visual acceptance of other pairs, manual Y/M trims, wide-gamut output and CUDA rendering remain open. [Regression tests](../crates/spektrafilm-core/tests/negative_hue.rs)
+
 ## Density-domain grain and illuminants
 
 Two Vulkan seeds at four flat density levels and 6 µm sampling were measured in 64×64 interior windows. Double-X silver density used identical RGB residuals. Portra 400 layered residuals showed distinct channel variances and near-zero between-channel correlation. Report variance, spatial autocorrelation and radial frequency power by density and stock. Separate scene, film and viewing spectra were integrated at 5 nm and normalized with the CIE 1931 Y-weighted integral. With equal Y, the Portra 400 sensitivity predicts distinct D55 and 2856 K channel responses. These are offline diagnostics under fixed input, with no added renderer dependency. [CIE observer data](https://cie.co.at/datatable/cie-1931-colour-matching-functions-2-degree-observer) · [vkdt normalization reference](https://github.com/hanatos/vkdt/commit/c4fd786a06e68addabac94898dd744958b959687)

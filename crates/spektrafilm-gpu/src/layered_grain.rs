@@ -446,6 +446,7 @@ mod tests {
         // Small, valid spectral inputs keep this a public full-chain check,
         // without relying on a particular film profile or malformed dummy data.
         let chain = |grain| crate::FilmChainParams {
+            negative_hue: None,
             border_135: None,
             image: &input,
             front: crate::FrontPass::Mallett2019 {

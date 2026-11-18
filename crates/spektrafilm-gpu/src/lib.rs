@@ -178,10 +178,23 @@ pub trait ComputeBackend: Send + Sync {
     fn name(&self) -> &str;
 }
 
+/// Prepared per-layer inverse curves, exposure chromaticity map and paper gamut.
+#[derive(Clone, Debug, Default)]
+pub struct NegativeHue {
+    pub lo: [f32; 3],
+    pub scale: [f32; 3],
+    pub neutral: [f32; 3],
+    pub light: [f32; 2],
+    pub layers: Vec<[f32; 2]>,
+    pub map: Vec<[f32; 2]>,
+    pub gamut: Vec<f32>,
+}
+
 /// All inputs to the GPU-resident film chain. Bundled into a struct so the
 /// trait method stays object-safe and adding more optional stages (halation,
 /// DIR couplers, …) doesn't churn every callsite.
 pub struct FilmChainParams<'a> {
+    pub negative_hue: Option<&'a NegativeHue>,
     pub image: &'a ImageBuf,
     /// Resolved 135 layout. The image retains its compact content dimensions.
     pub border_135: Option<FilmBorderGpuParams>,

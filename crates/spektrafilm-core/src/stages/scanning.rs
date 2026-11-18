@@ -163,6 +163,26 @@ pub fn scan(
     color_ref: &crate::color_reference::ColorReference,
     gamut: &crate::gamut_compression::OutputGamutCompress,
 ) -> ImageBuf {
+    scan_with_negative(
+        None,
+        density_cmy,
+        profile,
+        params,
+        backend,
+        color_ref,
+        gamut,
+    )
+}
+
+pub(crate) fn scan_with_negative(
+    negative: Option<(&spektrafilm_gpu::NegativeHue, &ImageBuf)>,
+    density_cmy: &ImageBuf,
+    profile: &Profile,
+    params: &RuntimeParams,
+    backend: &dyn ComputeBackend,
+    color_ref: &crate::color_reference::ColorReference,
+    gamut: &crate::gamut_compression::OutputGamutCompress,
+) -> ImageBuf {
     // Python parity — channel_density / base_density are f64 in the JSON profile.
     let channel_density: Vec<[f64; 3]> = profile
         .data
@@ -267,6 +287,13 @@ pub fn scan(
             &base_xyz_to_rgb,
         )
     };
+
+    if let Some((k, film)) = negative {
+        rgb.data
+            .par_chunks_exact_mut(3)
+            .zip(film.data.par_chunks_exact(3))
+            .for_each(|(pixel, density)| crate::negative_hue::apply(k, density, pixel));
+    }
 
     // White/black correction is fully handled by color_ref's XYZ luminance
     // remap (applied inside the scan paths above). For the combos where no

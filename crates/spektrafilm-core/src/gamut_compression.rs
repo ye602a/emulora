@@ -73,7 +73,7 @@ const N_H: usize = 720;
 const N_BISECT: usize = 18;
 
 #[inline]
-fn mat_vec(m: &[[f64; 3]; 3], v: [f64; 3]) -> [f64; 3] {
+pub(crate) fn mat_vec(m: &[[f64; 3]; 3], v: [f64; 3]) -> [f64; 3] {
     [
         m[0][0] * v[0] + m[0][1] * v[1] + m[0][2] * v[2],
         m[1][0] * v[0] + m[1][1] * v[1] + m[1][2] * v[2],
@@ -82,14 +82,14 @@ fn mat_vec(m: &[[f64; 3]; 3], v: [f64; 3]) -> [f64; 3] {
 }
 
 #[inline]
-fn xyz_to_oklab(xyz: [f64; 3]) -> [f64; 3] {
+pub(crate) fn xyz_to_oklab(xyz: [f64; 3]) -> [f64; 3] {
     let lms = mat_vec(&M1_XYZ_TO_LMS, xyz);
     let lms_ = [lms[0].cbrt(), lms[1].cbrt(), lms[2].cbrt()];
     mat_vec(&M2_LMS_TO_LAB, lms_)
 }
 
 #[inline]
-fn oklab_to_xyz(lab: [f64; 3]) -> [f64; 3] {
+pub(crate) fn oklab_to_xyz(lab: [f64; 3]) -> [f64; 3] {
     let lms_ = mat_vec(&M2_LAB_TO_LMS, lab);
     let lms = [lms_[0].powi(3), lms_[1].powi(3), lms_[2].powi(3)];
     mat_vec(&M1_LMS_TO_XYZ, lms)

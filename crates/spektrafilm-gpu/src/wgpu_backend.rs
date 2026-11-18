@@ -1378,7 +1378,11 @@ impl WgpuBackend {
         // B&W/slide luminance remap (m, q); z=1 enables it in the shader.
         // w=1 skips the shader's [0,1] clamp — required when the gamut
         // compression pass follows (it needs the out-of-gamut values).
-        let skip_clamp = if p.gamut.is_some() { 1.0 } else { 0.0 };
+        let skip_clamp = if p.gamut.is_some() || p.negative_hue.is_some() {
+            1.0
+        } else {
+            0.0
+        };
         let bw = match p.bw_xyz_remap {
             Some((m, q)) => [m as f32, q as f32, 1.0, skip_clamp],
             None => [1.0, 0.0, 0.0, skip_clamp],
@@ -1685,6 +1689,76 @@ impl WgpuBackend {
                 shaders::uniform_entry(border_uniform.as_ref(), &print_params_buf, 7),
             ][..7 + usize::from(print_border)],
         });
+        let mut negative_snapshot = negative_publication.as_ref().map(|_| {
+            self.device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("completed_negative_snapshot"),
+                size: img_bytes as u64,
+                usage: wgpu::BufferUsages::COPY_SRC
+                    | wgpu::BufferUsages::COPY_DST
+                    | wgpu::BufferUsages::STORAGE,
+                mapped_at_creation: false,
+            })
+        });
+        // A cached (or about-to-be-published) negative doubles as the read-only
+        // hue input. Without a snapshot, preserve buf_a by developing the
+        // paper into a temporary plane. Both paths need just one film render.
+        let saved_negative = negative_hit.as_ref().or(negative_snapshot.as_ref());
+        let paper_plane = (p.negative_hue.is_some() && saved_negative.is_none())
+            .then(|| make_img_buf("hue_paper_density"));
+        let scan_density = paper_plane.as_ref().unwrap_or(&buf_a);
+        let hue_state = p.negative_hue.map(|k| {
+            let read = wgpu::BufferBindingType::Storage { read_only: true };
+            let pipe = self.cached_pipeline(
+                include_str!("../../spektrafilm-shaders/wgsl/negative_hue.wgsl"),
+                &[
+                    wgpu::BufferBindingType::Uniform,
+                    read,
+                    wgpu::BufferBindingType::Storage { read_only: false },
+                    read,
+                    read,
+                    read,
+                ],
+            );
+            let gate = p
+                .border_135
+                .as_ref()
+                .map_or([0, 0, width, height], |b| b.content);
+            let f4 = |v: [f32; 3]| [v[0].to_bits(), v[1].to_bits(), v[2].to_bits(), 0];
+            let constants = [
+                [width, height, u32::from(p.gamut.is_none()), 0],
+                gate,
+                f4(k.lo),
+                f4(k.scale),
+                f4(k.neutral),
+                f4([k.light[0], k.light[1], 0.0]),
+            ];
+            let uniform = mk_uniform("negative_hue_params", bytemuck::cast_slice(&constants));
+            let layers = mk_storage("negative_hue_layers", bytemuck::cast_slice(&k.layers));
+            let map = mk_storage("negative_hue_map", bytemuck::cast_slice(&k.map));
+            let gamut = mk_storage("negative_hue_gamut", bytemuck::cast_slice(&k.gamut));
+            let buffers = [
+                &uniform,
+                saved_negative.unwrap_or(&buf_a),
+                &buf_b,
+                &layers,
+                &map,
+                &gamut,
+            ];
+            let entries: Vec<_> = buffers
+                .iter()
+                .enumerate()
+                .map(|(i, b)| wgpu::BindGroupEntry {
+                    binding: i as u32,
+                    resource: b.as_entire_binding(),
+                })
+                .collect();
+            let bg = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("negative_hue"),
+                layout: &pipe.layout,
+                entries: &entries,
+            });
+            (pipe, bg)
+        });
         let bg_density_print = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("bg_density_print"),
             layout: &density_pipe.layout,
@@ -1707,7 +1781,7 @@ impl WgpuBackend {
                 },
                 wgpu::BindGroupEntry {
                     binding: 4,
-                    resource: buf_a.as_entire_binding(),
+                    resource: scan_density.as_entire_binding(),
                 },
             ],
         });
@@ -1721,7 +1795,7 @@ impl WgpuBackend {
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: buf_a.as_entire_binding(),
+                    resource: scan_density.as_entire_binding(),
                 }, // density_print
                 wgpu::BindGroupEntry {
                     binding: 2,
@@ -1946,14 +2020,6 @@ impl WgpuBackend {
             }
         }
         options.check_cancelled()?;
-        let mut negative_snapshot = negative_publication.as_ref().map(|_| {
-            self.device.create_buffer(&wgpu::BufferDescriptor {
-                label: Some("completed_negative_snapshot"),
-                size: img_bytes as u64,
-                usage: wgpu::BufferUsages::COPY_SRC | wgpu::BufferUsages::COPY_DST,
-                mapped_at_creation: false,
-            })
-        });
         if let Some(snapshot) = negative_snapshot.as_ref() {
             // Capture the physical negative after DIR/grain, before any paper
             // or scan stage can overwrite buf_a. Publish only after the GPU
@@ -2076,6 +2142,9 @@ impl WgpuBackend {
         }
         // 6. Scan spectral: buf_a → buf_b (final rgb, clamped, NOT sRGB-encoded)
         dispatch(&mut encoder, &scan_pipe.pipeline, &bg_scan, n_pixels);
+        if let Some((pipe, bg)) = &hue_state {
+            dispatch(&mut encoder, &pipe.pipeline, bg, n_pixels);
+        }
         // 6b. Glare (in place on buf_b).
         if let Some(gs) = glare_state.as_ref() {
             let wg_xy = (width.div_ceil(16), height.div_ceil(16));

@@ -87,6 +87,7 @@ impl NegativeKey {
         // Do not use `..`: adding a chain parameter must force an explicit
         // decision here about which side of the cache boundary consumes it.
         let FilmChainParams {
+            negative_hue: _,
             image,
             border_135,
             front,
@@ -587,6 +588,7 @@ mod tests {
 
     fn fixture<'a>(image: &'a ImageBuf, lut: &'a TcLut) -> FilmChainParams<'a> {
         FilmChainParams {
+            negative_hue: None,
             border_135: None,
             image,
             front: FrontPass::Hanatos2025 {

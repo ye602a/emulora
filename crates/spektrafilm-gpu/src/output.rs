@@ -21,6 +21,8 @@ pub struct DisplayRegion {
 /// happen after submitted work has run, but never returns a successful output.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum OutputError {
+    #[error("negative hue requires a prepared spectral colour print on CPU or Vulkan")]
+    UnsupportedNegativeHue,
     #[error("print grades require a spectral pipeline and a calibrated variable-contrast paper")]
     PaperGradeRequiresSpectral,
     #[error("photographic camera filters require a spectral pipeline")]

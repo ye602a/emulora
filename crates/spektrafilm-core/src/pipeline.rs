@@ -186,8 +186,47 @@ impl CalibrationInputs {
     }
 }
 
+// Film profiles and the spectral front are immutable for a checked refresh.
+// Uniform calibration patches use local DIR only; spatial radii and grain are
+// deliberately absent from this print-side preparation key.
+#[derive(Clone, PartialEq)]
+struct HueCalibration {
+    film_gamma: f32,
+    local_dir: Option<[f64; 12]>,
+    morph: crate::params::PrintCurvesMorphParams,
+}
+
+impl HueCalibration {
+    fn new(p: &RuntimeParams) -> Self {
+        let d = &p.film_render.dir_couplers;
+        let [r, g, b] = d.gamma_samelayer_rgb;
+        let [rg, rb] = d.gamma_interlayer_r_to_gb;
+        let [gr, gb] = d.gamma_interlayer_g_to_rb;
+        let [br, bg] = d.gamma_interlayer_b_to_rg;
+        Self {
+            film_gamma: p.film_render.density_curve_gamma,
+            local_dir: d.active.then_some([
+                d.amount,
+                d.inhibition_samelayer,
+                d.inhibition_interlayer,
+                r,
+                g,
+                b,
+                rg,
+                rb,
+                gr,
+                gb,
+                br,
+                bg,
+            ]),
+            morph: p.print_render.density_curves_morph.clone(),
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct Pipeline {
+    negative_hue: Option<(HueCalibration, std::sync::Arc<spektrafilm_gpu::NegativeHue>)>,
     pub film: Profile,
     pub print: Profile,
     pub params: RuntimeParams,
@@ -279,6 +318,7 @@ impl Pipeline {
             &params.io.output_color_space,
         );
         next.params = params;
+        next.refresh_negative_hue().ok()?;
         Some(next)
     }
 }
@@ -306,6 +346,7 @@ impl Pipeline {
             film,
             print,
             params,
+            negative_hue: None,
             tc_lut: None,
             mallett_core: None,
             front_illuminant,
@@ -658,7 +699,8 @@ impl Pipeline {
             neutral_cmy_f64.is_some(),
             print.data.paper_grades.is_some(),
         );
-        Ok(Self {
+        let mut pipeline = Self {
+            negative_hue: None,
             film,
             print,
             params,
@@ -673,7 +715,131 @@ impl Pipeline {
             accepted_stock_setup: None,
             calibration: Some(calibration),
             calibrated_neutrals: neutral_cmy_f64.map(|v| v.map(|x| x as f32)),
-        })
+        };
+        pipeline.refresh_negative_hue()?;
+        Ok(pipeline)
+    }
+
+    fn hue_requested(&self) -> bool {
+        self.params.print_render.negative_hue
+            && !self.params.io.scan_film
+            && self.film.is_negative()
+            && self.film.is_color()
+            && self.print.is_color()
+            && !self.print.is_positive()
+    }
+
+    fn refresh_negative_hue(&mut self) -> Result<(), String> {
+        if self.hue_requested() {
+            if !self.supports_hue_output() {
+                return Err(
+                    "negative hue currently supports sRGB output and zero enlarger Y/M shifts"
+                        .into(),
+                );
+            }
+            let key = HueCalibration::new(&self.params);
+            if self
+                .negative_hue
+                .as_ref()
+                .is_none_or(|(saved, _)| *saved != key)
+            {
+                self.negative_hue = Some((key, std::sync::Arc::new(self.prepare_negative_hue()?)));
+            }
+        }
+        Ok(())
+    }
+
+    fn supports_hue_output(&self) -> bool {
+        self.params.io.output_color_space == "sRGB"
+            && self.params.enlarger.y_filter_shift == 0.0
+            && self.params.enlarger.m_filter_shift == 0.0
+    }
+
+    fn active_negative_hue(&self) -> Option<&spektrafilm_gpu::NegativeHue> {
+        self.negative_hue
+            .as_ref()
+            .filter(|_| self.hue_requested())
+            .map(|(_, k)| k.as_ref())
+    }
+
+    fn prepare_negative_hue(&self) -> Result<spektrafilm_gpu::NegativeHue, String> {
+        let mut p = self.params.clone();
+        let (input, ab, valid) = crate::negative_hue::sheet();
+        p.io.input_color_space = "sRGB".into();
+        p.camera.auto_exposure = false;
+        p.camera.exposure_compensation_ev = 0.0;
+        p.camera.lens_blur_um = 0.0;
+        p.camera.diffusion_filter.active = false;
+        p.film_render.grain.active = false;
+        p.film_render.halation.active = false;
+        p.film_render.halation.boost_ev = 0.0;
+        p.film_render.dir_couplers.diffusion_size_um = 0.0;
+        p.film_render.dir_couplers.diffusion_tail_um = 0.0;
+        p.film_render.dir_couplers.diffusion_tail_weight = 0.0;
+        let cpu = spektrafilm_gpu::cpu_backend::CpuBackend;
+        let raw = stages::filming::expose(
+            &input,
+            &self.film,
+            &p,
+            &cpu,
+            self.tc_lut.as_ref(),
+            self.mallett_core.as_ref(),
+            select_illuminant(&self.front_illuminant),
+            1.0,
+        );
+        let densities = stages::filming::develop(&raw, &self.film, &p, &cpu);
+        let curves = if let Some(model) = self.print.data.density_curves_model.as_ref() {
+            crate::print_morph::morph_density_curves(
+                &self.print.log_exposure_f64(),
+                model,
+                &p.print_render.density_curves_morph,
+                self.print.is_positive(),
+            )
+            .map_err(|e| e.to_string())?
+        } else {
+            self.print.density_curves_f64()
+        };
+        let faces = crate::negative_hue::faces(&curves)?;
+        let dyes: Vec<_> = self
+            .print
+            .data
+            .channel_density
+            .iter()
+            .map(|r| {
+                r.get(..3)
+                    .and_then(|row| row.try_into().ok())
+                    .ok_or("negative hue requires three paper dye channels")
+            })
+            .collect::<Result<_, _>>()?;
+        let illum = stages::scanning::select_illuminant_f64(&self.print.info.viewing_illuminant);
+        use spektrafilm_math::{colorspace, spectral};
+        let white = [
+            spectral::CMF_X_F64,
+            spectral::CMF_Y_F64,
+            spectral::CMF_Z_F64,
+        ]
+        .map(|cmf| cmf.iter().zip(illum).map(|(v, l)| v * l).sum::<f64>());
+        let cat = colorspace::chromatic_adaptation_matrix_f64(
+            white.map(|v| v / white[1]),
+            spectral::colorspace_white_xyz_f64("sRGB"),
+        );
+        let scanned = cpu.scan_spectral(
+            &faces,
+            &dyes,
+            &self.print.data.base_density,
+            illum,
+            white[1],
+            &cat,
+            &colorspace::XYZ_TO_SRGB_F64,
+        );
+        crate::negative_hue::prepare(
+            &self.film,
+            p.film_render.density_curve_gamma as f64,
+            &densities,
+            &ab,
+            &valid,
+            &scanned,
+        )
     }
 
     /// Convenience for callers that treat render errors as fatal.
@@ -774,7 +940,8 @@ impl Pipeline {
             tracing::info!("pipeline: printing complete");
             dump_if_env("SPEKTRAFILM_DUMP_PRINT_DENSITY", &printed);
             let t = Instant::now();
-            let result = stages::scanning::process(
+            let result = stages::scanning::scan_with_negative(
+                self.active_negative_hue().map(|k| (k, &filmed)),
                 &printed,
                 &self.print,
                 &self.params,
@@ -871,6 +1038,15 @@ impl Pipeline {
         image: &ImageBuf,
     ) -> Result<Option<spektrafilm_gpu::FilmBorderGpuParams>, spektrafilm_gpu::output::OutputError>
     {
+        if self.hue_requested()
+            && (!self.supports_hue_output()
+                || self
+                    .negative_hue
+                    .as_ref()
+                    .is_none_or(|(key, _)| *key != HueCalibration::new(&self.params)))
+        {
+            return Err(spektrafilm_gpu::OutputError::UnsupportedNegativeHue);
+        }
         if self.calibration.is_none()
             && !self.params.io.scan_film
             && (self.print.data.paper_grades.is_some()
@@ -1470,6 +1646,7 @@ impl Pipeline {
             };
 
         let params = spektrafilm_gpu::FilmChainParams {
+            negative_hue: self.active_negative_hue(),
             image,
             border_135,
             front,

@@ -7,6 +7,7 @@ pub mod gamut_compression;
 pub mod input_gamut;
 pub mod lut_bake;
 pub mod mallett;
+mod negative_hue;
 pub mod neutral_filters;
 pub mod params;
 pub mod pipeline;

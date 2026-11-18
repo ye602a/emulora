@@ -550,6 +550,9 @@ impl PaperGrade {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PrintRenderingParams {
+    /// Read hue from a colour negative when printing on colour paper.
+    #[serde(default)]
+    pub negative_hue: bool,
     #[serde(default)]
     pub paper_grade: Option<PaperGrade>,
     #[serde(default = "default_one")]
@@ -567,6 +570,7 @@ pub struct PrintRenderingParams {
 impl Default for PrintRenderingParams {
     fn default() -> Self {
         Self {
+            negative_hue: false,
             paper_grade: None,
             density_curve_gamma: 1.0,
             development_time: None,
@@ -582,7 +586,7 @@ impl Default for PrintRenderingParams {
 /// note that (also matching upstream) the print develop always evaluates the
 /// profile's fitted `density_curves_model` when one is present; `active` only
 /// enables the coupled-gamma morphing of that model.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PrintCurvesMorphParams {
     #[serde(default)]
     pub active: bool,

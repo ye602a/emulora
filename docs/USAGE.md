@@ -74,6 +74,14 @@ The same recipe works with `export-lut`. Grade IDs are strings so 00 and 0 stay 
 
 See the [silver profile provenance and calibration](../data/SPEKTRALAB_BW_NOTICE.md) for the film processes, fit method and regeneration commands. Grades 4 and 5 give modestly different hard prints. A midgray-matched trial between them was too close to both to qualify as a separate 4½ setting. [Gray ramp and photographic comparison](ENGINE_STUDIES.md#multigrade-iv-rc-at-the-hard-end)
 
+### Hue from negative
+
+For a colour negative on colour paper, enable **Profiles → Hue from negative** or add `"negative_hue": true` inside the recipe's `print_render` object. Existing recipes use the optical print. Try it on blue and violet clothing or strongly coloured fabrics. On grainy portraits compare the cheeks at both working size and delivery size.
+
+The look reads the developed negative and steers the optical print's hue while retaining its lightness and respecting the paper chroma boundary. CPU and resident Vulkan support sRGB output and zero manual enlarger Y/M shifts. The calibrated neutral pack still applies. An active colour print with an unsupported trim or output space reports a preparation error. Direct scans, reversal film and black-and-white materials bypass this print look. CUDA reports unsupported for an active colour print.
+
+Hosts can switch the recipe through `Pipeline::refreshed` on the same immutable input identity. The option is downstream of the negative cache. A pointwise spectral CUBE can include this look under the exporter's normal grain-free, local-DIR conditions. [Photographs and verification](ENGINE_STUDIES.md#negative-derived-print-hue-batch-7)
+
 ### Spectral CUBE export
 
 `export-lut` accepts the same film, target paper, `--scan-film` and `--params` as `process`. An explicit scan selects the film scan even if a paper is supplied. An explicit paper selects printing ahead of the JSON scan flag. With neither flag, both commands honor the saved route and use the film's target paper for printing. A direct negative scan yields the engine's transmission scan. FPW's negative inversion and calibrated finish are separate, versioned host routes.

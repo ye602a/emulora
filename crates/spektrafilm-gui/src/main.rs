@@ -181,6 +181,7 @@ fn gui_renderer() -> eframe::Renderer {
 /// to the stock id when missing.
 #[derive(Debug, Clone)]
 struct ProfileEntry {
+    hue_material: bool,
     graded_paper: bool,
     monochrome: bool,
     stock: String,
@@ -964,6 +965,14 @@ impl App {
                     self.dirty = true;
                 }
                 if !self.params.io.scan_film
+                    && self.films.iter().any(|f| f.stock == self.film_name && f.hue_material)
+                    && self.papers.iter().any(|p| p.stock == self.print_name && p.hue_material)
+                {
+                    let hue = ui.checkbox(&mut self.params.print_render.negative_hue, "Hue from negative")
+                        .on_hover_text("Neutral filtration, sRGB output. Recovers fabric hues; grain can increase skin colour variation.");
+                    self.dirty |= hue.changed();
+                }
+                if !self.params.io.scan_film
                     && self
                         .papers
                         .iter()
@@ -1696,16 +1705,23 @@ fn scan_profiles(data_dir: &Path) -> (Vec<ProfileEntry>, Vec<ProfileEntry>) {
         // Cheap probe: just deserialize the file's `info` field. We
         // could skip the rest of the profile but `Profile` already does
         // the right thing — and we pay this once at startup.
-        let (display, is_paper, monochrome, graded_paper) =
+        let (display, is_paper, monochrome, graded_paper, hue_material) =
             match profile::load_profile_by_name(data_dir, &stock) {
                 Ok(p) => {
                     let display = p.info.name.clone().unwrap_or_else(|| stock.clone());
                     let is_paper = p.info.support == "paper" || p.info.stage == "printing";
-                    (display, is_paper, p.is_bw(), p.data.paper_grades.is_some())
+                    (
+                        display,
+                        is_paper,
+                        p.is_bw(),
+                        p.data.paper_grades.is_some(),
+                        p.is_color() && if is_paper { !p.is_positive() } else { p.is_negative() },
+                    )
                 }
-                Err(_) => (stock.clone(), false, false, false),
+                Err(_) => (stock.clone(), false, false, false, false),
             };
         let entry = ProfileEntry {
+            hue_material,
             graded_paper,
             stock,
             display,
@@ -2416,10 +2432,13 @@ mod tests {
     fn print_controls_follow_preview_route() {
         let mut app = App::new(Arc::new(spektrafilm_gpu::cpu_backend::CpuBackend), None);
         let ctx = egui::Context::default();
+        app.print_name = "kodak_portra_endura".into();
         for (scan_film, stock, filtered) in [
             (true, "kodak_doublex", true),
             (false, "kodak_doublex", false),
             (true, "kodak_gold_200", false),
+            (false, "kodak_gold_200", false),
+            (false, "fujifilm_provia_100f", false),
         ] {
             app.film_name = stock.into();
             app.params.camera.photographic_filter = if filtered {
@@ -2440,6 +2459,10 @@ mod tests {
                 .collect();
             assert_eq!(labels.contains(&"Camera filter"), stock == "kodak_doublex");
             assert_eq!(labels.contains(&"Compensate filter exposure"), filtered);
+            assert_eq!(
+                labels.contains(&"Hue from negative"),
+                !scan_film && stock == "kodak_gold_200"
+            );
             assert!(labels.contains(&"Glare"));
             assert_eq!(labels.contains(&"Enlarger"), !scan_film);
             assert_eq!(labels.contains(&"Print curves"), !scan_film);

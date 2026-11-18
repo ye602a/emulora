@@ -2295,6 +2295,9 @@ impl ComputeBackend for CudaBackend {
     }
 
     fn try_run_film_chain(&self, params: &FilmChainParams<'_>) -> Option<ImageBuf> {
+        if params.negative_hue.is_some() {
+            return None;
+        }
         if params.border_135.is_some() {
             tracing::warn!("135 film borders require the wgpu resident chain");
             return None;
@@ -2321,6 +2324,9 @@ impl ComputeBackend for CudaBackend {
             return Err(OutputError::UnsupportedFilmBorder);
         }
         crate::output::validate_rgb_image(params.image)?;
+        if params.negative_hue.is_some() {
+            return Err(OutputError::UnsupportedNegativeHue);
+        }
         validate_cuda_grain(params.grain.as_ref())?;
         let result = self.try_run_film_chain(params);
         options.check_cancelled()?;
