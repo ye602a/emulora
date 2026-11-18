@@ -37,6 +37,29 @@ The CLI accepts supported image and camera RAW formats through its existing
 decoders. Camera/model coverage depends on those decoders. Run `process --help`
 for available options.
 
+### Black-and-white camera filters
+
+In the GUI, select a monochrome film and open **Exposure → Camera filter**. For a print, Double-X (`kodak_doublex`) and Kodak 2302 make a supported pair. The CLI accepts the same settings through `--params` for both `process` and `export-lut`. For example:
+
+```json
+{"camera":{"photographic_filter":"wratten25","compensate_filter":true}}
+```
+
+- `off` (default) preserves the original stock response and previous recipe results. `clear` selects the new measured monochrome response without glass. Use **clear** as the reference for filter comparisons. Older rendering mapped a missing log-sensitivity sample to 0 and thus a linear sensitivity of 1. Measured mode gives unmeasured wavelengths zero weight while retaining a genuine measured log value of 0.
+- `wratten25` and `wratten29` apply lens transmission to film sensitivity before exposure. The B-3 transmission percentages are interpolated on the 5 nm engine grid. We treat the unreported short-wave transmission as zero and hold the 700 nm value through 780 nm. Our No. 25 grid matches LAB's 81 samples to 1.2e-16 absolute. The values were independently transcribed from [Repacholi's B-3 tables](https://www.mat.uc.pt/~rps/photos/filter-data.html).
+- With `compensate_filter: false` (default) the glass costs exposure. With `true` RS restores the camera raw response to a linear 0.184 neutral in the selected input primaries. `Pipeline::filter_factor_ev()` reports the required extra exposure in stops in either case. The normal camera EV control remains available. Metering reads the source. Print normalization uses the bare measured stock, and modeled gate-external fog bypasses the lens. A host changing the filter or its compensation uses checked refresh as with any other calibration input.
+- Enabling measured response is an appearance change. These options require a spectral constructor and a B&W film. A cold build with glass prepares the bare reference and filtered camera front from the same loaded resource. The runtime uses one front on CPU and resident GPU.
+
+**Double-X / 2302 reference.** Fixed linear sRGB patches, manual exposure, unencoded output, grain and glare disabled. Kodak specifies daylight factors of 8 and 20 (3.00 and 4.32 stops). Our model follows the stock and upsampler's neutral; No. 29 yields about half a stop less loss than the published daylight guide. [Kodak technical data](https://www.kodak.com/content/products-brochures/Film/DOUBLEX-Technical-Data-EN.pdf)
+
+| Camera model | No. 25 EV | No. 29 EV |
+|---|---:|---:|
+| Hanatos 2025 | 2.842 | 3.872 |
+| Arctic alpha02 | 2.829 | 3.839 |
+| Mallett 2019 | 2.828 | 3.838 |
+
+On Hanatos the linear print green channel for the neutral/red/blue patches was 0.184/0.173/0.289 with the clear lens setting and 0.184/0.527/0.044 with compensated No. 25. This follows the neutral-preservation and red/blue separation checked by [LAB's B&W render tests](https://github.com/JamesQiu2005/SpektraLab/blob/b51e672/engine/tests/bw_checks.py). The stocks and print recipes differ between the suites. On the same three compensated No. 25 patches, the largest absolute CPU/Vulkan linear output difference across all three models was 0.00000465. Windows Vulkan also rendered one 512-pixel-long-edge photo through the CLI, and the dedicated resident test checked shoulder fog and negative-cache reuse. Broader photographic acceptance and CUDA/macOS runs remain open.
+
 ### Spectral CUBE export
 
 `export-lut` accepts the same film, target paper, `--scan-film` and `--params` as `process`. An explicit scan selects the film scan even if a paper is supplied. An explicit paper selects printing ahead of the JSON scan flag. With neither flag, both commands honor the saved route and use the film's target paper for printing. A direct negative scan yields the engine's transmission scan. FPW's negative inversion and calibrated finish are separate, versioned host routes.

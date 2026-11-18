@@ -235,6 +235,22 @@ pub fn compute_tc_lut_with_window(
     window_params: &[f64],
     illuminant: &[f64],
 ) -> TcLut {
+    compute_camera_lut_with_window(
+        spectra_lut,
+        sensitivity,
+        sensitivity,
+        window_params,
+        illuminant,
+    )
+}
+
+pub(crate) fn compute_camera_lut_with_window(
+    spectra_lut: &SpectraLut,
+    sensitivity: &[[f64; 3]],
+    bare_film: &[[f64; 3]],
+    window_params: &[f64],
+    illuminant: &[f64],
+) -> TcLut {
     let n_wl = spectra_lut
         .n_wavelengths
         .min(sensitivity.len())
@@ -268,7 +284,7 @@ pub fn compute_tc_lut_with_window(
     ];
     for wl in 0..n_wl {
         for c in 0..3 {
-            let si = sensitivity[wl][c] * illuminant[wl];
+            let si = bare_film[wl][c] * illuminant[wl];
             num_per_wl[c].push(si * window[wl][c]);
             den_per_wl[c].push(si);
         }

@@ -370,6 +370,14 @@ fn cmd_export_lut(
     let backend = spektrafilm_gpu::select_backend();
     let mut cube = String::from("TITLE \"spektrafilm-rs spectral photo transform\"\n");
     writeln!(cube, "# Film: {film_name}")?;
+    if params.camera.photographic_filter != spektrafilm_core::params::CameraFilter::Off {
+        writeln!(
+            cube,
+            "# Measured monochrome response: {:?}, filter compensation: {}",
+            params.camera.photographic_filter,
+            params.camera.photographic_filter.has_glass() && params.camera.compensate_filter
+        )?;
+    }
     if params.io.scan_film {
         writeln!(cube, "# Route: direct film scan")?;
     } else {

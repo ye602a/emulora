@@ -90,7 +90,7 @@ fn default_d50() -> String {
 pub struct ProfileData {
     #[serde(default)]
     pub wavelengths: Vec<f64>,
-    #[serde(default, deserialize_with = "deser_zero_matrix")]
+    #[serde(default, deserialize_with = "deser_nullable_matrix")]
     pub log_sensitivity: Vec<Vec<f64>>,
     #[serde(default, deserialize_with = "deser_zero_vec")]
     pub hanatos2025_adaptation_window_params: Vec<f64>,
@@ -314,16 +314,9 @@ impl Profile {
 
     /// Get log_sensitivity as [81][3] f32 array.
     pub fn log_sensitivity_f32(&self) -> Vec<[f32; 3]> {
-        self.data
-            .log_sensitivity
-            .iter()
-            .map(|row| {
-                [
-                    row.get(0).copied().unwrap_or(0.0) as f32,
-                    row.get(1).copied().unwrap_or(0.0) as f32,
-                    row.get(2).copied().unwrap_or(0.0) as f32,
-                ]
-            })
+        self.log_sensitivity_f64()
+            .into_iter()
+            .map(|r| r.map(|v| v as f32))
             .collect()
     }
 
@@ -332,12 +325,10 @@ impl Profile {
         self.data
             .log_sensitivity
             .iter()
+            // The accepted rendering contract maps missing *log* samples to zero.
+            // Keep that interpretation here while retaining missingness in the profile.
             .map(|row| {
-                [
-                    row.get(0).copied().unwrap_or(0.0),
-                    row.get(1).copied().unwrap_or(0.0),
-                    row.get(2).copied().unwrap_or(0.0),
-                ]
+                std::array::from_fn(|c| row.get(c).copied().filter(|v| !v.is_nan()).unwrap_or(0.0))
             })
             .collect()
     }
@@ -577,12 +568,9 @@ mod tests {
         let want_curve: Vec<f64> = p.data.density_curves.iter().map(|r| r[3]).collect();
         let r = resolve_for_render(p, Some(10.0));
         assert_eq!(r.data.development_time, vec![9.0]);
-        assert!(
-            r.data
-                .log_sensitivity
-                .iter()
-                .all(|row| row.len() == 3 && row[0] == row[1] && row[1] == row[2])
-        );
+        assert!(r.data.log_sensitivity.iter().all(|row| row.len() == 3
+            && row[0].to_bits() == row[1].to_bits()
+            && row[1].to_bits() == row[2].to_bits()));
         for (row, want) in r.data.density_curves.iter().zip(&want_curve) {
             assert_eq!(row.len(), 3);
             assert_eq!(row[0], *want);

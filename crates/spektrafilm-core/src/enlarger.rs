@@ -356,13 +356,23 @@ pub fn midgray_raw_hanatos(
     use_cat16: bool,
     scale: f64,
 ) -> [f64; 3] {
+    gray_raw_hanatos(tc_lut, ref_illuminant, use_cat16, scale, "sRGB")
+}
+
+pub(crate) fn gray_raw_hanatos(
+    tc_lut: &spektrafilm_math::spectral::TcLut,
+    ref_illuminant: &[f32],
+    use_cat16: bool,
+    scale: f64,
+    input_color_space: &str,
+) -> [f64; 3] {
     use spektrafilm_math::image::ImageBuf;
     let gray = spektrafilm_math::precision::from_f64(0.184 * scale);
     let img = ImageBuf::from_data(1, 1, vec![gray, gray, gray]);
     let raw = spektrafilm_math::spectral::hanatos2025_rgb_to_raw(
         &img,
         tc_lut,
-        "sRGB",
+        input_color_space,
         ref_illuminant,
         use_cat16,
     );

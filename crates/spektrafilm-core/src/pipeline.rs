@@ -50,6 +50,7 @@ fn print_stage_timing(enabled: bool, stage: &str, start: Instant) {
 }
 
 use crate::enlarger;
+use crate::params::CameraFilter;
 use crate::params::RuntimeParams;
 use crate::profile::Profile;
 use crate::spectral_service;
@@ -123,6 +124,9 @@ struct CalibrationInputs {
     input_gamut: crate::params::InputGamutCompressParams,
     development: [Option<f64>; 2],
     film_gamma: f32,
+    filter: CameraFilter,
+    filter_input_space: Option<String>,
+    compensate_filter: bool,
     illuminant: String,
     database: bool,
     manual_neutrals: Option<[f32; 3]>,
@@ -140,15 +144,36 @@ impl CalibrationInputs {
             window: p.settings.apply_hanatos2025_adaptation_window,
             cat16: p.settings.use_cat16,
             input_gamut: p.io.input_gamut_compress.clone(),
-            development: [p.film_render.development_time, p.print_render.development_time],
+            development: [
+                p.film_render.development_time,
+                p.print_render.development_time,
+            ],
             film_gamma: p.film_render.density_curve_gamma,
+            filter: p.camera.photographic_filter,
+            filter_input_space: p
+                .camera
+                .photographic_filter
+                .has_glass()
+                .then(|| p.io.input_color_space.clone()),
+            compensate_filter: p.camera.photographic_filter.has_glass()
+                && p.camera.compensate_filter,
             illuminant: e.illuminant.clone(),
             database: p.settings.neutral_print_filters_from_database,
-            manual_neutrals: (!database_hit).then_some([e.c_filter_neutral, e.m_filter_neutral, e.y_filter_neutral]),
+            manual_neutrals: (!database_hit).then_some([
+                e.c_filter_neutral,
+                e.m_filter_neutral,
+                e.y_filter_neutral,
+            ]),
             shifts: [e.m_filter_shift, e.y_filter_shift],
-            preflash: [e.preflash_exposure, e.preflash_m_filter_shift, e.preflash_y_filter_shift],
+            preflash: [
+                e.preflash_exposure,
+                e.preflash_m_filter_shift,
+                e.preflash_y_filter_shift,
+            ],
             normalize: e.normalize_print_exposure,
-            compensated_ev: e.print_exposure_compensation.then_some(p.camera.exposure_compensation_ev),
+            compensated_ev: e
+                .print_exposure_compensation
+                .then_some(p.camera.exposure_compensation_ev),
         }
     }
 }
@@ -167,6 +192,7 @@ pub struct Pipeline {
     /// Most methods use the film reference illuminant; arctic2026alpha02
     /// recovers reflectance in D65 coordinates and relights separately.
     front_illuminant: String,
+    filter_factor_ev: f64,
     /// Print exposure normalization factor (1/geomean of midgray raw through enlarger).
     print_exposure_factor: f64,
     /// Filtered enlarger illuminant for printing stage (f64 for Python parity).
@@ -191,6 +217,11 @@ impl Pipeline {
     pub fn tc_lut(&self) -> Option<&TcLut> {
         self.tc_lut.as_ref()
     }
+    /// Extra camera EV needed to restore the unfiltered neutral reference.
+    pub fn filter_factor_ev(&self) -> f64 {
+        self.filter_factor_ev
+    }
+
     /// Accessor for the print exposure factor (parity tests).
     pub fn print_exposure_factor(&self) -> f64 {
         self.print_exposure_factor
@@ -266,6 +297,7 @@ impl Pipeline {
             tc_lut: None,
             mallett_core: None,
             front_illuminant,
+            filter_factor_ev: 0.0,
             print_exposure_factor: 1.0,
             print_illuminant,
             preflash_raw: [0.0; 3],
@@ -343,93 +375,94 @@ impl Pipeline {
         let (c_neutral_f64, m_neutral_f64, y_neutral_f64) = (cmy_f64[0], cmy_f64[1], cmy_f64[2]);
 
         // Film sensitivity: Python `sensitivity = np.nan_to_num(10 ** log_sensitivity)` — f64.
-        let log_sens = film.log_sensitivity_f64();
-        let sensitivity: Vec<[f64; 3]> = log_sens
-            .iter()
-            .map(|row| {
-                let mut out = [0.0f64; 3];
-                for c in 0..3 {
-                    let v = 10.0f64.powf(row[c]);
-                    out[c] = if v.is_nan() { 0.0 } else { v };
-                }
-                out
-            })
-            .collect();
+        let filter = params.camera.photographic_filter;
+        let sensitivity: Vec<[f64; 3]> = if filter == CameraFilter::Off {
+            film.log_sensitivity_f64()
+                .into_iter()
+                .map(|row| row.map(|v| 10.0_f64.powf(v)))
+                .collect()
+        } else {
+            if !film.is_bw() {
+                return Err("photographic filters require a monochrome film profile".into());
+            }
+            let wl = &film.data.wavelengths;
+            if wl.len() != 81
+                || wl.len() != film.data.log_sensitivity.len()
+                || wl
+                    .iter()
+                    .enumerate()
+                    .any(|(i, &nm)| nm != 380.0 + 5.0 * i as f64)
+            {
+                return Err(
+                    "measured monochrome response requires the 380-780 nm, 5 nm film grid".into(),
+                );
+            }
+            // Resolved monochrome profiles broadcast their measured emulsion to RGB.
+            film.data
+                .log_sensitivity
+                .iter()
+                .map(|row| {
+                    let log_s = row[0];
+                    [if log_s.is_nan() {
+                        0.0
+                    } else {
+                        10.0_f64.powf(log_s)
+                    }; 3]
+                })
+                .collect()
+        };
 
-        let ref_illuminant = select_illuminant(&film.info.reference_illuminant);
         let ref_illuminant_f64 = select_illuminant_f64(&film.info.reference_illuminant);
-        let mut front_illuminant = film.info.reference_illuminant.clone();
-
-        // RGB → film raw upsampler. Default `hanatos2025` builds the spectral tc
-        // LUT; `mallett2019` builds a 3×3 reflectance-basis matrix instead (no
-        // LUT). Dispatch mirrors Python `_rgb_to_film_raw`.
-        let (tc_lut, mallett_core): (Option<TcLut>, Option<[[f64; 3]; 3]>) =
-            match params.settings.rgb_to_raw_method.as_str() {
-                "hanatos2025" => {
-                    let spectra_lut = spectral_service::load_spectra_lut(data_dir)?;
-                    let window_params: Vec<f64> =
-                        film.data.hanatos2025_adaptation_window_params.clone();
-                    let tc_lut = if params.settings.apply_hanatos2025_adaptation_window
-                        && window_params.len() >= 4
-                    {
-                        spectral_service::compute_tc_lut_with_window(
-                            &spectra_lut,
-                            &sensitivity,
-                            &window_params,
-                            ref_illuminant_f64,
-                        )
-                    } else {
-                        spectral_service::compute_tc_lut(&spectra_lut, &sensitivity)
-                    };
-
-                    // Bake input gamut compression into the LUT at build time, around
-                    // the film reference illuminant (the runtime's achromatic axis).
-                    // The per-pixel path then stays compression-agnostic.
-                    let input_gamut = crate::input_gamut::InputGamutCompress::build(
-                        &params.io.input_gamut_compress.algorithm,
-                        params.io.input_gamut_compress.knee,
-                    )?;
-                    let tc_lut = if input_gamut.is_active() {
-                        let (rx, ry) = spektrafilm_math::spectral::illuminant_to_xy(ref_illuminant);
-                        input_gamut.remap(&tc_lut, [rx, ry])
-                    } else {
-                        tc_lut
-                    };
-                    (Some(tc_lut), None)
-                }
-                "arctic2026alpha02" => {
-                    front_illuminant = "D65".into();
-                    let reflectance_lut = spectral_service::load_arctic2026alpha02_lut(data_dir)?;
-                    let tc_lut = spectral_service::compute_reflectance_tc_lut(
-                        &reflectance_lut,
-                        &sensitivity,
-                        ref_illuminant_f64,
-                    );
-                    let input_gamut = crate::input_gamut::InputGamutCompress::build(
-                        &params.io.input_gamut_compress.algorithm,
-                        params.io.input_gamut_compress.knee,
-                    )?;
-                    let tc_lut = if input_gamut.is_active() {
-                        let (rx, ry) = spektrafilm_math::spectral::illuminant_to_xy(
-                            select_illuminant(&front_illuminant),
-                        );
-                        input_gamut.remap(&tc_lut, [rx, ry])
-                    } else {
-                        tc_lut
-                    };
-                    (Some(tc_lut), None)
-                }
-                "mallett2019" => (
-                    None,
-                    Some(crate::mallett::compute_core_matrix(
-                        &sensitivity,
-                        ref_illuminant_f64,
-                    )),
-                ),
-                other => {
-                    return Err(format!("unsupported rgb_to_raw_method: {other:?}"));
-                }
+        let method = params.settings.rgb_to_raw_method.as_str();
+        let front_illuminant = if method == "arctic2026alpha02" {
+            "D65".to_string()
+        } else {
+            film.info.reference_illuminant.clone()
+        };
+        let spectra = match method {
+            "hanatos2025" => Some(spectral_service::load_spectra_lut(data_dir)?),
+            "arctic2026alpha02" => Some(spectral_service::load_arctic2026alpha02_lut(data_dir)?),
+            "mallett2019" => None,
+            other => return Err(format!("unsupported rgb_to_raw_method: {other:?}")),
+        };
+        let build_camera = |response: &[[f64; 3]]| -> Result<_, String> {
+            let Some(spectra) = &spectra else {
+                let core = crate::mallett::compute_camera_matrix(
+                    response,
+                    &sensitivity,
+                    ref_illuminant_f64,
+                );
+                return Ok((None, Some(core)));
             };
+            let window = &film.data.hanatos2025_adaptation_window_params;
+            let lut = if method == "arctic2026alpha02" {
+                spectral_service::compute_reflectance_tc_lut(spectra, response, ref_illuminant_f64)
+            } else if params.settings.apply_hanatos2025_adaptation_window && window.len() >= 4 {
+                spectral_service::compute_camera_lut_with_window(
+                    spectra,
+                    response,
+                    &sensitivity,
+                    window,
+                    ref_illuminant_f64,
+                )
+            } else {
+                spectral_service::compute_tc_lut(spectra, response)
+            };
+            let compression = crate::input_gamut::InputGamutCompress::build(
+                &params.io.input_gamut_compress.algorithm,
+                params.io.input_gamut_compress.knee,
+            )?;
+            let lut = if compression.is_active() {
+                let (x, y) = spektrafilm_math::spectral::illuminant_to_xy(select_illuminant(
+                    &front_illuminant,
+                ));
+                compression.remap(&lut, [x, y])
+            } else {
+                lut
+            };
+            Ok((Some(lut), None))
+        };
+        let (tc_lut, mallett_core) = build_camera(&sensitivity)?;
 
         // Python parity: sensitivities are pre-balanced in the profile so midgray ≈ 1.0.
         // The TC LUT is used unnormalized — Python's `rgb_to_raw_hanatos2025` does NOT scale it.
@@ -447,23 +480,28 @@ impl Pipeline {
         // Midgray sensor raw for the print-exposure normalization — always in
         // sRGB (Python `_rgb_to_film_raw` default), through whichever upsampler
         // is active. `scale` folds the EV compensation for the `_comp` branch.
-        let midgray_raw = |scale: f64| -> [f64; 3] {
-            if let Some(lut) = &tc_lut {
-                enlarger::midgray_raw_hanatos(
+        let midgray = |lut: Option<&TcLut>,
+                       matrix: Option<&[[f64; 3]; 3]>,
+                       scale: f64,
+                       space: &str|
+         -> [f64; 3] {
+            if let Some(lut) = lut {
+                enlarger::gray_raw_hanatos(
                     lut,
                     select_illuminant(&front_illuminant),
                     params.settings.use_cat16,
                     scale,
+                    space,
                 )
             } else {
-                let core = mallett_core
-                    .as_ref()
-                    .expect("one upsampler is always built");
-                let m = crate::mallett::film_matrix(core, "sRGB");
+                let core = matrix.expect("one upsampler is always built");
+                let m = crate::mallett::film_matrix(core, space);
                 let g = 0.184 * scale;
                 crate::mallett::apply(&m, [g, g, g])
             }
         };
+
+        let midgray_raw = |scale| midgray(tc_lut.as_ref(), mallett_core.as_ref(), scale, "sRGB");
 
         // Compute midgray spectral density (gray card through full filming path)
         let density_spectral_midgray =
@@ -545,6 +583,35 @@ impl Pipeline {
             (false, false) => 1.0,
         };
 
+        // Keep the enlarger calibrated to the bare stock. Apply the lens
+        // transmission only to the camera response consumed by CPU and GPU.
+        let (tc_lut, mallett_core, filter_factor_ev) = if !filter.has_glass() {
+            (tc_lut, mallett_core, 0.0)
+        } else {
+            let filtered: Vec<_> = sensitivity
+                .iter()
+                .zip(&film.data.wavelengths)
+                .map(|(s, &nm)| s.map(|v| v * filter.transmission(nm)))
+                .collect();
+            let (mut lut, mut matrix) = build_camera(&filtered)?;
+            let space = &params.io.input_color_space;
+            let bare_gray = midgray(tc_lut.as_ref(), mallett_core.as_ref(), 1.0, space)[1];
+            let filtered_gray = midgray(lut.as_ref(), matrix.as_ref(), 1.0, space)[1];
+            let factor = bare_gray / filtered_gray;
+            if !factor.is_finite() || factor <= 0.0 {
+                return Err("camera filter has no usable neutral exposure for this film".into());
+            }
+            if params.camera.compensate_filter {
+                if let Some(lut) = &mut lut {
+                    lut.data.iter_mut().for_each(|v| *v *= factor);
+                }
+                if let Some(matrix) = &mut matrix {
+                    matrix.iter_mut().flatten().for_each(|v| *v *= factor);
+                }
+            }
+            (lut, matrix, factor.log2())
+        };
+
         tracing::info!(
             method = params.settings.rgb_to_raw_method,
             lut_size = tc_lut.as_ref().map_or(0, |l| l.size),
@@ -565,6 +632,7 @@ impl Pipeline {
             tc_lut,
             mallett_core,
             front_illuminant,
+            filter_factor_ev,
             print_exposure_factor,
             print_illuminant,
             preflash_raw,
@@ -768,12 +836,26 @@ impl Pipeline {
     fn prepare_border_135(
         &self,
         image: &ImageBuf,
-    ) -> Result<Option<spektrafilm_gpu::FilmBorderGpuParams>, spektrafilm_gpu::output::OutputError> {
+    ) -> Result<Option<spektrafilm_gpu::FilmBorderGpuParams>, spektrafilm_gpu::output::OutputError>
+    {
+        if self.calibration.is_none() && self.params.camera.photographic_filter != CameraFilter::Off
+        {
+            return Err(spektrafilm_gpu::OutputError::CameraFilterRequiresSpectral);
+        }
         if let Some(border) = self.params.border_135 {
-            return border.prepare_gpu(
+            let mut prepared = border.prepare_gpu(
                 [image.width, image.height],
                 self.params.camera.film_format_mm,
-            );
+            )?;
+            // Shoulder fog originates on the film side of the lens. The
+            // bordered kernel encodes it as neutral input to the same front.
+            if let Some(b) = &mut prepared
+                && !self.params.camera.compensate_filter
+                && self.filter_factor_ev != 0.0
+            {
+                b.edge_exposure *= self.filter_factor_ev.exp2() as f32;
+            }
+            return Ok(prepared);
         }
         Ok(None)
     }

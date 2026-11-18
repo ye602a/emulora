@@ -21,6 +21,8 @@ pub struct DisplayRegion {
 /// happen after submitted work has run, but never returns a successful output.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum OutputError {
+    #[error("photographic camera filters require a spectral pipeline")]
+    CameraFilterRequiresSpectral,
     #[error("render cancelled; no output was published")]
     Cancelled,
     #[error("image dimensions do not match the interleaved RGB input data")]

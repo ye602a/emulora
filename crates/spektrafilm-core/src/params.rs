@@ -67,8 +67,47 @@ impl Default for DiffusionFilterParams {
     }
 }
 
+/// Lens-mounted photographic red filters, sampled on the film wavelength grid.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CameraFilter {
+    #[default]
+    Off,
+    /// Open lens using the measured monochrome passband (zero outside sampled sensitivity).
+    Clear,
+    Wratten25,
+    Wratten29,
+}
+
+impl CameraFilter {
+    pub fn has_glass(self) -> bool {
+        matches!(self, Self::Wratten25 | Self::Wratten29)
+    }
+
+    /// B-3 transmission fractions at 10 nm from 580 to 700 nm. Shorter
+    /// wavelengths are blocked; the last measured value is held to 780 nm.
+    pub(crate) fn transmission(self, nm: f64) -> f64 {
+        let knots = match self {
+            Self::Off | Self::Clear => return 1.0,
+            Self::Wratten25 => [
+                0., 0.126, 0.5, 0.75, 0.826, 0.855, 0.867, 0.876, 0.882, 0.885, 0.89, 0.893, 0.895,
+            ],
+            Self::Wratten29 => [
+                0., 0., 0., 0.105, 0.45, 0.735, 0.842, 0.878, 0.892, 0.898, 0.903, 0.905, 0.905,
+            ],
+        };
+        let pos = ((nm - 580.0) / 10.0).clamp(0.0, 12.0);
+        let i = pos as usize;
+        knots[i] + pos.fract() * (knots[(i + 1).min(12)] - knots[i])
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CameraParams {
+    #[serde(default)]
+    pub photographic_filter: CameraFilter,
+    #[serde(default)]
+    pub compensate_filter: bool,
     #[serde(default)]
     pub exposure_compensation_ev: f32,
     #[serde(default = "default_true")]
@@ -90,6 +129,8 @@ pub struct CameraParams {
 impl Default for CameraParams {
     fn default() -> Self {
         Self {
+            photographic_filter: CameraFilter::Off,
+            compensate_filter: false,
             exposure_compensation_ev: 0.0,
             auto_exposure: true,
             auto_exposure_method: "center_weighted".into(),

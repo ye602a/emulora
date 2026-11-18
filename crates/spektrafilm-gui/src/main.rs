@@ -181,6 +181,7 @@ fn gui_renderer() -> eframe::Renderer {
 /// to the stock id when missing.
 #[derive(Debug, Clone)]
 struct ProfileEntry {
+    monochrome: bool,
     stock: String,
     display: String,
 }
@@ -896,6 +897,10 @@ impl App {
                     self.params.film_render.development_time = None;
                     if let Ok(film) = profile::load_profile_by_name(&self.data_dir, &self.film_name)
                     {
+                        if !film.is_bw() {
+                            self.params.camera.photographic_filter =
+                                spektrafilm_core::params::CameraFilter::Off;
+                        }
                         // Slide/positive stocks have no print paper — they
                         // are scanned directly. Negatives print onto their
                         // paired `target_print`. Auto-follow the film type
@@ -977,6 +982,42 @@ impl App {
                 changed |= ui
                     .checkbox(&mut self.params.camera.auto_exposure, "Auto exposure")
                     .changed();
+                if self
+                    .films
+                    .iter()
+                    .any(|f| f.stock == self.film_name && f.monochrome)
+                {
+                    use spektrafilm_core::params::CameraFilter;
+                    let camera = &mut self.params.camera;
+                    let options = [
+                        (CameraFilter::Off, "Original stock response"),
+                        (CameraFilter::Clear, "Measured response, clear lens"),
+                        (CameraFilter::Wratten25, "No. 25 red"),
+                        (CameraFilter::Wratten29, "No. 29 deep red"),
+                    ];
+                    let selected = options
+                        .iter()
+                        .find(|(f, _)| *f == camera.photographic_filter)
+                        .unwrap()
+                        .1;
+                    egui::ComboBox::from_label("Camera filter")
+                        .selected_text(selected)
+                        .show_ui(ui, |ui| {
+                            for (filter, name) in options {
+                                changed |= ui
+                                    .selectable_value(&mut camera.photographic_filter, filter, name)
+                                    .changed();
+                            }
+                        });
+                    if camera.photographic_filter.has_glass() {
+                        changed |= ui
+                            .checkbox(&mut camera.compensate_filter, "Compensate filter exposure")
+                            .on_hover_text(
+                                "Restore the unfiltered neutral reference exposure for this film.",
+                            )
+                            .changed();
+                    }
+                }
                 if self.params.camera.auto_exposure {
                     let method = &mut self.params.camera.auto_exposure_method;
                     egui::ComboBox::from_label("Metering")
@@ -1630,15 +1671,20 @@ fn scan_profiles(data_dir: &Path) -> (Vec<ProfileEntry>, Vec<ProfileEntry>) {
         // Cheap probe: just deserialize the file's `info` field. We
         // could skip the rest of the profile but `Profile` already does
         // the right thing — and we pay this once at startup.
-        let (display, is_paper) = match profile::load_profile_by_name(data_dir, &stock) {
+        let (display, is_paper, monochrome) = match profile::load_profile_by_name(data_dir, &stock)
+        {
             Ok(p) => {
                 let display = p.info.name.clone().unwrap_or_else(|| stock.clone());
                 let is_paper = p.info.support == "paper" || p.info.stage == "printing";
-                (display, is_paper)
+                (display, is_paper, p.is_bw())
             }
-            Err(_) => (stock.clone(), false),
+            Err(_) => (stock.clone(), false, false),
         };
-        let entry = ProfileEntry { stock, display };
+        let entry = ProfileEntry {
+            stock,
+            display,
+            monochrome,
+        };
         if is_paper {
             papers.push(entry);
         } else {
@@ -2322,14 +2368,30 @@ mod tests {
     fn print_controls_follow_preview_route() {
         let mut app = App::new(Arc::new(spektrafilm_gpu::cpu_backend::CpuBackend), None);
         let ctx = egui::Context::default();
-        for scan_film in [true, false, true] {
+        for (scan_film, stock, filtered) in [
+            (true, "kodak_doublex", true),
+            (false, "kodak_doublex", false),
+            (true, "kodak_gold_200", false),
+        ] {
+            app.film_name = stock.into();
+            app.params.camera.photographic_filter = if filtered {
+                spektrafilm_core::params::CameraFilter::Wratten25
+            } else {
+                spektrafilm_core::params::CameraFilter::Off
+            };
             app.params.io.scan_film = scan_film;
             let mut frame = ctx.run_ui(Default::default(), |ui| app.controls_panel(ui, &ctx));
             frame.textures_delta.clear();
-            let labels: Vec<_> = frame.shapes.iter().filter_map(|s| match &s.shape {
-                egui::Shape::Text(t) => Some(t.galley.text()),
-                _ => None,
-            }).collect();
+            let labels: Vec<_> = frame
+                .shapes
+                .iter()
+                .filter_map(|s| match &s.shape {
+                    egui::Shape::Text(t) => Some(t.galley.text()),
+                    _ => None,
+                })
+                .collect();
+            assert_eq!(labels.contains(&"Camera filter"), stock == "kodak_doublex");
+            assert_eq!(labels.contains(&"Compensate filter exposure"), filtered);
             assert!(labels.contains(&"Glare"));
             assert_eq!(labels.contains(&"Enlarger"), !scan_film);
             assert_eq!(labels.contains(&"Print curves"), !scan_film);

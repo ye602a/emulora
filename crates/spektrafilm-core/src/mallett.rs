@@ -409,6 +409,14 @@ fn matmul3(a: [[f64; 3]; 3], b: [[f64; 3]; 3]) -> [[f64; 3]; 3] {
 /// `core[m][k] = (Σ_λ basis[λ][k] · illuminant[λ] · sensitivity[λ][m]) / midgray_g`,
 /// with `midgray_g = Σ_λ illuminant[λ] · 0.184 · sensitivity[λ][1]`.
 pub fn compute_core_matrix(sensitivity: &[[f64; 3]], illuminant: &[f64]) -> [[f64; 3]; 3] {
+    compute_camera_matrix(sensitivity, sensitivity, illuminant)
+}
+
+pub(crate) fn compute_camera_matrix(
+    sensitivity: &[[f64; 3]],
+    bare_film: &[[f64; 3]],
+    illuminant: &[f64],
+) -> [[f64; 3]; 3] {
     let n_wl = sensitivity
         .len()
         .min(illuminant.len())
@@ -429,7 +437,7 @@ pub fn compute_core_matrix(sensitivity: &[[f64; 3]], illuminant: &[f64]) -> [[f6
             }
         }
         for m in 0..3 {
-            midgray[m] += illu * MIDGRAY * sensitivity[wl][m];
+            midgray[m] += illu * MIDGRAY * bare_film[wl][m];
         }
     }
     let g = midgray[1];
