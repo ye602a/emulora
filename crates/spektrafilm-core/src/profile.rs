@@ -86,8 +86,17 @@ fn default_d50() -> String {
     "D50".into()
 }
 
+#[derive(Debug, Clone, Copy, Deserialize)]
+pub struct PaperGradePack {
+    pub magenta: f64,
+    pub yellow: f64,
+    pub exposure: f64,
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct ProfileData {
+    #[serde(default)]
+    pub paper_grades: Option<[PaperGradePack; 7]>,
     #[serde(default)]
     pub wavelengths: Vec<f64>,
     #[serde(default, deserialize_with = "deser_nullable_matrix")]
@@ -475,6 +484,32 @@ fn validate_profile(profile: &Profile) -> Result<(), ProfileError> {
     if data.density_curves.len() != data.log_exposure.len() {
         return Err(ProfileError::Validation(
             "density_curves length must match log_exposure length".into(),
+        ));
+    }
+    if profile.info.channel_model == "multigrade_silver" {
+        let valid = profile.is_printing()
+            && data.paper_grades.as_ref().is_some_and(|grades| {
+                grades
+                    .iter()
+                    .all(|g| g.exposure > 0.0 && g.magenta >= 0.0 && g.yellow >= 0.0)
+            })
+            && data.log_sensitivity.len() == 81
+            && data.channel_density.len() == 81
+            && data
+                .log_sensitivity
+                .iter()
+                .chain(&data.channel_density)
+                .chain(&data.density_curves)
+                .all(|r| r.len() == 3);
+        if !valid {
+            return Err(ProfileError::Validation(
+                "multigrade silver paper requires three emulsions and seven calibrated grades"
+                    .into(),
+            ));
+        }
+    } else if data.paper_grades.is_some() {
+        return Err(ProfileError::Validation(
+            "paper grades require multigrade silver paper".into(),
         ));
     }
     if profile.is_bw() {

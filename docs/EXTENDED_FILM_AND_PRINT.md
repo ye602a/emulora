@@ -40,9 +40,7 @@ Test the current KS shape byte-for-byte, physical millimetre checks for any adde
 
 ## Variable-contrast silver paper
 
-Treat a paper grade as separate spectral paper-emulsion exposures and graded development curves. The public parameter needs a paper and process identity, grade interpolation rule, filter transmission and print exposure normalization. Changes invalidate paper exposure and downstream output. The developed negative remains reusable. Budget per-emulsion lookup and integration work in the print stage; benchmark reusing the existing work planes before adding memory.
-
-Verify the grade order and ISO R/P reference readings for the specific paper generation, neutral-patch density through the grade range, smooth half-grades, monotonic step-wedge response and negative reuse. Keep negative development curves and scanning D50 controls as independent parameters. SpektraLab’s paper and filter fit are feasibility data; confirm attribution and applicable CC BY-SA before any data reuse. The simple monochrome stock conversion does not represent multi-emulsion paper. [HARMAN technical paper specification](https://www.ilfordphoto.com/amfile/file/download/file/1956/product/2078/) · [SpektraLab resource attribution](https://github.com/JamesQiu2005/SpektraLab/blob/1aa6f4d8a8b01fc7e1347234d5ca7649bd944e94/engine/resources_product/NOTICE.md)
+The bundled Ilford Multigrade IV RC fit uses three independent emulsions and seven full grades. Grade changes update the enlarger spectrum and print normalization. The developed negative remains reusable, and printing uses the existing work planes. Grade 5 reaches the current fit limit. Further work includes half-grade fitting, ISO P and comparison against measured darkroom prints. [Usage](USAGE.md#graded-black-and-white-prints) · [Calibration targets and attribution](../data/SPEKTRALAB_BW_NOTICE.md)
 
 ## Rem-jet and back-reflection
 

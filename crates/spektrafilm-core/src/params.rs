@@ -513,8 +513,45 @@ impl Default for FilmRenderingParams {
     }
 }
 
+/// Full filter grades in increasing contrast, in profile calibration order.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PaperGrade {
+    #[serde(rename = "00")]
+    DoubleZero,
+    #[serde(rename = "0")]
+    Zero,
+    #[serde(rename = "1")]
+    One,
+    #[default]
+    #[serde(rename = "2")]
+    Two,
+    #[serde(rename = "3")]
+    Three,
+    #[serde(rename = "4")]
+    Four,
+    #[serde(rename = "5")]
+    Five,
+}
+
+impl PaperGrade {
+    pub const ALL: [Self; 7] = [
+        Self::DoubleZero,
+        Self::Zero,
+        Self::One,
+        Self::Two,
+        Self::Three,
+        Self::Four,
+        Self::Five,
+    ];
+    pub fn label(self) -> &'static str {
+        ["00", "0", "1", "2", "3", "4", "5"][self as usize]
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PrintRenderingParams {
+    #[serde(default)]
+    pub paper_grade: Option<PaperGrade>,
     #[serde(default = "default_one")]
     pub density_curve_gamma: f32,
     /// Development time (minutes) for B&W print stocks (e.g. kodak_2302) —
@@ -530,6 +567,7 @@ pub struct PrintRenderingParams {
 impl Default for PrintRenderingParams {
     fn default() -> Self {
         Self {
+            paper_grade: None,
             density_curve_gamma: 1.0,
             development_time: None,
             glare: GlareParams::default(),

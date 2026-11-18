@@ -71,5 +71,6 @@ includes the SpektraLab contribution.
 
 Code: [GPL-3.0](LICENSE). Spectral data, profiles and their derivatives:
 [upstream attribution and CC BY-SA 4.0 terms](SPEKTRAFILM_DATA_LICENSE.txt).
+SpektraLab still negatives and Multigrade IV RC have [separate attribution and RS calibration notes](data/SPEKTRALAB_BW_NOTICE.md).
 [Versioned calibration provenance](data/negative_scan_ap0_v1/PROVENANCE.md)
 is retained alongside the data.

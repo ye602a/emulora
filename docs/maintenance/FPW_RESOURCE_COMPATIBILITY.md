@@ -11,6 +11,8 @@ hashes and source identities. The
 [checker](../../tools/validation/check_fpw_resource_contract.py) runs independently
 with Python's standard library.
 
+The later four SpektraLab still negatives and Multigrade IV RC are additional RS resources. The v1 identity below covers the original 55 shared files. A host offering the new stocks should package the five RS profiles and [their notice](../../data/SPEKTRALAB_BW_NOTICE.md) together.
+
 ## Method and scope
 
 The reference is the FPW engine resource snapshot at

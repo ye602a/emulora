@@ -115,7 +115,7 @@ fn apply_film_specific_params(film: &Profile, params: &mut RuntimeParams) {
 }
 
 /// Inputs consumed before dispatch. Profiles and resource generations belong
-/// to the caller's cache identity. Database neutrals override manual values.
+/// to the caller's cache identity. Grade packs and database neutrals override manual values.
 #[derive(Clone, PartialEq)]
 struct CalibrationInputs {
     method: String,
@@ -123,6 +123,7 @@ struct CalibrationInputs {
     cat16: bool,
     input_gamut: crate::params::InputGamutCompressParams,
     development: [Option<f64>; 2],
+    paper_grade: Option<crate::params::PaperGrade>,
     film_gamma: f32,
     filter: CameraFilter,
     filter_input_space: Option<String>,
@@ -137,7 +138,7 @@ struct CalibrationInputs {
 }
 
 impl CalibrationInputs {
-    fn from_params(p: &RuntimeParams, database_hit: bool) -> Self {
+    fn from_params(p: &RuntimeParams, calibrated_neutrals: bool, graded_paper: bool) -> Self {
         let e = &p.enlarger;
         Self {
             method: p.settings.rgb_to_raw_method.clone(),
@@ -148,6 +149,13 @@ impl CalibrationInputs {
                 p.film_render.development_time,
                 p.print_render.development_time,
             ],
+            paper_grade: if p.io.scan_film {
+                None
+            } else if graded_paper {
+                Some(p.print_render.paper_grade.unwrap_or_default())
+            } else {
+                p.print_render.paper_grade
+            },
             film_gamma: p.film_render.density_curve_gamma,
             filter: p.camera.photographic_filter,
             filter_input_space: p
@@ -159,7 +167,7 @@ impl CalibrationInputs {
                 && p.camera.compensate_filter,
             illuminant: e.illuminant.clone(),
             database: p.settings.neutral_print_filters_from_database,
-            manual_neutrals: (!database_hit).then_some([
+            manual_neutrals: (!calibrated_neutrals).then_some([
                 e.c_filter_neutral,
                 e.m_filter_neutral,
                 e.y_filter_neutral,
@@ -205,7 +213,7 @@ pub struct Pipeline {
     /// Opt-in accepted host stock constants, separate from general defaults.
     accepted_stock_setup: Option<ResolvedStockSetup>,
     calibration: Option<CalibrationInputs>,
-    database_neutrals: Option<[f32; 3]>,
+    calibrated_neutrals: Option<[f32; 3]>,
 }
 
 impl Pipeline {
@@ -245,11 +253,15 @@ impl Pipeline {
     /// Resource changes always require a new pipeline.
     pub fn refreshed(&self, mut params: RuntimeParams) -> Option<Self> {
         validate_spectral_input(&params).ok()?;
-        let key = CalibrationInputs::from_params(&params, self.database_neutrals.is_some());
+        let key = CalibrationInputs::from_params(
+            &params,
+            self.calibrated_neutrals.is_some(),
+            self.print.data.paper_grades.is_some(),
+        );
         if self.calibration.as_ref() != Some(&key) {
             return None;
         }
-        if let Some([c, m, y]) = self.database_neutrals {
+        if let Some([c, m, y]) = self.calibrated_neutrals {
             params.enlarger.c_filter_neutral = c;
             params.enlarger.m_filter_neutral = m;
             params.enlarger.y_filter_neutral = y;
@@ -304,7 +316,7 @@ impl Pipeline {
             output_gamut,
             accepted_stock_setup: None,
             calibration: None,
-            database_neutrals: None,
+            calibrated_neutrals: None,
         }
     }
 
@@ -354,18 +366,32 @@ impl Pipeline {
         // params.enlarger.{c,m,y}_filter_neutral when the combo isn't in the database.
         // Keep the f64 lookup values around (params is f32) — narrowing to
         // f32 here costs ~4e-8 precision through the `10^(-cc/100)` step.
-        let mut neutral_cmy_f64: Option<[f64; 3]> = None;
-        if params.settings.neutral_print_filters_from_database {
+        let grade_pack = if params.io.scan_film {
+            None
+        } else if let Some(grades) = &print.data.paper_grades {
+            if params.enlarger.illuminant != "TH-KG3" {
+                return Err("multigrade paper grades are calibrated for TH-KG3".into());
+            }
+            Some(grades[params.print_render.paper_grade.unwrap_or_default() as usize])
+        } else if params.print_render.paper_grade.is_some() {
+            return Err("selected print paper has no grade calibration".into());
+        } else {
+            None
+        };
+        let neutral_cmy_f64 = if let Some(pack) = grade_pack {
+            Some([0.0, pack.magenta, pack.yellow])
+        } else if params.settings.neutral_print_filters_from_database {
             let db = crate::neutral_filters::NeutralFilters::load(data_dir)?;
             let print_stock = print.info.stock.as_deref().unwrap_or("");
             let film_stock = film.info.stock.as_deref().unwrap_or("");
-            if let Some([c, m, y]) = db.lookup(print_stock, &params.enlarger.illuminant, film_stock)
-            {
-                params.enlarger.c_filter_neutral = c as f32;
-                params.enlarger.m_filter_neutral = m as f32;
-                params.enlarger.y_filter_neutral = y as f32;
-                neutral_cmy_f64 = Some([c, m, y]);
-            }
+            db.lookup(print_stock, &params.enlarger.illuminant, film_stock)
+        } else {
+            None
+        };
+        if let Some([c, m, y]) = neutral_cmy_f64 {
+            params.enlarger.c_filter_neutral = c as f32;
+            params.enlarger.m_filter_neutral = m as f32;
+            params.enlarger.y_filter_neutral = y as f32;
         }
         let cmy_f64 = neutral_cmy_f64.unwrap_or([
             params.enlarger.c_filter_neutral as f64,
@@ -583,6 +609,9 @@ impl Pipeline {
             (false, false) => 1.0,
         };
 
+        let print_exposure_factor =
+            print_exposure_factor * grade_pack.map_or(1.0, |pack| pack.exposure);
+
         // Keep the enlarger calibrated to the bare stock. Apply the lens
         // transmission only to the camera response consumed by CPU and GPU.
         let (tc_lut, mallett_core, filter_factor_ev) = if !filter.has_glass() {
@@ -624,7 +653,11 @@ impl Pipeline {
             &params.io.output_gamut_compress,
             &params.io.output_color_space,
         );
-        let calibration = CalibrationInputs::from_params(&params, neutral_cmy_f64.is_some());
+        let calibration = CalibrationInputs::from_params(
+            &params,
+            neutral_cmy_f64.is_some(),
+            print.data.paper_grades.is_some(),
+        );
         Ok(Self {
             film,
             print,
@@ -639,7 +672,7 @@ impl Pipeline {
             output_gamut,
             accepted_stock_setup: None,
             calibration: Some(calibration),
-            database_neutrals: neutral_cmy_f64.map(|v| v.map(|x| x as f32)),
+            calibrated_neutrals: neutral_cmy_f64.map(|v| v.map(|x| x as f32)),
         })
     }
 
@@ -838,6 +871,13 @@ impl Pipeline {
         image: &ImageBuf,
     ) -> Result<Option<spektrafilm_gpu::FilmBorderGpuParams>, spektrafilm_gpu::output::OutputError>
     {
+        if self.calibration.is_none()
+            && !self.params.io.scan_film
+            && (self.print.data.paper_grades.is_some()
+                || self.params.print_render.paper_grade.is_some())
+        {
+            return Err(spektrafilm_gpu::OutputError::PaperGradeRequiresSpectral);
+        }
         if self.calibration.is_none() && self.params.camera.photographic_filter != CameraFilter::Off
         {
             return Err(spektrafilm_gpu::OutputError::CameraFilterRequiresSpectral);

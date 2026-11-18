@@ -60,6 +60,20 @@ In the GUI, select a monochrome film and open **Exposure → Camera filter**. Fo
 
 On Hanatos the linear print green channel for the neutral/red/blue patches was 0.184/0.173/0.289 with the clear lens setting and 0.184/0.527/0.044 with compensated No. 25. This follows the neutral-preservation and red/blue separation checked by [LAB's B&W render tests](https://github.com/JamesQiu2005/SpektraLab/blob/b51e672/engine/tests/bw_checks.py). The stocks and print recipes differ between the suites. On the same three compensated No. 25 patches, the largest absolute CPU/Vulkan linear output difference across all three models was 0.00000465. Windows Vulkan also rendered one 512-pixel-long-edge photo through the CLI, and the dedicated resident test checked shoulder fog and negative-cache reuse. Broader photographic acceptance and CUDA/macOS runs remain open.
 
+### Graded black-and-white prints
+
+Tri-X 400, T-Max 100, Acros II and HP5 Plus select Ilford Multigrade IV RC as their target paper. In the GUI, **Profiles → Paper grade** selects 00, 0, 1, 2, 3, 4 or 5. Grade 2 is the default. A low grade compresses contrast; a high grade deepens shadows and separates highlights.
+
+For the CLI, save `{"print_render":{"paper_grade":"00"}}` as `soft.json`, then run:
+
+```sh
+spektrafilm process photo.png --film kodak_tri_x_400 --params soft.json -o soft-print.png
+```
+
+The same recipe works with `export-lut`. Grade IDs are strings so 00 and 0 stay distinct. A graded print requires the TH-KG3 illuminant. The grade sets neutral filtration and a calibrated exposure multiplier. Manual print exposure and filter shifts remain relative trims. An explicit grade with ordinary paper returns a construction error. A direct film scan bypasses paper controls. Changing grades requests a calibrated pipeline rebuild. On resident Vulkan, the existing developed negative remains reusable with the same source identity.
+
+See the [silver profile provenance and calibration](../data/SPEKTRALAB_BW_NOTICE.md) for the film processes, fit method, grade-5 limit and regeneration commands.
+
 ### Spectral CUBE export
 
 `export-lut` accepts the same film, target paper, `--scan-film` and `--params` as `process`. An explicit scan selects the film scan even if a paper is supplied. An explicit paper selects printing ahead of the JSON scan flag. With neither flag, both commands honor the saved route and use the film's target paper for printing. A direct negative scan yields the engine's transmission scan. FPW's negative inversion and calibrated finish are separate, versioned host routes.

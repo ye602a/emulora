@@ -370,6 +370,13 @@ fn cmd_export_lut(
     let backend = spektrafilm_gpu::select_backend();
     let mut cube = String::from("TITLE \"spektrafilm-rs spectral photo transform\"\n");
     writeln!(cube, "# Film: {film_name}")?;
+    if !params.io.scan_film && print.data.paper_grades.is_some() {
+        writeln!(
+            cube,
+            "# Paper grade: {}",
+            params.print_render.paper_grade.unwrap_or_default().label()
+        )?;
+    }
     if params.camera.photographic_filter != spektrafilm_core::params::CameraFilter::Off {
         writeln!(
             cube,

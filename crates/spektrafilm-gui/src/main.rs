@@ -181,6 +181,7 @@ fn gui_renderer() -> eframe::Renderer {
 /// to the stock id when missing.
 #[derive(Debug, Clone)]
 struct ProfileEntry {
+    graded_paper: bool,
     monochrome: bool,
     stock: String,
     display: String,
@@ -915,6 +916,7 @@ impl App {
                             self.print_name = target.to_string();
                             self.print_dev_times =
                                 profile_dev_times(&self.data_dir, &self.print_name);
+                            self.params.print_render.paper_grade = None;
                             self.params.print_render.development_time = None;
                         }
                     }
@@ -957,8 +959,31 @@ impl App {
                     .inner;
                 if paper_changed {
                     self.print_dev_times = profile_dev_times(&self.data_dir, &self.print_name);
+                    self.params.print_render.paper_grade = None;
                     self.params.print_render.development_time = None;
                     self.dirty = true;
+                }
+                if !self.params.io.scan_film
+                    && self
+                        .papers
+                        .iter()
+                        .any(|p| p.stock == self.print_name && p.graded_paper)
+                {
+                    use spektrafilm_core::params::PaperGrade;
+                    let mut grade = self.params.print_render.paper_grade.unwrap_or_default();
+                    egui::ComboBox::from_label("Paper grade")
+                        .selected_text(grade.label())
+                        .show_ui(ui, |ui| {
+                            for choice in PaperGrade::ALL {
+                                if ui
+                                    .selectable_value(&mut grade, choice, choice.label())
+                                    .changed()
+                                {
+                                    self.params.print_render.paper_grade = Some(choice);
+                                    self.dirty = true;
+                                }
+                            }
+                        });
                 }
                 if !self.params.io.scan_film
                     && self.print_dev_times.len() > 1
@@ -1671,16 +1696,17 @@ fn scan_profiles(data_dir: &Path) -> (Vec<ProfileEntry>, Vec<ProfileEntry>) {
         // Cheap probe: just deserialize the file's `info` field. We
         // could skip the rest of the profile but `Profile` already does
         // the right thing — and we pay this once at startup.
-        let (display, is_paper, monochrome) = match profile::load_profile_by_name(data_dir, &stock)
-        {
-            Ok(p) => {
-                let display = p.info.name.clone().unwrap_or_else(|| stock.clone());
-                let is_paper = p.info.support == "paper" || p.info.stage == "printing";
-                (display, is_paper, p.is_bw())
-            }
-            Err(_) => (stock.clone(), false, false),
-        };
+        let (display, is_paper, monochrome, graded_paper) =
+            match profile::load_profile_by_name(data_dir, &stock) {
+                Ok(p) => {
+                    let display = p.info.name.clone().unwrap_or_else(|| stock.clone());
+                    let is_paper = p.info.support == "paper" || p.info.stage == "printing";
+                    (display, is_paper, p.is_bw(), p.data.paper_grades.is_some())
+                }
+                Err(_) => (stock.clone(), false, false, false),
+            };
         let entry = ProfileEntry {
+            graded_paper,
             stock,
             display,
             monochrome,
@@ -2363,6 +2389,28 @@ fn tag_metal_layer_srgb<H: raw_window_handle::HasWindowHandle>(h: &H) -> Result<
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn paper_grade_picker_follows_the_active_print_stock() {
+        let mut app = App::new(Arc::new(spektrafilm_gpu::cpu_backend::CpuBackend), None);
+        let ctx = egui::Context::default();
+        for (scan, paper, visible) in [
+            (false, "ilford_multigrade_iv_rc", true),
+            (true, "ilford_multigrade_iv_rc", false),
+            (false, "kodak_2302", false),
+        ] {
+            app.params.io.scan_film = scan;
+            app.print_name = paper.into();
+            let mut frame = ctx.run_ui(Default::default(), |ui| app.controls_panel(ui, &ctx));
+            frame.textures_delta.clear();
+            assert_eq!(
+                frame.shapes.iter().any(
+                    |s| matches!(&s.shape, egui::Shape::Text(t) if t.galley.text()=="Paper grade")
+                ),
+                visible
+            );
+        }
+    }
 
     #[test]
     fn print_controls_follow_preview_route() {
