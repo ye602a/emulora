@@ -1,5 +1,20 @@
 # Engine validation
 
+## Standalone spectral export (2026-11-18)
+
+On Windows with Rust 1.99.1 and RTX 3060 Ti Vulkan, the following focused checks passed. The first Cargo test command used `SPEKTRAFILM_REQUIRE_GPU=1`. Its 19 cases include actual CPU/Vulkan CLI comparisons, invalid requests and protection of previously written files. The f64 command separately exercises the CPU node comparison. The CLI now uses the already locked tempfile crate for same-directory replacement.
+
+```sh
+cargo test --locked -p spektrafilm-cli --test spectral_lut -p spektrafilm-core --test resident_input --test border_135_gpu --test gpu_output --test stock_setup --test probe_isolation --test negative_cache -- --test-threads=1
+cargo test --locked -p spektrafilm-cli --features precision-f64 --test spectral_lut cube_matches_independent_cpu_photo_pixels
+cargo check --locked -p spektrafilm-gui
+cargo build --locked -p spektrafilm-cli --bin spektrafilm
+python tools/validation/check_fpw_resource_contract.py
+python scripts/verify_calibrated_output_sources.py
+```
+
+The resource checks verified 55 shared resources, three calibration artifacts and seven frozen source/fixture hashes. The [photo and ramp measurements](../ENGINE_STUDIES.md#spectral-cube-export) include the recipe and reproduction commands. No host release or new calibrated look was qualified.
+
 ## Runtime-cost review (2026-11-13)
 
 The performance follow-up to `014cff45a565d2fc2167d024bd1044ec602cacf1`

@@ -51,6 +51,7 @@ On Windows, use `target\release\spektrafilm.exe` and run the process command on 
 
 ## Documentation
 
+- [Current engine work and upstream comparisons](docs/ENGINE_EVOLUTION.md)
 - [Build and usage](docs/USAGE.md)
 - [Host GPU integration](docs/maintenance/HOST_GPU_INTEGRATION_CONTRACT.md)
 - [Public integration example](crates/spektrafilm-core/examples/fpw_host_contract.rs)

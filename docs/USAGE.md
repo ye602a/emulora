@@ -37,6 +37,21 @@ The CLI accepts supported image and camera RAW formats through its existing
 decoders. Camera/model coverage depends on those decoders. Run `process --help`
 for available options.
 
+### Spectral CUBE export
+
+`export-lut` accepts the same film, target paper, `--scan-film` and `--params` as `process`. An explicit scan selects the film scan even if a paper is supplied. An explicit paper selects printing ahead of the JSON scan flag. With neither flag, both commands honor the saved route and use the film's target paper for printing. A direct negative scan yields the engine's transmission scan. FPW's negative inversion and calibrated finish are separate, versioned host routes.
+
+```sh
+./target/release/spektrafilm export-lut --film kodak_portra_400 \
+    --paper kodak_portra_endura --params look.json --size 65 -o portra.cube
+```
+
+For a PNG/RAW comparison, set `look.json` to `{"io":{"input_color_space":"sRGB"}}` plus any desired look settings. Feed **decoded, linear** RGB to the LUT. Without overrides, the cube input uses the standalone TIFF convention of linear ProPhoto RGB. The grid supports the engine's named sRGB, ProPhoto RGB, Rec. 2020 and ACES2065-1 input primaries. Its input domain is [0,1], with 2–65 points per axis, red varying fastest. Output uses sRGB primaries, clipped to [0,1], with sRGB encoding by default or linear output when `io.output_cctf_encoding=false`. The header identifies the route, input, output, spectral method, actual backend and source profile credits.
+
+The bake keeps fixed exposure, local DIR, calibrated print filters, preflash, fitted print chemistry, scanner correction and supported output gamut compression. It omits metering, frame-normalized highlight boost, grain, glare, spatial DIR, optical diffusion and sharpening, borders and resampling. It evaluates the spectral integrations directly. Compare it with a photo rendered with those same pointwise settings on the same backend. A LUT interpolates between samples. Scene values above 1 lie outside its sampled domain. See the [measured interpolation errors](ENGINE_STUDIES.md#spectral-cube-export).
+
+Both commands report spectral initialization failures. `Pipeline::try_process` returns geometry and backend errors to file-output and GUI callers. CPU can render ordinary spectral photos, and a physical 135 border requires a supporting resident backend. The infallible `process` convenience treats errors as fatal. Hosts using borrowed input should use `process_resident_with_options` or `try_with_resident_params` to retain detailed errors.
+
 ### f64 CPU binary
 
 Build separately to keep the default f32 applications intact:

@@ -1,6 +1,6 @@
 # SpektraFilm-RS Research Notes: Data and Algorithms
 
-Date: 2026-11-16
+Reference notes from 2026-11-16. Current implementation decisions and priorities are in the [engine evolution plan](ENGINE_EVOLUTION.md).
 
 ## 1. Film-border references
 SpektraLab overscan expands the film canvas beyond the image content and uses scan registration, gate, perforations, edge exposure/fog and light-leak parameters to form the border. Its Windows/Linux branch has Vulkan kernels and is a useful cross-platform reference. Do not copy its allocation strategy; use RS resource ownership and pooling.
@@ -15,19 +15,19 @@ RS currently has about 22 exposure profiles and 9 print profiles. SpektraLab's c
 - [OFX public stock lists](https://github.com/chaert-s/spektrafilm-ofx/blob/main/tools/ofx_stock_lists.py)
 
 Additional SpektraLab candidates:
-- Kodak Tri-X 400, T-Max 100, Fujifilm Acros II, Ilford HP5 Plus: monochrome negatives; understand three-column expanded representation versus RS single-column semantics before conversion.
+- Kodak Tri-X 400, T-Max 100, Fujifilm Acros II, Ilford HP5 Plus: monochrome negatives. The offline conversion and diagnostic ramp are [complete](ENGINE_STUDIES.md#monochrome-profile-conversion). Production integration includes paper and exposure calibration.
 - Ilford Multigrade IV RC: multi-emulsion variable-contrast paper; requires separate modeling.
 - CineStill 800T: derived alias, with rem-jet-free back-reflection halation semantics.
 RS Kodak Tri-X Reversal 7266 is not Tri-X 400. Profile count does not prove measurement quality. New profiles must include provenance, conversion script, fit assumptions, license and validation.
 
 ## 3. Performance candidate
-darktable's development branch recently fused blur final-axis output with destination accumulation, reducing intermediate writes/reads and scheduling. RS has a corresponding blur→add_scaled path worth inspecting. Some other upstream changes (channel vectorization, source/destination organization) overlap with existing RS structures and should not be duplicated.
+darktable's development branch recently fused blur final-axis output with destination accumulation, reducing intermediate writes/reads and scheduling. The [RS fusion measurement](ENGINE_STUDIES.md#halation-accumulation) retained the existing passes. Some other upstream changes (channel vectorization, source/destination organization) overlap with existing RS structures and should not be duplicated.
 - [darktable d996f081](https://github.com/darktable-org/darktable/commit/d996f0810350d3717788ab9190cc40eef9ed14c8)
 - [channel vectorization](https://github.com/darktable-org/darktable/commit/bea502fdd12862a20d54fa4142a34f5a953024a4)
 - [source/destination change](https://github.com/darktable-org/darktable/commit/aec84e6665623acc5cc2e13eb305ae56d19672a5)
 
 ## 4. CPU/GPU diffusion differences
-CPU uses per-channel RGB radii and a multi-Gaussian tail approximation; parts of GPU average radii and use a different tail approximation. This predates recent integration. Measure response offline first; if needed, design a new versioned model.
+CPU uses per-channel RGB radii and a multi-Gaussian tail approximation; parts of GPU average radii and use a different tail approximation. This predates recent integration. The [measured point and photo responses](ENGINE_STUDIES.md#cpu-and-vulkan-diffusion) are the baseline for an optional versioned model.
 - [CPU diffusion](../crates/spektrafilm-model/src/diffusion.rs)
 - [GPU pipeline setup](../crates/spektrafilm-core/src/pipeline.rs)
 - [GPU backend](../crates/spektrafilm-gpu/src/wgpu_backend.rs)

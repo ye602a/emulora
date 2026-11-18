@@ -48,6 +48,7 @@ Windows 下请使用 `target\release\spektrafilm.exe`，并将处理命令写在
 
 ## 文档
 
+- [引擎批次、上游对照与实测依据](docs/ENGINE_EVOLUTION.md)
 - [构建与使用](docs/USAGE.md)
 - [宿主 GPU 接入](docs/maintenance/HOST_GPU_INTEGRATION_CONTRACT.md)
 - [公开接入示例](crates/spektrafilm-core/examples/fpw_host_contract.rs)
