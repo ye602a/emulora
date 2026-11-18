@@ -25,6 +25,10 @@ pub enum OutputError {
     Cancelled,
     #[error("image dimensions do not match the interleaved RGB input data")]
     InvalidImageData,
+    #[error("135 film border geometry or exposure is invalid")]
+    InvalidFilmBorder,
+    #[error("this backend does not support the 135 film border")]
+    UnsupportedFilmBorder,
     #[error("image or output exceeds this device's buffer or dispatch limits")]
     DeviceLimitExceeded,
     #[error("GPU submission, completion, or buffer mapping failed")]

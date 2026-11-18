@@ -183,6 +183,8 @@ pub trait ComputeBackend: Send + Sync {
 /// DIR couplers, …) doesn't churn every callsite.
 pub struct FilmChainParams<'a> {
     pub image: &'a ImageBuf,
+    /// Resolved 135 layout. The image retains its compact content dimensions.
+    pub border_135: Option<FilmBorderGpuParams>,
     /// RGB → film-raw front pass (the configured upsampler).
     pub front: FrontPass<'a>,
     pub film_log_exposure: &'a [f64],
@@ -265,6 +267,25 @@ pub struct FilmChainParams<'a> {
     /// Whether the final output should be sRGB-encoded after clamping. Mirrors
     /// `RuntimeParams::io.output_cctf_encoding`.
     pub output_cctf_encoding: bool,
+}
+
+/// Uniform shared by the exposure, print, and direct-film scan shader variants.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct FilmBorderGpuParams {
+    pub canvas: [u32; 2],
+    pub _pad0: [u32; 2],
+    pub content: [u32; 4],
+    pub origin_px: [f32; 2],
+    pub gate_half_mm: [f32; 2],
+    pub film_from_canvas: [[f32; 2]; 2],
+    pub strip_half_mm: f32,
+    pub edge_exposure: f32,
+    pub perforation_pitch_mm: f32,
+    pub perforation_corner_mm: f32,
+    pub perforation_half_mm: [f32; 2],
+    pub perforation_row_mm: f32,
+    pub _pad1: f32,
 }
 
 /// RGB → film-raw front pass of the GPU-resident chain. Both variants are

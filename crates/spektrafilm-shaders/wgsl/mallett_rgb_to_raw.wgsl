@@ -25,7 +25,7 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
         return;
     }
     let base = pixel_idx * 3u;
-    let rgb = vec3<f32>(rgb_in[base], rgb_in[base + 1u], rgb_in[base + 2u]);
+    let rgb = exposure_rgb(pixel_idx);
     let raw = params.m * rgb;
     raw_out[base] = raw.x;
     raw_out[base + 1u] = raw.y;

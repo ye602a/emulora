@@ -2295,6 +2295,10 @@ impl ComputeBackend for CudaBackend {
     }
 
     fn try_run_film_chain(&self, params: &FilmChainParams<'_>) -> Option<ImageBuf> {
+        if params.border_135.is_some() {
+            tracing::warn!("135 film borders require the wgpu resident chain");
+            return None;
+        }
         validate_cuda_grain(params.grain.as_ref()).expect(
             "CUDA cannot render multilayer grain; use the checked rendering API for an error or use the Vulkan backend",
         );
@@ -2313,6 +2317,9 @@ impl ComputeBackend for CudaBackend {
         options: FilmRenderOptions<'_>,
     ) -> Result<Option<ImageBuf>, OutputError> {
         options.check_cancelled()?;
+        if params.border_135.is_some() {
+            return Err(OutputError::UnsupportedFilmBorder);
+        }
         crate::output::validate_rgb_image(params.image)?;
         validate_cuda_grain(params.grain.as_ref())?;
         let result = self.try_run_film_chain(params);

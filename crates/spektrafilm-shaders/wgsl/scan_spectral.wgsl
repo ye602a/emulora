@@ -44,6 +44,7 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     let cmy_r = density_cmy[base];
     let cmy_g = density_cmy[base + 1u];
     let cmy_b = density_cmy[base + 2u];
+    let film_opacity = film_coverage(pixel_idx);
 
     var xyz = vec3<f32>(0.0, 0.0, 0.0);
 
@@ -57,7 +58,7 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
         if cd_r != cd_r || cd_g != cd_g || cd_b != cd_b || bd != bd {
             continue;
         }
-        let d = cmy_r * cd_r + cmy_g * cd_g + cmy_b * cd_b + bd;
+        let d = (cmy_r * cd_r + cmy_g * cd_g + cmy_b * cd_b + bd) * film_opacity;
         let light = pow(10.0, -d) * illuminant[wl];
         xyz.x += light * cmf_x[wl];
         xyz.y += light * cmf_y[wl];

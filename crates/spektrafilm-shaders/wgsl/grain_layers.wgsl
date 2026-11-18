@@ -64,9 +64,12 @@ fn sampled_poisson(i:u32,stream:u32,mu:f32)->f32 {
     if(p.sampling.z==0.0 || p.sampling.x<=1.0){var r=rng_init(grain_index(i,p.reference),stream);return poisson(&r,mu);}
     let pos=grain_position(i,p.shape.y,p.reference)/p.sampling.x;
     let stride=select(p.shape.y,p.reference.shape.y,p.reference.shape.w!=0u);
-    let cell=vec2<u32>(floor(pos));let t=fract(pos);
+    let cell=vec2<i32>(floor(pos));let t=fract(pos);
     let weights=vec4<f32>((1.0-t.x)*(1.0-t.y),t.x*(1.0-t.y),(1.0-t.x)*t.y,t.x*t.y);
-    let ids=vec4<u32>(cell.y*stride+cell.x,cell.y*stride+cell.x+1u,(cell.y+1u)*stride+cell.x,(cell.y+1u)*stride+cell.x+1u);
+    let ids=vec4<u32>(grain_cell_index(cell,stride,p.reference),
+        grain_cell_index(cell+vec2<i32>(1,0),stride,p.reference),
+        grain_cell_index(cell+vec2<i32>(0,1),stride,p.reference),
+        grain_cell_index(cell+vec2<i32>(1,1),stride,p.reference));
     var residual=0.0;
     for(var q=0u;q<4u;q++){var r=rng_init(ids[q],stream);residual+=weights[q]*(poisson(&r,mu)-mu);}
     return max(0.0,mu+residual/sqrt(dot(weights,weights)));

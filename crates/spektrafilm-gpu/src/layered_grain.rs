@@ -56,6 +56,7 @@ impl LayeredGrainState {
         a: &wgpu::Buffer,
         b: &wgpu::Buffer,
         backend: &WgpuBackend,
+        reference: GrainReference,
     ) -> Self {
         let g = gp.layers.as_ref().expect("layered grain parameters");
         let blur_plan = GrainBlurPlan::new(gp).expect("layered grain parameters");
@@ -91,7 +92,7 @@ impl LayeredGrainState {
                 reference: GrainReference,
             }
             let params = P {
-                reference: backend.grain_reference.unwrap_or_else(bytemuck::Zeroable::zeroed),
+                reference,
                 shape: [n, width, height, gp.base_seed],
                 control: [g.curve_len, g.positive as u32, op, layer],
                 values,
@@ -299,7 +300,10 @@ mod tests {
             usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
-        let state = super::super::build_grain_state(&backend.device, gp, width, height, &a, &b, backend);
+        let state = super::super::build_grain_state(
+            &backend.device, gp, width, height, &a, &b, backend,
+            backend.grain_reference.unwrap_or_default(),
+        );
         let mut first: Option<Vec<f32>> = None;
         for _ in 0..2 {
             backend
@@ -384,6 +388,32 @@ mod tests {
     }
 
     #[test]
+    fn border_continues_source_grain_without_repeating_the_edge() {
+        let Some(mut backend) = WgpuBackend::new() else {
+            assert!(std::env::var_os("SPEKTRAFILM_REQUIRE_GPU").is_none());
+            return;
+        };
+        let reference = GrainReference::new([1., 0., 0., 0., 1., 0.], [32, 32], 32);
+        for sampling in [None, Some([2., 1.])] {
+            let mut gp = parameters();
+            gp.layers.as_mut().unwrap().output_sampling = sampling;
+            backend.configure_grain_reference(Some(reference));
+            let original = render_size(&backend, &gp, [32, 32]);
+            backend.configure_grain_reference(Some(reference.in_canvas([8, 0], 48)));
+            let expanded = render_size(&backend, &gp, [48, 32]);
+            for (old_row, new_row) in original.chunks_exact(32*3).zip(expanded.chunks_exact(48*3)) {
+                assert_eq!(old_row, &new_row[8*3..40*3]);
+            }
+            for x in [0, 46] {
+                assert!((0..32).any(|y| {
+                    let i = (y*48+x)*3;
+                    expanded[i..i+3] != expanded[i+3..i+6]
+                }));
+            }
+        }
+    }
+
+    #[test]
     fn actual_gpu_multilayer_requires_iir_capability_before_cache_or_consumer() {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::VULKAN,
@@ -416,6 +446,7 @@ mod tests {
         // Small, valid spectral inputs keep this a public full-chain check,
         // without relying on a particular film profile or malformed dummy data.
         let chain = |grain| crate::FilmChainParams {
+            border_135: None,
             image: &input,
             front: crate::FrontPass::Mallett2019 {
                 matrix: [[1., 0., 0.], [0., 1., 0.], [0., 0., 1.]],
