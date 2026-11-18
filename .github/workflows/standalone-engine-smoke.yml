@@ -105,6 +105,9 @@ jobs:
       - name: Require a real Vulkan device and submit GPU work
         run: cargo test --locked -p spektrafilm-gpu --test host_device -- --nocapture
 
+      - name: Verify 135 exposure, scan transmission and negative cache on Vulkan
+        run: cargo test --locked -p spektrafilm-core --test border_135_gpu -- --test-threads=1
+
       - name: Verify actual source-anchored physical grain on Vulkan
         run: cargo test --locked -p spektrafilm-gpu --test grain_source -- --nocapture
 
