@@ -26,26 +26,9 @@ public**. The film engine is maintained here and can be built and used independe
 - Host-provided GPU devices, source-coordinate grain, bounded caches, and GPU / RGB16 / region output.
 - Standalone CLI and preview GUI.
 
-## Recent additions
+## Physical 135 film borders
 
-The latest engine integration milestone, implemented through
-[`102eb459`](https://github.com/ye602a/spektrafilm-rs/commit/102eb4599d0e694e652d8d79778453a250338c32),
-adds:
-
-- **Shared GPU integration**: host-provided device/queue handles and a shared submission gate, with cooperative cancellation for interactive hosts.
-- **Physical grain and precision**: opt-in GPU multilayer grain, source-coordinate sampling, and precise Vulkan IIR for wide-radius grain.
-- **Resource reuse**: reusable work buffers and a bounded negative-density cache whose parameter dependencies are managed by the engine.
-- **Output APIs**: calibrated negative output, GPU textures, RGB16 and region output for host display and export workflows.
-- **Runtime-cost fixes**: remove temporary cache-key allocations and unused front-pass uploads on cache hits, and append final output to the physical pipeline's final submission to avoid a separate output submission and wait.
-
-Optional features retain explicit enablement and device requirements while preserving existing defaults.
-See [host GPU integration](docs/maintenance/HOST_GPU_INTEGRATION_CONTRACT.md)
-for interfaces and [validation records](docs/maintenance/VALIDATION.md) for completed checks and their scope.
-
-## Next steps
-
-- Complete real-image, window-interaction and performance acceptance on target Windows hardware, including the host application's resolved dependencies, device and driver. Standalone engine results and host acceptance are recorded separately.
-- Use those measurements to prioritize further reductions in allocation, upload and synchronization costs while preserving the rendering contract. Specific optimizations will be selected from observed bottlenecks.
+The resident Vulkan pipeline supports a 35 mm strip for paper prints and direct reversal scans. Overscan extends the canvas while keeping the source pixel pitch and grain coordinates. Perforations and optional edge exposure enter the optical pipeline before the final print or scan. Hosts can request the whole canvas or an output region. [135 film border geometry](docs/135_FILM_BORDER.md)
 
 ## Get started
 
@@ -72,6 +55,7 @@ On Windows, use `target\release\spektrafilm.exe` and run the process command on 
 - [Host GPU integration](docs/maintenance/HOST_GPU_INTEGRATION_CONTRACT.md)
 - [Public integration example](crates/spektrafilm-core/examples/fpw_host_contract.rs)
 - [Compatibility and development plan](docs/maintenance/FPW_PARITY_MIGRATION_PLAN.md)
+- [Film engine measurements](docs/ENGINE_STUDIES.md)
 - [Validation scope and evidence](docs/maintenance/VALIDATION.md)
 
 ## Credits and licenses

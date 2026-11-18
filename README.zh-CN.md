@@ -25,25 +25,9 @@
 - 宿主提供的 GPU 设备、基于源图坐标的颗粒、有容量上限的缓存，以及 GPU / RGB16 / 区域输出。
 - 独立命令行工具和图形预览界面。
 
-## 近期新增
+## 物理 135 片边
 
-截至 [`102eb459`](https://github.com/ye602a/spektrafilm-rs/commit/102eb4599d0e694e652d8d79778453a250338c32)，
-本轮独立引擎接入已完成以下增量：
-
-- **共享 GPU 接入**：接受宿主提供的 device/queue 和共享提交锁，支持交互式宿主使用协作式取消。
-- **物理颗粒与精度**：加入可选的 GPU 多层颗粒、源图坐标采样，以及宽半径颗粒使用的高精度 Vulkan IIR。
-- **资源复用**：复用工作缓冲，并由引擎管理有容量上限的负片密度缓存及其参数依赖。
-- **输出接口**：提供校准负片输出、GPU 纹理、RGB16 和区域输出，供宿主显示与导出流程使用。
-- **运行成本修正**：移除缓存命中的临时键分配和无用前段上传，让最终输出复用物理处理的末次提交，避免单独的输出提交与等待。
-
-可选能力保留明确的启用方式和设备要求，既有默认行为保持兼容。
-接口说明见[宿主 GPU 接入](docs/maintenance/HOST_GPU_INTEGRATION_CONTRACT.md)，
-已完成的检查及其范围见[验证记录](docs/maintenance/VALIDATION.md)。
-
-## 下一步
-
-- 在目标 Windows 硬件上完成实图、窗口交互与性能验收，覆盖宿主应用实际解析的依赖组合、设备和驱动；独立引擎结果与宿主验收分别记录。
-- 根据上述测量，安排进一步减少分配、上传与同步成本的优化，并保持既有渲染契约。具体优化项由实测瓶颈决定。
+驻留 Vulkan 流水线可为 35 mm 相纸印相和反转片直扫生成完整片幅。扩展画布保留原图的物理像素间距与颗粒坐标，齿孔和可选片边曝光参与后续印相或扫描。宿主可请求完整画布或指定输出区域。[135 片边几何与渲染契约](docs/135_FILM_BORDER.md)
 
 ## 快速开始
 
@@ -68,6 +52,7 @@ Windows 下请使用 `target\release\spektrafilm.exe`，并将处理命令写在
 - [宿主 GPU 接入](docs/maintenance/HOST_GPU_INTEGRATION_CONTRACT.md)
 - [公开接入示例](crates/spektrafilm-core/examples/fpw_host_contract.rs)
 - [兼容性与开发计划](docs/maintenance/FPW_PARITY_MIGRATION_PLAN.md)
+- [胶片引擎实测记录](docs/ENGINE_STUDIES.md)
 - [验证范围与依据](docs/maintenance/VALIDATION.md)
 
 ## 致谢与许可
