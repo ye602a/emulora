@@ -474,14 +474,19 @@ impl App {
                     let pipeline = pipeline_template.with_params(params);
                     let t = Instant::now();
                     let output = match scaled_image {
-                        Some(image) => pipeline.process(image, backend.as_ref()),
+                        Some(image) => pipeline.try_process(image, backend.as_ref()),
                         None if pipeline.params.io.scan_film && pipeline.film.is_positive() => {
-                            pipeline.process((*image).clone(), backend.as_ref())
+                            pipeline.try_process((*image).clone(), backend.as_ref())
                         }
-                        None => pipeline
-                            .process_resident_borrowed(image.as_ref(), backend.as_ref())
-                            .unwrap_or_else(|| pipeline.process((*image).clone(), backend.as_ref())),
-                    };
+                        None => match pipeline
+                            .process_resident_with_options(image.as_ref(), backend.as_ref(), Default::default())
+                            .map_err(|e| e.to_string())?
+                        {
+                            Some(output) => Ok(output),
+                            None => pipeline.try_process((*image).clone(), backend.as_ref()),
+                        },
+                    }
+                    .map_err(|e| e.to_string())?;
                     let render_ms = t.elapsed().as_secs_f32() * 1000.0;
                     let t_preview = Instant::now();
                     let preview = make_preview_texture_data(&output);

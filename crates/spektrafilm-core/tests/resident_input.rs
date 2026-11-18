@@ -94,3 +94,24 @@ fn valid_input_reaches_consumer_and_preserves_no_backend_result() {
         "a CPU backend must still report that no resident route exists"
     );
 }
+
+#[test]
+fn ordinary_and_resident_render_never_drop_a_requested_border() {
+    use spektrafilm_core::border_135::Border135;
+    let image = ImageBuf::new(2, 3);
+    let mut pipeline = pipeline().clone();
+    for (overscan, error) in [
+        ([1; 4], OutputError::UnsupportedFilmBorder),
+        ([u32::MAX; 4], OutputError::InvalidFilmBorder),
+    ] {
+        pipeline.params.border_135 = Some(Border135 {
+            overscan,
+            ..Default::default()
+        });
+        assert_eq!(pipeline.try_process(image.clone(), &CpuBackend).unwrap_err(), error);
+        assert_eq!(
+            pipeline.process_resident_with_options(&image, &CpuBackend, Default::default()).unwrap_err(),
+            error
+        );
+    }
+}

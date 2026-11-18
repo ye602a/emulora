@@ -4031,6 +4031,7 @@ dependencies = [
  "spektrafilm-core",
  "spektrafilm-gpu",
  "spektrafilm-math",
+ "tempfile",
  "tiff 0.10.3",
  "tracing",
  "tracing-subscriber",

@@ -1,7 +1,7 @@
-/// Runtime parameters for the film simulation pipeline.
-///
-/// Mirrors Python `params_schema.py`. Every field has a sensible default
-/// matching the Python implementation.
+//! Runtime parameters for the film, print and scan stages.
+//!
+//! Based on the Python photo schema. Spectral construction accepts linear input
+//! and rejects requests for unimplemented spectral filters or adaptation.
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

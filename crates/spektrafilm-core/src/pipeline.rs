@@ -125,6 +125,10 @@ pub struct Pipeline {
 }
 
 impl Pipeline {
+    pub(crate) fn output_gamut_active(&self) -> bool {
+        self.output_gamut.is_active()
+    }
+
     /// Accessor for the pre-computed TC LUT (used by parity tests).
     pub fn tc_lut(&self) -> Option<&TcLut> {
         self.tc_lut.as_ref()
@@ -221,13 +225,26 @@ impl Pipeline {
         Ok(pipeline)
     }
 
-    /// Create pipeline with full Hanatos2025 spectral upsampling and calibration.
+    /// Calibrate the selected spectral upsampler and the stock/print pair for linear input.
     pub fn new_with_spectral(
         film: Profile,
         print: Profile,
         mut params: RuntimeParams,
         data_dir: &Path,
     ) -> Result<Self, String> {
+        if params.io.input_cctf_decoding {
+            return Err("spectral input must be linear (decode the input transfer function before rendering)".into());
+        }
+        if params.camera.filter_uv[0] != 0.0 || params.camera.filter_ir[0] != 0.0 {
+            return Err("camera filter_uv/filter_ir transmission is not implemented".into());
+        }
+        if params.settings.apply_hanatos2025_adaptation_surface {
+            return Err("Hanatos adaptation surface is not implemented".into());
+        }
+        if params.settings.spectral_gaussian_blur != 0.0 {
+            return Err("spectral_gaussian_blur is not implemented".into());
+        }
+
         // B&W profiles: collapse the development-time family to the selected
         // time and broadcast the single channel onto the 3-channel engine
         // layout. Must happen before anything reads the profile data.
@@ -497,7 +514,20 @@ impl Pipeline {
         })
     }
 
+    /// Convenience for callers that treat render errors as fatal.
+    /// Interactive and file-output callers should use `try_process`.
     pub fn process(&self, image: ImageBuf, backend: &dyn ComputeBackend) -> ImageBuf {
+        self.try_process(image, backend).expect("film render failed")
+    }
+
+    /// Render at the requested working scale. A backend without a resident
+    /// path can use the ordinary stages only when they support the request.
+    pub fn try_process(
+        &self,
+        image: ImageBuf,
+        backend: &dyn ComputeBackend,
+    ) -> Result<ImageBuf, spektrafilm_gpu::OutputError> {
+        spektrafilm_gpu::output::validate_rgb_image(&image)?;
         let stage_timings = stage_timings_enabled();
         // Working-resolution rescale (io.upscale_factor) — mirrors Python's
         // ResizingService.crop_and_rescale. Done first so the whole pipeline
@@ -528,14 +558,9 @@ impl Pipeline {
         // extended resident chain, including camera/scanner lens blur,
         // highlight boost, and enlarger diffusion. Backends that do not
         // implement the resident chain return `None` and fall through.
-        if self.tc_lut.is_some() || self.mallett_core.is_some() {
-            if let Some(out) = self.try_gpu_resident(&image, backend, &color_ref) {
-                tracing::info!("pipeline: gpu-resident fast path complete");
-                if backend.resident_chain_applies_post_scan() {
-                    return out;
-                }
-                return self.apply_post_scan(out);
-            }
+        if let Some(out) = self.run_resident(&image, backend, &color_ref, Default::default())? {
+            tracing::info!("pipeline: gpu-resident fast path complete");
+            return Ok(out);
         }
 
         let t = Instant::now();
@@ -569,7 +594,7 @@ impl Pipeline {
             );
             print_stage_timing(stage_timings, "scanning", t);
             tracing::info!("pipeline: scanning complete (film scan)");
-            result
+            Ok(result)
         } else {
             let t = Instant::now();
             let printed = stages::printing::process_with_calibration(
@@ -597,7 +622,7 @@ impl Pipeline {
             );
             print_stage_timing(stage_timings, "scanning", t);
             tracing::info!("pipeline: scanning complete");
-            result
+            Ok(result)
         }
     }
 
@@ -610,24 +635,9 @@ impl Pipeline {
         image: &ImageBuf,
         backend: &dyn ComputeBackend,
     ) -> Option<ImageBuf> {
-        spektrafilm_gpu::output::validate_rgb_image(image).ok()?;
-        if self.tc_lut.is_none() && self.mallett_core.is_none() {
-            return None;
-        }
-        tracing::info!(backend = backend.name(), "pipeline: borrowed resident start");
-        let color_ref = crate::color_reference::ColorReference::compute(
-            &self.film,
-            &self.print,
-            &self.params,
-            &self.print_illuminant,
-            self.print_exposure_factor,
-        );
-        let out = self.try_gpu_resident(image, backend, &color_ref)?;
-        if backend.resident_chain_applies_post_scan() {
-            Some(out)
-        } else {
-            Some(self.apply_post_scan(out))
-        }
+        self.process_resident_with_options(image, backend, Default::default())
+            .ok()
+            .flatten()
     }
 
     /// Borrowed resident rendering with request-local source identity and
@@ -640,21 +650,15 @@ impl Pipeline {
         options: spektrafilm_gpu::FilmRenderOptions<'_>,
     ) -> Result<Option<ImageBuf>, spektrafilm_gpu::output::OutputError> {
         options.check_cancelled()?;
-        let out = self
-            .try_with_resident_params(image, |params| {
-                backend.try_run_film_chain_with_options(params, options)
-            })?
-            .transpose()?
-            .flatten();
-        // Successful completion is committed by the backend; a later cancel
-        // must not turn an already-published result into a cancelled request.
-        Ok(out.map(|out| {
-            if backend.resident_chain_applies_post_scan() {
-                out
-            } else {
-                self.apply_post_scan(out)
-            }
-        }))
+        spektrafilm_gpu::output::validate_rgb_image(image)?;
+        let color_ref = crate::color_reference::ColorReference::compute(
+            &self.film,
+            &self.print,
+            &self.params,
+            &self.print_illuminant,
+            self.print_exposure_factor,
+        );
+        self.run_resident(image, backend, &color_ref, options)
     }
 
     /// Prepare the exact same physical-chain parameters as ordinary rendering
@@ -684,7 +688,11 @@ impl Pipeline {
         spektrafilm_gpu::output::validate_rgb_image(image)?;
         let border = self.prepare_border_135(image)?;
         if self.tc_lut.is_none() && self.mallett_core.is_none() {
-            return Ok(None);
+            return if border.is_some() {
+                Err(spektrafilm_gpu::OutputError::UnsupportedFilmBorder)
+            } else {
+                Ok(None)
+            };
         }
         let color_ref = crate::color_reference::ColorReference::compute(
             &self.film,
@@ -739,18 +747,30 @@ impl Pipeline {
         ImageBuf::from_data(new_w, new_h, data)
     }
 
-    /// Try the GPU-resident fast path. Builds all the per-stage data and
-    /// hands it to the backend's `try_run_film_chain`. The output is linear RGB
-    /// (clipped to [0,1]) — sRGB encoding is applied by `apply_post_scan`.
-    fn try_gpu_resident(
+    fn run_resident(
         &self,
         image: &ImageBuf,
         backend: &dyn ComputeBackend,
         color_ref: &crate::color_reference::ColorReference,
-    ) -> Option<ImageBuf> {
-        let border = self.prepare_border_135(image).ok()?;
-        self.with_gpu_params(image, border, color_ref, |params| backend.try_run_film_chain(params))
-            .flatten()
+        options: spektrafilm_gpu::FilmRenderOptions<'_>,
+    ) -> Result<Option<ImageBuf>, spektrafilm_gpu::OutputError> {
+        let border = self.prepare_border_135(image)?;
+        let out = self
+            .with_gpu_params(image, border, color_ref, |params| {
+                backend.try_run_film_chain_with_options(params, options)
+            })
+            .transpose()?
+            .flatten();
+        if out.is_none() && border.is_some() {
+            return Err(spektrafilm_gpu::OutputError::UnsupportedFilmBorder);
+        }
+        Ok(out.map(|out| {
+            if backend.resident_chain_applies_post_scan() {
+                out
+            } else {
+                self.apply_post_scan(out)
+            }
+        }))
     }
 
     fn with_gpu_params<R>(
@@ -760,6 +780,9 @@ impl Pipeline {
         color_ref: &crate::color_reference::ColorReference,
         consume: impl FnOnce(&spektrafilm_gpu::FilmChainParams<'_>) -> R,
     ) -> Option<R> {
+        if self.tc_lut.is_none() && self.mallett_core.is_none() {
+            return None;
+        }
         // Bake the exposure scale (auto-exposure × manual EV compensation)
         // into the front-pass matrix. Both upsamplers (hanatos and mallett)
         // are homogeneous in the input RGB, so scaling the matrix is
