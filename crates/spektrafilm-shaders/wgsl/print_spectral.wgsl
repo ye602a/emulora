@@ -18,6 +18,7 @@ struct Params {
     preflash: vec3<f32>,
     negative_amount: f32,
     cyan_max: f32,
+    cyan_coupling: f32,
 }
 
 @group(0) @binding(0) var<uniform> params: Params;
@@ -40,7 +41,7 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     var cmy = vec3<f32>(density_cmy[base], density_cmy[base + 1u], density_cmy[base + 2u]);
     var silver = 0.0;
     if params.negative_amount > 0.0 {
-        let layer = negative_bleach_density(cmy, params.negative_amount, params.cyan_max);
+        let layer = negative_bleach_density(cmy, params.negative_amount, params.cyan_max, params.cyan_coupling);
         cmy = layer.xyz;
         silver = layer.w;
     }

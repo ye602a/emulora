@@ -12,7 +12,7 @@ struct Params {
     height: u32,
     n_wavelengths: u32,
     normalization: f32,
-    col0: vec4<f32>, // w holds the print bleach bypass amount
+    col0: vec4<f32>, // w holds negative cyan coupling on film scans, print bypass amount on paper scans
     col1: vec4<f32>,
     col2: vec4<f32>,
     // B&W/slide scanner luminance remap: x=m, y=q, z=enable (0/1).
@@ -46,7 +46,7 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     var cmy = vec3<f32>(density_cmy[base], density_cmy[base + 1u], density_cmy[base + 2u]);
     var silver = 0.0;
     if params.col1.w > 0.0 {
-        let layer = negative_bleach_density(cmy, params.col1.w, params.col2.w);
+        let layer = negative_bleach_density(cmy, params.col1.w, params.col2.w, params.col0.w);
         cmy = layer.xyz;
         silver = layer.w;
     } else if params.col0.w > 0.0 {

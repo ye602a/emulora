@@ -926,6 +926,11 @@ impl App {
                 if self.negative_bleach_available {
                     self.dirty |= ui.add(egui::Slider::new(&mut self.params.film_render.bleach_bypass, 0.0..=1.0)
                         .text("Negative bleach bypass")).changed();
+                    if self.params.film_render.bleach_bypass > 0.0 {
+                        self.dirty |= ui.add(egui::Slider::new(
+                            &mut self.params.film_render.leuco_cyan_coupling, 0.0..=2.0,
+                        ).text("Cyan dye loss")).on_hover_text("1 matches the original look. Lower values reduce the cyan cast on the print.").changed();
+                    }
                 }
                 // B&W stocks are profiled at several development times —
                 // pick one (longer = more contrast). Hidden for the

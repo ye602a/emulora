@@ -1332,7 +1332,8 @@ impl WgpuBackend {
             preflash: [f32; 3],
             negative_amount: f32,
             cyan_max: f32,
-            _pad: [f32; 3],
+            cyan_coupling: f32,
+            _pad: [f32; 2],
         }
         let has_enlarger_diffusion = p.enlarger_diffusion.is_some();
         let print_exposure_scale = p.print_exposure_scale as f32;
@@ -1349,7 +1350,8 @@ impl WgpuBackend {
             preflash: [preflash[0] as f32, preflash[1] as f32, preflash[2] as f32],
             negative_amount: p.negative_bleach.map_or(0.0, |b| b.amount),
             cyan_max: p.negative_bleach.map_or(1.0, |b| b.cyan_max),
-            _pad: [0.0; 3],
+            cyan_coupling: p.negative_bleach.map_or(1.0, |b| b.cyan_coupling),
+            _pad: [0.0; 2],
         };
         let print_params_buf = mk_uniform("print_params", bytemuck::bytes_of(&print_params));
 
@@ -1400,7 +1402,11 @@ impl WgpuBackend {
                 s[0][0] as f32,
                 s[1][0] as f32,
                 s[2][0] as f32,
-                p.print_bleach_bypass,
+                if p.scan_film {
+                    p.negative_bleach.map_or(0.0, |b| b.cyan_coupling)
+                } else {
+                    p.print_bleach_bypass
+                },
             ],
             col1: [
                 s[0][1] as f32,
@@ -2532,7 +2538,8 @@ impl ComputeBackend for WgpuBackend {
             preflash: [f32; 3],
             negative_amount: f32,
             cyan_max: f32,
-            _pad: [f32; 3],
+            cyan_coupling: f32,
+            _pad: [f32; 2],
         }
 
         let params = Params {
@@ -2543,7 +2550,8 @@ impl ComputeBackend for WgpuBackend {
             preflash: [preflash[0] as f32, preflash[1] as f32, preflash[2] as f32],
             negative_amount: 0.0,
             cyan_max: 1.0,
-            _pad: [0.0; 3],
+            cyan_coupling: 1.0,
+            _pad: [0.0; 2],
         };
 
         // GPU shaders are f32-only — narrow f64 inputs at the shader boundary.

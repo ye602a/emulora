@@ -190,11 +190,12 @@ pub struct NegativeHue {
     pub gamut: Vec<f32>,
 }
 
-/// Public OFX colour-negative model, including its default leuco-cyan coupling.
+/// Public OFX colour-negative model, with adjustable leuco-cyan coupling.
 #[derive(Clone, Copy, Debug)]
 pub struct NegativeBleach {
     pub amount: f32,
     pub cyan_max: f32,
+    pub cyan_coupling: f32,
 }
 
 impl NegativeBleach {
@@ -207,7 +208,7 @@ impl NegativeBleach {
         let black = cmy[0].max(cmy[1]).max(cmy[2]);
         let mut dyes = cmy.map(|v| v + weight * (black - v));
         let cyan_drive = (cmy[0] / f64::from(self.cyan_max)).clamp(0.0, 1.0);
-        dyes[0] = (dyes[0] - f64::from(self.amount) * 0.30 * cyan_drive).max(0.0);
+        dyes[0] = (dyes[0] - f64::from(self.amount) * 0.30 * f64::from(self.cyan_coupling) * cyan_drive).max(0.0);
         (dyes, 0.22 * weight)
     }
 }

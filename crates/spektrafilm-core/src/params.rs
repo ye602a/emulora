@@ -485,6 +485,9 @@ pub struct FilmRenderingParams {
     /// Fraction of retained silver on a developed colour negative.
     #[serde(default)]
     pub bleach_bypass: f32,
+    /// Multiplier for the modeled cyan dye loss in a silver-bearing negative.
+    #[serde(default = "default_one")]
+    pub leuco_cyan_coupling: f32,
     #[serde(default = "default_one")]
     pub density_curve_gamma: f32,
     /// Development time (minutes) for B&W development-time families —
@@ -503,9 +506,16 @@ pub struct FilmRenderingParams {
     pub glare: GlareParams,
 }
 
+impl FilmRenderingParams {
+    pub(crate) fn negative_silver(&self) -> Option<[f32; 2]> {
+        (self.bleach_bypass != 0.0).then_some([self.bleach_bypass, self.leuco_cyan_coupling])
+    }
+}
+
 impl Default for FilmRenderingParams {
     fn default() -> Self {
         Self {
+            leuco_cyan_coupling: 1.0,
             bleach_bypass: 0.0,
             density_curve_gamma: 1.0,
             development_time: None,

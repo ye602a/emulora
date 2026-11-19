@@ -165,6 +165,7 @@ impl NegativeKey {
         k.optional(negative_bleach.as_ref(), |k, b| {
             k.f32(b.amount);
             k.f32(b.cyan_max);
+            k.f32(b.cyan_coupling);
         });
         k.f64s(film_log_exposure);
         k.f64_rows(film_density_curves_normalized);

@@ -287,7 +287,7 @@ pub(crate) fn scan_with_negative(
     // direct spectral path to sub-LSB, and only this path exposes the
     // pre-CAT XYZ hook). Otherwise honour use_scanner_lut.
     let negative_bleach = if params.io.scan_film {
-        profile.negative_bleach(params.film_render.bleach_bypass)
+        profile.negative_bleach(&params.film_render)
     } else {
         None
     };

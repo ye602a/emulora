@@ -373,6 +373,35 @@ fn retained_negative_silver_changes_print_and_scan_and_invalidates_only_the_nega
             _ => unreachable!(),
         }
     }
+    // An idle coupling edit is inert. Active coupling participates in both
+    // the midgray preparation and the resident negative identity.
+    p.film_render.leuco_cyan_coupling = 0.0;
+    assert!(pipe.refresh_in_place(p.clone()));
+    let render_options = FilmRenderOptions {
+        source: Some(SourceIdentity(923)),
+        ..Default::default()
+    };
+    let idle = pipe.process_resident_with_options(&input, &gpu, render_options).unwrap().unwrap();
+    assert_eq!(idle.data, baseline);
+    assert_eq!(gpu.negative_cache_stats().hits, 4);
+    p.film_render.bleach_bypass = 1.0;
+    let mut prior = Vec::new();
+    for (i, coupling) in [0.0, 1.0, 2.0].into_iter().enumerate() {
+        p.film_render.leuco_cyan_coupling = coupling;
+        assert!(!pipe.refresh_in_place(p.clone()));
+        pipe = make(p.clone());
+        let cpu = pipe.try_process(input.clone(), &CpuBackend).unwrap();
+        let gpu_print = pipe.process_resident_with_options(
+            &input, &gpu, FilmRenderOptions { source: Some(SourceIdentity(923)), ..Default::default() },
+        ).unwrap().unwrap();
+        assert!(cpu.data.iter().zip(&gpu_print.data).all(|(a,b)| (a-b).abs() < 0.002));
+        assert_ne!(gpu_print.data, prior);
+        prior = gpu_print.data;
+        assert_eq!(gpu.negative_cache_stats().misses, 4 + i as u64);
+    }
+    p.film_render.leuco_cyan_coupling = 2.01;
+    assert!(build("kodak_portra_400", "kodak_portra_endura", p.clone()).is_err());
+    p.film_render.leuco_cyan_coupling = 1.0;
     p.film_render.bleach_bypass = 0.5;
     for stock in ["ilford_hp5_plus_400", "fujifilm_provia_100f"] {
         assert!(build(stock, "kodak_portra_endura", p.clone()).is_err());

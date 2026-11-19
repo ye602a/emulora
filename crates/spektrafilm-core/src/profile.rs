@@ -274,15 +274,15 @@ impl Profile {
     pub fn is_bw(&self) -> bool {
         self.info.channel_model == "bw"
     }
-    pub(crate) fn negative_bleach(&self, amount: f32) -> Option<spektrafilm_gpu::NegativeBleach> {
-        (amount > 0.0).then(|| {
+    pub(crate) fn negative_bleach(&self, params: &crate::params::FilmRenderingParams) -> Option<spektrafilm_gpu::NegativeBleach> {
+        params.negative_silver().map(|[amount, cyan_coupling]| {
             let cyan_max = self
                 .data
                 .density_curves
                 .iter()
                 .filter_map(|row| row.first().copied())
                 .fold(1e-6, f64::max) as f32;
-            spektrafilm_gpu::NegativeBleach { amount, cyan_max }
+            spektrafilm_gpu::NegativeBleach { amount, cyan_max, cyan_coupling }
         })
     }
 

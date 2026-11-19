@@ -180,6 +180,8 @@ The OFX version label refers to a per-stock window already active in the FPW def
 
 For a color negative, set **Negative bleach bypass** in the standalone film controls or use `{"film_render":{"bleach_bypass":0.5}}` in a spectral CLI recipe. Zero preserves the original look. At full strength the red and white costume in the comparison lost saturation and the white fur shifted toward cyan. Start at half strength for a gentler effect. This affects direct film scans and every subsequent optical print. A host changing this value must prepare the new recipe. The RS resident cache handles negative invalidation. [Same-photo comparison](ENGINE_STUDIES.md#negative-and-print-bleach-bypass-on-the-same-photograph)
 
+**Cyan dye loss** controls the cyan-forming dye loss when negative bypass is active. The default of 1 reproduces existing recipes. For white fur or fabric turning cyan, try 0.5, or 0 to isolate the retained silver and dye-mixing effects. Values up to 2 exaggerate the loss. A full-bypass recipe with the loss switched off is `{"film_render":{"bleach_bypass":1,"leuco_cyan_coupling":0}}`. [Photo and gray-wedge sweep](ENGINE_STUDIES.md#negative-silver-preset-and-cyan-loss-sweep)
+
 ## Print bleach bypass
 
 On a color print, **Print bleach bypass** sets the retained-silver look from 0 (the normal optical print) to 1 (full modeled strength). A CLI recipe can set `{"print_render":{"bleach_bypass":0.5}}`. Film scans and silver B&W paper ignore the print control. The parameter is downstream of the developed negative; a resident host reprinting the same source can reuse its negative. Standalone GUI interaction and FPW control wiring were not tested. [Model and photograph comparison](ENGINE_STUDIES.md#print-bleach-bypass)

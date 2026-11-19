@@ -59,6 +59,9 @@ use crate::stages::filming::select_illuminant;
 use crate::stock_setup::{AcceptedStockSetup, ResolvedStockSetup};
 
 fn validate_spectral_recipe(params: &RuntimeParams) -> Result<(), String> {
+    if !(0.0..=2.0).contains(&params.film_render.leuco_cyan_coupling) {
+        return Err("film_render.leuco_cyan_coupling must be in [0, 2]".into());
+    }
     if !(0.0..=1.0).contains(&params.film_render.bleach_bypass) {
         return Err("film_render.bleach_bypass must be in [0, 1]".into());
     }
@@ -155,7 +158,7 @@ struct CalibrationInputs {
     input_gamut: crate::params::InputGamutCompressParams,
     development: [Option<f64>; 2],
     paper_grade: Option<crate::params::PaperGrade>,
-    negative_bleach: f32,
+    negative_bleach: Option<[f32; 2]>,
     film_gamma: f32,
     filter: CameraFilter,
     spectral_cuts: [Option<[f32; 3]>; 2],
@@ -192,7 +195,7 @@ impl CalibrationInputs {
             } else {
                 p.print_render.paper_grade
             },
-            negative_bleach: p.film_render.bleach_bypass,
+            negative_bleach: p.film_render.negative_silver(),
             film_gamma: p.film_render.density_curve_gamma,
             filter: p.camera.photographic_filter,
             filter_input_space: p
@@ -1152,11 +1155,11 @@ impl Pipeline {
         image: &ImageBuf,
     ) -> Result<Option<spektrafilm_gpu::FilmBorderGpuParams>, spektrafilm_gpu::output::OutputError>
     {
-        if self.params.film_render.bleach_bypass
+        if self.params.film_render.negative_silver()
             != self
                 .calibration
                 .as_ref()
-                .map_or(0.0, |key| key.negative_bleach)
+                .and_then(|key| key.negative_bleach)
         {
             return Err(spektrafilm_gpu::OutputError::UnsupportedNegativeBleach);
         }
@@ -1756,7 +1759,7 @@ impl Pipeline {
         let params = spektrafilm_gpu::FilmChainParams {
             negative_bleach: self
                 .film
-                .negative_bleach(self.params.film_render.bleach_bypass),
+                .negative_bleach(&self.params.film_render),
             print_bleach_bypass: if !self.params.io.scan_film && self.print.is_color() {
                 self.params.print_render.bleach_bypass
             } else {

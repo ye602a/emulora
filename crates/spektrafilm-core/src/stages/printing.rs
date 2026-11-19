@@ -183,7 +183,7 @@ pub fn expose_calibrated(
     // a `lut_resolution³` grid of cmy values (4913 nodes at the
     // default resolution=17) and PCHIP-interpolate per pixel.
     // Matches Python's `_lut_service.spectral_compute_enlarger`.
-    let bleach = film.negative_bleach(params.film_render.bleach_bypass);
+    let bleach = film.negative_bleach(&params.film_render);
     let expose = |densities: &ImageBuf| {
         if bleach.is_some() {
             spektrafilm_gpu::cpu_backend::print_spectral_with_silver(
