@@ -48,7 +48,7 @@ fn chart() -> ImageBuf {
 
 #[test]
 fn compensated_red_filters_preserve_gray_and_separate_red_and_blue_in_print() {
-    for method in ["hanatos2025", "arctic2026alpha02", "mallett2019"] {
+    for method in ["hanatos2025", "arctic2026beta04", "mallett2019"] {
         let mut p = recipe();
         p.settings.rgb_to_raw_method = method.into();
         let bare = build("kodak_doublex", p.clone()).unwrap();
@@ -97,7 +97,7 @@ fn resident_filter_changes_density_once_and_preserves_fog() {
         assert!(std::env::var_os("SPEKTRAFILM_REQUIRE_GPU").is_none());
         return;
     };
-    for method in ["hanatos2025", "arctic2026alpha02", "mallett2019"] {
+    for method in ["hanatos2025", "arctic2026beta04", "mallett2019"] {
         let mut p = recipe();
         p.settings.rgb_to_raw_method = method.into();
         p.camera.photographic_filter = CameraFilter::Wratten25;

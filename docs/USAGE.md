@@ -55,10 +55,10 @@ In the GUI, select a monochrome film and open **Exposure → Camera filter**. Fo
 | Camera model | No. 25 EV | No. 29 EV |
 |---|---:|---:|
 | Hanatos 2025 | 2.842 | 3.872 |
-| Arctic alpha02 | 2.829 | 3.839 |
+| Arctic beta04 | 2.828 | 3.838 |
 | Mallett 2019 | 2.828 | 3.838 |
 
-On Hanatos the linear print green channel for the neutral/red/blue patches was 0.184/0.173/0.289 with the clear lens setting and 0.184/0.527/0.044 with compensated No. 25. This follows the neutral-preservation and red/blue separation checked by [LAB's B&W render tests](https://github.com/JamesQiu2005/SpektraLab/blob/b51e672/engine/tests/bw_checks.py). The stocks and print recipes differ between the suites. On the same three compensated No. 25 patches, the largest absolute CPU/Vulkan linear output difference across all three models was 0.00000465. Windows Vulkan also rendered one 512-pixel-long-edge photo through the CLI, and the dedicated resident test checked shoulder fog and negative-cache reuse. Broader photographic acceptance and CUDA/macOS runs remain open.
+On Hanatos the linear print green channel for the neutral/red/blue patches was 0.184/0.173/0.289 with the clear lens setting and 0.184/0.527/0.044 with compensated No. 25. This follows the neutral-preservation and red/blue separation checked by [LAB's B&W render tests](https://github.com/JamesQiu2005/SpektraLab/blob/b51e672/engine/tests/bw_checks.py). The stocks and print recipes differ between the suites. On the same three compensated No. 25 patches, the largest absolute CPU/Vulkan linear output difference across all three models was 0.00000519. Windows Vulkan also rendered one 512-pixel-long-edge photo through the CLI, and the dedicated resident test checked shoulder fog and negative-cache reuse. Broader photographic acceptance and CUDA/macOS runs remain open.
 
 For Double-X at the 6.5-minute development setting, this optional CLI recipe measured near Kodak's granularity of 14 through a 48 µm aperture at 3–6 µm sampling. Use it with `process --film kodak_doublex --paper kodak_2302 --params FILE`. Sampling pitch changes with film format and image dimensions. [Measured range and reference conditions](ENGINE_STUDIES.md#48-µm-aperture-granularity-batch-12)
 
@@ -163,3 +163,13 @@ cargo run --locked -p spektrafilm-core --example fpw_host_contract
 Keep the engine revision, resource identity and output route together when
 integrating it into an application. See [validation](maintenance/VALIDATION.md)
 for what has been tested and what requires application-specific acceptance.
+
+## Arctic beta04
+
+In the GUI select `arctic2026beta04` under **RGB→raw upsampling**. CLI recipes select the same ID in `settings.rgb_to_raw_method`. An explicit `arctic2026alpha02` recipe now reports an unsupported method. Change its ID to adopt the new look, or use RS at `43763e7` with the corresponding resources to reproduce the old look.
+
+RS ships Andrea Volpato's beta04 reflectance table and descriptor unchanged from [experimental revision 28bf883](https://github.com/andreavolpato/spektrafilm/tree/28bf883/src/spektrafilm/data/luts/spectral_upsampling). It keeps the RS D65 projection, film-illuminant relighting, exposure calibration and neutral print filters. This corresponds to the table-only beta row of the [photographic study](ENGINE_STUDIES.md#arctic-alpha02-and-beta04-batch-13). The five inactive alpha files remain in the pinned FPW v1 physical resource inventory.
+
+FPW main at `e1d0759` builds both new and saved film recipes through [the FPW adapter](https://github.com/ye602a/fursuit-photo-workflow/blob/e1d0759/native/crates/fpw-runtime/src/film.rs). It starts from the [RS defaults at the host pin](https://github.com/ye602a/spektrafilm-rs/blob/1947ee8/crates/spektrafilm-core/src/params.rs), with no method override. FPW uses Hanatos 2025. The bundled FPW table, RS table and Python experimental Hanatos 2025 irradiance table share Git blob `7b81b9d23f8f4c599c6b2ae3d949e9a2d6f3c38a`. Python main and experimental default to Hanatos 2025. The Linux OFX v0.3.12 manual (pp. 21, 38) specifies Hanatos 2026 as its default. This RS update leaves the host pin and resources unchanged.
+
+The released beta table has upstream Git blob `50689049562f59d8a71b8ff70b2d82965b3404ce`. At 480×144 on Portra 400 / Portra Endura and Ektar 100 / Endura Premier, CPU and Vulkan each reproduced their own pre-upgrade CLI control with this table byte-for-byte in the raw output. Comparing CPU to Vulkan gave maximum displayed differences of 5 and 12 sRGB codes respectively, also present in the controls.

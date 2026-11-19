@@ -252,7 +252,7 @@ pub struct Pipeline {
     /// exclusive with `tc_lut`.
     mallett_core: Option<[[f64; 3]; 3]>,
     /// Illuminant used by the RGB→tc projection before TC LUT lookup.
-    /// Most methods use the film reference illuminant; arctic2026alpha02
+    /// Most methods use the film reference illuminant; arctic2026beta04
     /// recovers reflectance in D65 coordinates and relights separately.
     front_illuminant: String,
     filter_factor_ev: f64,
@@ -518,14 +518,14 @@ impl Pipeline {
 
         let ref_illuminant_f64 = select_illuminant_f64(&film.info.reference_illuminant);
         let method = params.settings.rgb_to_raw_method.as_str();
-        let front_illuminant = if method == "arctic2026alpha02" {
+        let front_illuminant = if method == "arctic2026beta04" {
             "D65".to_string()
         } else {
             film.info.reference_illuminant.clone()
         };
         let spectra = match method {
             "hanatos2025" => Some(spectral_service::load_spectra_lut(data_dir)?),
-            "arctic2026alpha02" => Some(spectral_service::load_arctic2026alpha02_lut(data_dir)?),
+            "arctic2026beta04" => Some(spectral_service::load_arctic2026beta04_lut(data_dir)?),
             "mallett2019" => None,
             other => return Err(format!("unsupported rgb_to_raw_method: {other:?}")),
         };
@@ -539,7 +539,7 @@ impl Pipeline {
                 return Ok((None, Some(core)));
             };
             let window = &film.data.hanatos2025_adaptation_window_params;
-            let lut = if method == "arctic2026alpha02" {
+            let lut = if method == "arctic2026beta04" {
                 spectral_service::compute_reflectance_tc_lut(spectra, response, ref_illuminant_f64)
             } else if params.settings.apply_hanatos2025_adaptation_window && window.len() >= 4 {
                 spectral_service::compute_camera_lut_with_window(
