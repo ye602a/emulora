@@ -1,0 +1,36 @@
+diff --git a/crates/spektrafilm-model/src/couplers.rs b/crates/spektrafilm-model/src/couplers.rs
+index c95d668..376fd14 100644
+--- a/crates/spektrafilm-model/src/couplers.rs
++++ b/crates/spektrafilm-model/src/couplers.rs
+@@ -61,6 +61,15 @@ pub fn compute_exposure_correction(
+         });
+     }
+
++    if !positive {
++        density_silver.par_pixels_mut().for_each(|px| {
++            for c in 0..3 {
++                let k = from_f64(density_max[c]);
++                px[c] = px[c] * (k * from_f64(1.5)) / (k + px[c]);
++            }
++        });
++    }
++
+     // log_raw_correction = einsum('ijk, km->ijm', density_silver, couplers_matrix)
+     let cm: [[spektrafilm_math::precision::Scalar; 3]; 3] = [
+         [
+@@ -227,6 +236,15 @@ pub fn compute_curves_before_dir(
+         }
+     }
+
++    if !positive {
++        let k = crate::density_curves::max_density(density_curves);
++        for row in &mut dc_silver {
++            for c in 0..3 {
++                row[c] = row[c] * (1.5 * k[c]) / (k[c] + row[c]);
++            }
++        }
++    }
++
+     // couplers_amount = dc_silver @ couplers_matrix
+     let mut couplers_amount = vec![[0.0f32; 3]; k];
+     for j in 0..k {

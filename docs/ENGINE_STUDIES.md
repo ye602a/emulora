@@ -161,3 +161,21 @@ For reproduction, build a separate CPU probe CLI from `a62ee08` with only the Y/
 Two Vulkan seeds at four flat density levels and 6 µm sampling were measured in 64×64 interior windows. Double-X silver density used identical RGB residuals. Portra 400 layered residuals showed distinct channel variances and near-zero between-channel correlation. Report variance, spatial autocorrelation and radial frequency power by density and stock. Separate scene, film and viewing spectra were integrated at 5 nm and normalized with the CIE 1931 Y-weighted integral. With equal Y, the Portra 400 sensitivity predicts distinct D55 and 2856 K channel responses. These are offline diagnostics under fixed input, with no added renderer dependency. [CIE observer data](https://cie.co.at/datatable/cie-1931-colour-matching-functions-2-degree-observer) · [vkdt normalization reference](https://github.com/hanatos/vkdt/commit/c4fd786a06e68addabac94898dd744958b959687)
 
 Sources for the experiments are collected in the [research notes](RESEARCH_NOTES_2026-11.md). Proposed formats, edge markings and variable-contrast paper are described in the [extension studies](EXTENDED_FILM_AND_PRINT.md).
+
+## Negative-film Langmuir DIR (Batch 11)
+
+Keep the linear DIR model for production. The upstream dev implementation at `6cd00c8` applies a saturating donor to negative film. For each layer of base-subtracted density D, the default knee K is its maximum characteristic density and the release is D × 1.5K / (K + D). Release matches linear at half the maximum. Both the inverse characteristic-curve construction and the forward pixel correction use the same release before applying the existing interlayer matrix. Reversal has a separate receiver-side model. [Upstream implementation](https://github.com/andreavolpato/spektrafilm/blob/6cd00c8/src/spektrafilm/model/couplers.py)
+
+Two builds of the RS CPU CLI at `6fe72b5` rendered identical input with fixed 5 µm pitch, active spatial DIR, grain off, optical printing and manual camera exposures of −2, 0 and +2 EV. The experimental build changed only the two donor calculations. Each image contained original-scale blue and red cap, silk and two cheek crops from Batch 8 plus 12 neutral patches (sRGB codes 4–250). The tested pairs were Portra 400 / Portra Endura, Gold 200 / Crystal Archive Type II and Ektar 100 / Endura Premier. Both the developed negative and the unencoded sRGB print were captured at each exposure.
+
+| Photo region | 0 EV | +2 EV |
+| --- | ---: | ---: |
+| Blue cap | 1.04–1.57° | 1.88–2.86° |
+| Red cap | 0.05–0.48° | 0.17–1.21° |
+| Blue-purple silk | 0.85–2.26° | 1.06–3.00° |
+| Cheek crop 04 | 0.40–1.22° | 1.38–1.97° |
+| Cheek crop 15 | 1.04–1.88° | 1.64–2.65° |
+
+Entries are the range across stock/paper pairs of median absolute Oklab hue movement within each crop, excluding pixels below 0.035 chroma in either render. Regions include photographed texture and nearby colors. All 18 prints retained monotone gray-wedge lightness. Across nine A/B comparisons the largest within-patch 95th-percentile Oklab distance on gray was 0.0056 (0–1 lightness scale). In the blue cap it reached 0.0714 at +2 EV. The normal-exposure pairs show similar skin and visible localized changes in saturated textile. There is no measured photographic reference for these stock/scene pairs to support a claim of greater color accuracy. The comparison supports retaining the existing look. Resident GPU, slide film and B&W were outside the experiment.
+
+**Reproduction.** Build `cargo build --locked -p spektrafilm-cli --bin spektrafilm` in clean and probe worktrees at the recorded revision. Apply [the research patch](../scripts/parity/langmuir_donor_probe.patch) only to the probe worktree with `git apply`; use separate target directories or copy out the first executable. From the RS root run `python scripts/parity/langmuir_donor.py FIXTURES SCRATCH LINEAR_EXE DONOR_EXE` with NumPy, Pillow and the [Batch 8 fixtures](#negative-derived-print-hue-batch-7). The script checks finite density and print values, negative changes and wedge order; it writes the prints and 153 regional measurements to scratch.
