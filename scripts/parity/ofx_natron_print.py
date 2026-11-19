@@ -12,6 +12,7 @@ OFX_DISABLE_FILTER_COMPENSATION=1 isolates the release's camera filter exposure 
 OFX_CUTS_NEGATIVE=cineon writes a float TIFF in Cineon / DPX Log Density.
 Set it to reprint to feed that TIFF into Process Negative on the same paper.
 OFX_CUTS_FLOAT_OUTPUT selects "sRGB" or "Rec.709 Gamma 2.2" for a float32 optical print.
+OFX_WEDGE_EV brackets clear Cineon density to measure the neutral film response.
 """
 import os
 from pathlib import Path
@@ -39,6 +40,9 @@ source = reader
 adaptation_off = os.environ.get("OFX_DISABLE_COLOR_ADAPTATION") == "1"
 cuts_scan = case in ("off", "uv", "ir", "uv-ir") and os.environ.get("OFX_CUTS_SCAN") == "1"
 negative_io = os.environ.get("OFX_CUTS_NEGATIVE", "")
+wedge_ev = os.environ.get("OFX_WEDGE_EV")
+if wedge_ev is not None:
+    assert case == "off" and negative_io == "cineon" and float(wedge_ev) in (-3, 3)
 assert negative_io in ("", "cineon", "reprint")
 if negative_io:
     assert (case in ("off", "uv", "ir", "uv-ir") or (case == "transport" and negative_io == "cineon")) and not cuts_scan
@@ -70,6 +74,10 @@ if case != "transport":
             options = [param.getOption(i) for i in range(param.getNumOptions())]
             param.set(options.index(label))
             assert options[param.get()] == label
+    if wedge_ev is not None:
+        exposure = source.getParam("filmExposureEv")
+        exposure.set(float(wedge_ev))
+        assert exposure.get() == float(wedge_ev)
     if cuts_scan:
         process = source.getParam("process")
         options = [process.getOption(i) for i in range(process.getNumOptions())]
@@ -124,6 +132,8 @@ if uncompensated:
     suffix += "-uncompensated"
 if negative_io:
     suffix += "-" + negative_io
+if wedge_ev is not None:
+    suffix += "-ev%+d" % int(float(wedge_ev))
 if float_output:
     assert not negative_io and not cuts_scan
     suffix += "-float-" + ("srgb" if float_output == "sRGB" else "gamma22")

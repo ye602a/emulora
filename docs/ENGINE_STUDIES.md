@@ -695,3 +695,30 @@ This measures the effective optical-print exposure difference at these cut setti
 **Normal photo entry point.** Applying the fitted clear settings to RS's own Portra negative gave P95 / P99 of 6.39 / 7.67 on the costume and 6.09 / 6.91 on the held-out montage (worse of CPU and resident Vulkan, rounded up). The previous errors with the native pack against these float references were 4.20 / 4.36 and 5.12 / 5.12 on CPU, respectively. Keep the stage calibration diagnostic. In a private resource copy, substituting the archived Python 6e7de28 Portra bandpass from the preceding study with the clear calibrated pack reduced CPU print P95 to 3.26 and 5.08; the held-out density P95 still differed by 0.0586. Next compare neutral and saturated film exposures before curve interpolation and the developed-density curves, holding the qualified paper setup fixed.
 
 **Repeat.** Set `OFX_CASE=off`, `OFX_DISABLE_COLOR_ADAPTATION=1` and `OFX_CUTS_FLOAT_OUTPUT=sRGB` in the Natron driver for a float optical print. Use a separate Cineon capture with the float-output variable unset as in the preceding study. Run `python scripts/parity/ofx_endura_calibration.py <ofx_density_print executable> <RS recipe> <training Cineon TIFF> <training float print TIFF> <held-out Cineon TIFF> <held-out float print TIFF> <scratch recipe.json> --region 480 144` from the RS root. For the UV/IR tests start with the corresponding cut's recipe, copy the fitted clear enlarger settings into it and add `--exposure-only`. The diagnostic writes a replay recipe only after passing the independent display check.
+
+## Portra 400 clear camera and optical print
+
+For Windows OFX 0.3.12, the measured clear-lens Hanatos 2025 response can be reproduced by weighting each Portra sensitivity channel by its archived 81-sample bandpass and selecting CAT02 in RS. Keep the RS Portra development curves. The archived bandpass agrees between [OFX 86476af](https://github.com/chaert-s/spektrafilm-ofx/blob/86476af/Resources/data/profiles/archive/kodak_portra_400.json) and [original Python 6e7de28](https://github.com/andreavolpato/spektrafilm/blob/6e7de28/src/spektrafilm/data/profiles/kodak_portra_400.json). The [OFX generator](https://github.com/chaert-s/spektrafilm-ofx/blob/86476af/tools/generate_profile_curves.py) specifies CAT02. The binary comparison establishes the effective response for this configuration.
+
+The table isolates the camera by passing each developed negative through the same previously calibrated CPU Endura stage. It reports P95 absolute display error in 8-bit codes, taking the worst RGB channel per pixel.
+
+| Camera response | Costume | Independent skin, fabric, foliage and patches |
+| --- | ---: | ---: |
+| Packaged window, CAT16 | 6.39 | 6.09 |
+| Packaged window, CAT02 | 6.05 | 8.03 |
+| Archived window, CAT16 | 1.63 | 6.50 |
+| Archived window, CAT02 | 0.31 | 0.39 |
+
+The developed film can be checked independently using the OFX Cineon float output. In the 0 EV costume and montage the P99 film-density error was 0.0005 (rounded). On the costume and gray strip at −3 and +3 camera EV the peak was below 0.0006. Bracketing uses the Natron driver's clear Cineon configuration with `OFX_WEDGE_EV=-3` or `3`. Only negative density was qualified at those two exposures.
+
+With the revised camera, refitting the same training gray strip in the full resource configuration gives Y −3.96614, M −0.75753 and a print exposure factor of 0.998297. The independent montage was excluded from calibration. Through normal CLI photo processing, costume P95/P99 was 0.311/0.349 on CPU and 0.311/0.348 on Vulkan. Montage P95/P99 was 0.387/0.387 on each backend. The full gray strip peaked below 0.102 code. Both sides were clipped to display range; the previously documented negative red in OFX float output remains outside this comparison. At the same clear calibration with camera cuts enabled and OFX compensation on, montage P95 was 5.99 for UV, 6.37 for IR and 4.33 combined (worse backend, rounded). Those cuts remain open.
+
+**Use the reference pair.** From the RS root, run the commands below. Supply the archived Portra JSON from either linked revision and choose a new data directory. Preparation runs offline, checks the window and RS sensitivity fingerprints and leaves the installed stocks intact. The reference recipe expects that prepared directory. It uses manual EV 0, clear lens, optical printing, sRGB, and disabled spatial effects and color corrections. FPW defaults keep their existing data and recipe.
+
+```text
+python scripts/parity/prepare_ofx_portra.py <archived-portra.json> <private-data-dir>
+spektrafilm process <photo.png> --film kodak_portra_400 --paper kodak_portra_endura --data-dir <private-data-dir> --params recipes/ofx/portra_400_endura_clear.json -o <print.png>
+python scripts/parity/ofx_portra_clear_check.py <spektrafilm-executable> <private-data-dir> <input.png> <OFX-float-sRGB.tif> --region <width> <height>
+```
+
+Use 240 × 384 for the costume and 480 × 144 for the held-out montage to exclude appended fixture pixels. To refit the print, supply the prepared directory via `--data-dir` to the preceding Endura calibration command.

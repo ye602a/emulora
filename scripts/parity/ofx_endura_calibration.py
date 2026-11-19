@@ -40,7 +40,8 @@ def run(args, work):
     def render(x, width, height):
         head.update(y_filter_shift=float(x[0]), m_filter_shift=float(x[1]), print_exposure=float(2**x[2]))
         params.write_text(json.dumps(recipe))
-        subprocess.run([args.replay, params, density, str(width), str(height), raw], check=True)
+        subprocess.run([args.replay, params, density, str(width), str(height), raw,
+                        "--data-dir", args.data_dir], check=True)
         return np.fromfile(raw, "<f8").reshape(height, width, 3) * 255
 
     negative, target = capture(args.train_cineon, args.train_print)
@@ -91,6 +92,7 @@ if __name__ == "__main__":
     for name in ("replay", "recipe", "train_cineon", "train_print", "test_cineon", "test_print", "output"):
         parser.add_argument(name, type=Path)
     parser.add_argument("--region", required=True, nargs=2, type=int, metavar=("WIDTH", "HEIGHT"))
+    parser.add_argument("--data-dir", type=Path, default=Path("data"))
     parser.add_argument("--exposure-only", action="store_true", help="hold recipe filtration fixed")
     args = parser.parse_args()
     with tempfile.TemporaryDirectory() as folder:
