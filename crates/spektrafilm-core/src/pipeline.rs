@@ -302,7 +302,23 @@ impl Pipeline {
     /// Refresh a spectral pipeline for the same profiles, resources and stock setup.
     /// On `None`, rebuild from the original profiles and propagate constructor errors.
     /// Resource changes always require a new pipeline.
-    pub fn refreshed(&self, mut params: RuntimeParams) -> Option<Self> {
+    pub fn refreshed(&self, params: RuntimeParams) -> Option<Self> {
+        let params = self.normalized_refresh_params(params)?;
+        let mut next = self.clone();
+        next.apply_refreshed_params(params)?;
+        Some(next)
+    }
+
+    /// Reuse the existing spectral tables on an exclusively owned pipeline.
+    /// A miss leaves the last successful recipe intact. Rebuild from the original
+    /// profiles to recalibrate or report the reason for an unsupported recipe.
+    pub fn refresh_in_place(&mut self, params: RuntimeParams) -> bool {
+        self.normalized_refresh_params(params)
+            .and_then(|p| self.apply_refreshed_params(p))
+            .is_some()
+    }
+
+    fn normalized_refresh_params(&self, mut params: RuntimeParams) -> Option<RuntimeParams> {
         validate_spectral_recipe(&params).ok()?;
         let key = CalibrationInputs::from_params(
             &params,
@@ -317,7 +333,6 @@ impl Pipeline {
             params.enlarger.m_filter_neutral = m;
             params.enlarger.y_filter_neutral = y;
         }
-        let mut next = self.clone();
         if let Some(setup) = self.accepted_stock_setup {
             setup.before_calibration(&mut params);
         }
@@ -325,14 +340,23 @@ impl Pipeline {
         if let Some(setup) = self.accepted_stock_setup {
             setup.after_calibration(&mut params);
         }
-        next.output_gamut = crate::gamut_compression::OutputGamutCompress::build_checked(
+        Some(params)
+    }
+
+    fn apply_refreshed_params(&mut self, params: RuntimeParams) -> Option<()> {
+        let gamut = crate::gamut_compression::OutputGamutCompress::build_checked(
             &params.io.output_gamut_compress,
             &params.io.output_color_space,
         )
         .ok()?;
-        next.params = params;
-        next.refresh_negative_hue().ok()?;
-        Some(next)
+        let previous = std::mem::replace(&mut self.params, params);
+        // Hue preparation reads the effective recipe and publishes its tables only on success.
+        if self.refresh_negative_hue().is_err() {
+            self.params = previous;
+            return None;
+        }
+        self.output_gamut = gamut;
+        Some(())
     }
 }
 

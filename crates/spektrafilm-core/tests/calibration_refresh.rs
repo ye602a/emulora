@@ -70,6 +70,36 @@ fn spectral_refresh_matches_fresh_print_and_rejects_stale_calibration() {
     let a = warm.try_process(patch.clone(), &CpuBackend).unwrap();
     let b = cold.try_process(patch, &CpuBackend).unwrap();
     assert_eq!(a.data, b.data);
+    let mut live = base;
+    let storage = live.tc_lut().unwrap().data.as_ptr();
+    assert!(live.refresh_in_place(p.clone()));
+    assert_eq!(live.tc_lut().unwrap().data.as_ptr(), storage);
+    let render = |pipe: &Pipeline| {
+        pipe.try_process(
+            ImageBuf::from_data(4, 4, [0.35, 0.18, 0.07].repeat(16)),
+            &CpuBackend,
+        )
+        .unwrap()
+        .data
+    };
+    assert_eq!(render(&live), b.data);
+
+    // This fails after normalization: hue reconstruction requires sRGB.
+    let mut invalid = p.clone();
+    invalid.print_render.negative_hue = true;
+    invalid.io.output_cctf_encoding = false;
+    invalid.io.output_color_space = "ACES2065-1".into();
+    invalid.io.output_gamut_compress.algorithm = "off".into();
+    assert!(!live.refresh_in_place(invalid));
+    assert_eq!(live.params.io.output_color_space, p.io.output_color_space);
+    assert_eq!(render(&live), b.data);
+    let mut changed = p.clone();
+    changed.film_render.density_curve_gamma = 1.2;
+    assert!(!live.refresh_in_place(changed));
+    assert_eq!(
+        live.params.film_render.density_curve_gamma,
+        p.film_render.density_curve_gamma
+    );
     p.enlarger.print_exposure_compensation = true;
     let compensated = build(p.clone());
     p.camera.exposure_compensation_ev += 1.0;
