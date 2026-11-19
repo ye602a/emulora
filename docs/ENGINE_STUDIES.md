@@ -383,3 +383,27 @@ Python main and LAB evaluate the unwarped fourth-degree polynomial in the two co
 **Reproduction and scope.** Run scripts/parity/hanatos_surface.py with the CLI path, Batch 13 montage PNG and scratch directory. For the exposure trials add --ev -1 or --ev 1 and --films followed by the six profile names above (Portra 800, UltraMax, Ektar, 200T, Portra 400, Provia). Each on/off pair uses the same exposure, film, paper or direct scan, default Hanatos window and sRGB transfer. Grain, DIR, halation, glare and scanner sharpening are disabled. The study produced 40 nominal and 24 bracketed Vulkan renders on Windows. The driver verifies gray polarity and sends an explicit --scan-film for reversal stocks. An earlier exploratory pass supplied an explicit paper to the slide cases; those results were discarded. [Study driver](../scripts/parity/hanatos_surface.py)
 
 The regression suite checks CPU versus resident Vulkan on a Portra 400 chart (linear per-channel tolerance 0.0001), one negative miss on activation and two hits for repeated and print-only renders. Spectral CUBE grid nodes were checked against the photo route on CPU and Vulkan. No LAB executable comparison or physical film matching was performed for this option.
+
+## Hanatos wavelength smoothing on still photographs
+
+Keep the production value at zero. Smoothing offered little repeatable benefit for either cheek or the silk crop. At the strongest tested setting the red and blue patch hue moved farther from the source on every stock. A few blue-cap improvements did not carry across subjects.
+
+[Python main](https://github.com/andreavolpato/spektrafilm/blob/3bb2c2d/src/spektrafilm/utils/spectral_upsampling.py) filters the 81 wavelength samples independently at each Hanatos chromaticity cell before contraction with the film sensitivities. The spatial axes receive zero sigma. [LAB main](https://github.com/JamesQiu2005/SpektraLab/blob/b51e672/engine/src/core/hanatos.cpp) and [Windows/Linux v2](https://github.com/JamesQiu2005/SpektraLab/blob/f87c521/engine/src/core/hanatos.cpp) implement the same reflected kernel for the tested radii at setup, with sigma in the setup cache key. Python's UI describes nm, but the calculation passes samples directly. On this 5 nm grid settings 1, 2 and 4 correspond to 5, 10 and 20 nm standard deviation. Both upstream defaults are zero. A hypothetical change to this parameter changes the exposure that creates the negative.
+
+The [study driver](../scripts/parity/hanatos_blur.py) takes the CLI executable, Batch 13 input PNG and a scratch directory. It smooths private copies of the RS table using normalized Gaussian weights, symmetric boundary padding and a four-sigma radius. The shipping CLI renders the result. Run from the RS root. The 480 × 144 input SHA-256 is e76a2b41062e767f585d5b1b32f3dfbe13fe5a0598c5d9d1709b73c764be1de5. Five stocks × four strengths produced 20 Vulkan photos with fixed exposure, window enabled, surface disabled and grain, halation, DIR, glare and sharpening disabled. Negatives used Portra Endura and Provia used direct scan. Each zero-strength PNG matched the previous surface-off study pixel for pixel.
+
+Mean ROI hue distance to input (degrees, off → sigma 4). This measures preservation of source hue. Physical film scans and interactive preference ratings were unavailable.
+
+| Film | Cheek 04 | Blue cap | Silk | Saturated red | Saturated blue |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Portra 400 | 5.25 → 5.35 | 6.43 → 7.99 | 17.66 → 17.79 | 3.77 → 5.83 | 19.42 → 21.50 |
+| Ektar 100 | 3.24 → 3.27 | 0.65 → 0.72 | 17.99 → 18.07 | 3.76 → 6.02 | 21.81 → 23.74 |
+| UltraMax 400 | 1.89 → 1.95 | 2.38 → 0.91 | 11.56 → 11.67 | 4.90 → 7.55 | 12.71 → 14.91 |
+| Vision3 200T | 4.75 → 6.18 | 7.06 → 9.71 | 9.93 → 11.22 | 5.50 → 10.42 | 2.82 → 3.45 |
+| Provia 100F | 7.11 → 7.08 | 7.16 → 6.13 | 2.43 → 2.51 | 10.63 → 17.20 | 3.48 → 5.24 |
+
+At sigma 1, both cheeks on all five films moved by at most 0.14° in source hue error and silk by at most 0.08°. The local report also measures screen-code changes and the purple patch at every strength. The experiment used RS calibration and rendering. No upstream executable comparison or resident cache transition was run for this unshipped control.
+
+### Follow-up on window white normalization
+
+The same driver also runs ten CPU exposures through the unmodified RS resources, toggling only the existing adaptation window on a neutral sRGB code 118 pixel. It reads pre-development log exposure and converts the difference into linear channel percentages. For Portra 400 the change was +1.25%, −1.06%, −8.24% in R/G/B, for Ektar +2.71%, −1.39%, −4.86%, and for Provia +2.14%, −0.28%, −1.09%. Thus toggling the window on neutral input really changes the channel balance in RS. These are film-layer measurements before printing. The newer [Python experimental normalization](https://github.com/andreavolpato/spektrafilm/commit/e301791) samples the neutral spectrum the Hanatos table actually produces. A next experiment should compare that reference against the existing illuminant normalization on the same gray and prints, including the saved FPW calibration and manual UV/IR filters, before changing any defaults.
