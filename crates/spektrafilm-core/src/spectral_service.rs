@@ -397,6 +397,42 @@ fn eval_erf4_bandpass(params: &[f64]) -> Vec<[f64; 3]> {
     window
 }
 
+/// The unwarped poly4 fit in the shipped profiles. Grid axis zero is tc.x.
+pub(crate) fn apply_hanatos_surface(lut: &mut TcLut, rows: &[Vec<f64>], white: (f64, f64)) {
+    let scale = (lut.size - 1) as f64;
+    for (cell, raw) in lut.data.chunks_exact_mut(3).enumerate() {
+        let x = (cell / lut.size) as f64 / scale - white.0;
+        let y = (cell % lut.size) as f64 / scale - white.1;
+        let (xx, yy) = (x * x, y * y);
+        // Upstream omits the fitted constant to anchor the reference white.
+        let basis = [
+            x,
+            y,
+            xx,
+            yy,
+            x * y,
+            xx * x,
+            yy * y,
+            xx * y,
+            x * yy,
+            xx * xx,
+            yy * yy,
+            xx * x * y,
+            xx * yy,
+            x * yy * y,
+        ];
+        for (channel, coefficients) in raw.iter_mut().zip(rows) {
+            let z: f64 = basis
+                .iter()
+                .zip(&coefficients[1..])
+                .map(|(a, b)| a * b)
+                .sum();
+            let stops = z / (0.5 * z).hypot(1.0);
+            *channel *= stops.exp2();
+        }
+    }
+}
+
 /// Apply the camera bandpass to stock sensitivity while preserving each
 /// emulsion's integrated exposure to its own reference white.
 pub(crate) fn apply_camera_cuts(
@@ -465,6 +501,49 @@ mod camera_cut_tests {
             assert!((t(12) / t(32) - 0.9213503964748575).abs() < 1e-12);
             assert!((t(54) / t(32) - 0.75).abs() < 1e-12);
             assert!((t(80) / t(32) - 0.5).abs() < 1e-12);
+        }
+    }
+}
+
+#[cfg(test)]
+mod surface_tests {
+    use super::*;
+    #[test]
+    fn portra_poly4_matches_python_on_asymmetric_cells() {
+        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data");
+        let film = crate::profile::load_profile_by_name(&data, "kodak_portra_400").unwrap();
+        let mut lut = TcLut {
+            size: 5,
+            channels: 3,
+            data: vec![1.; 75],
+        };
+        let white = spektrafilm_math::spectral::xy_to_tc(0.30, 0.35);
+        apply_hanatos_surface(
+            &mut lut,
+            &film.data.hanatos2025_adaptation_surface_params,
+            white,
+        );
+        // Python eval_poly4_log_exposure_surface, on the identical 5x5 grid.
+        for (i, j, expected) in [
+            (
+                1,
+                3,
+                [1.0635566571931094, 0.98604838101348, 0.972682698898348],
+            ),
+            (
+                3,
+                1,
+                [1.4478405338805653, 0.9345969923697535, 0.9117978724158349],
+            ),
+            (
+                0,
+                0,
+                [3.824774280179037, 2.2461086902572447, 0.8649790749012143],
+            ),
+        ] {
+            for (c, v) in expected.into_iter().enumerate() {
+                assert!((lut.data[(i * 5 + j) * 3 + c] - v).abs() < 1e-12);
+            }
         }
     }
 }

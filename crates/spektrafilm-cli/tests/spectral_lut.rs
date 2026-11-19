@@ -59,6 +59,7 @@ fn check_nodes(backend: &str) {
     chart.save(dir.join("chart.tif")).unwrap();
     for (film, scan) in [("kodak_portra_400", false), ("kodak_ektachrome_100", true)] {
         let mut reference = recipe(scan);
+        reference["settings"]["apply_hanatos2025_adaptation_surface"] = json!(!scan);
         reference["camera"]["filter_uv"] = json!([0.7, 430, 10]);
         reference["camera"]["filter_ir"] = json!([0.8, 650, 15]);
         fs::write(dir.join("photo.json"), reference.to_string()).unwrap();
@@ -218,12 +219,6 @@ fn failed_requests_preserve_the_destination() {
     for (group, field, value, message) in [
         ("camera", "filter_uv", json!([1, 410, 0]), "filter_uv"),
         ("camera", "filter_ir", json!([1, 675, -15]), "filter_ir"),
-        (
-            "settings",
-            "apply_hanatos2025_adaptation_surface",
-            json!(true),
-            "adaptation surface",
-        ),
         (
             "settings",
             "spectral_gaussian_blur",

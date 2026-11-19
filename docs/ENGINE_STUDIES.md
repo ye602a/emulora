@@ -346,3 +346,40 @@ The shipping Windows OFX in Natron and RS Vulkan rendered the existing 480 × 14
 | Both | 12.26 | 12.00 | 4.25 |
 
 The combined setting moved the central gray patch by (+1.74, +0.53, -1.72) in RS and (0, +4, -4) in OFX. The IR-only effect differed most. These comparisons cover one film/paper pair, with no claim of equivalent looks across products. Reproduce the OFX renders with the existing Natron script using OFX_CASE off, uv, ir and uv-ir. In RS use the camera recipe in USAGE and disable one or both edges with zero strength.
+
+### Hanatos stock colour correction on still photographs
+
+The shipped data has 20 filming profiles with three finite rows of 15 coefficients, comprising 18 distinct fits. Portra 800 and its two push variants share coefficients. All six silver camera profiles and all ten printing materials lack this fit. The following table lists every eligible profile. Four reversal stocks use direct film scanning; all negatives use the same Kodak Portra Endura paper and their database filtration.
+
+Python main and LAB evaluate the unwarped fourth-degree polynomial in the two coordinates of the Hanatos table, relative to the film reference white. They omit the fitted constant, bound the change smoothly to ±2 stops, then multiply the integrated film exposure by the resulting gain before gamut remapping. Python also contains a warped evaluator; the regular evaluation path and the fixed 15-value rows here use plain poly4. RS takes the same route, once per spectral preparation, with the default stock sensitivity window in place. Three asymmetric reference cells from the original Python evaluator with Portra 400 coefficients agree within 1e-12 in gain. This comparison checks the polynomial independently of either product's final print. [Python main](https://github.com/andreavolpato/spektrafilm/blob/3bb2c2d/src/spektrafilm/utils/spectral_upsampling.py) · [LAB main](https://github.com/JamesQiu2005/SpektraLab/blob/b51e672/engine/src/core/hanatos.cpp)
+
+**Reading the table.** Each value is the reduction in absolute hue-angle error in degrees relative to the digital source, using the mean OKLab colour of the central 72×72 pixels in each photo crop or the centre of a solid patch. Positive values moved toward the source, negative values moved away. Skin A and B are cheek crops from Kodak images 04 and 15. The silk contains blue and violet threads. The three flat patches are sRGB (255,0,0), (0,0,255) and (220,0,255). This measures a photographic preference for retaining the input hue. A measured scan of each real stock would be needed to judge emulsion fidelity. The normal-exposure gray patches at sRGB levels 118 and 220 moved by less than 0.01 code for every stock.
+
+| Film | Skin A | Skin B | Silk | Red | Blue | Violet |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| fujifilm_c200 | -1.4 | -0.2 | +3.6 | 0.0 | +0.7 | -0.3 |
+| fujifilm_pro_400h | +0.2 | +0.6 | +2.6 | +0.3 | +2.0 | -1.6 |
+| fujifilm_provia_100f | -5.6 | -4.7 | -2.5 | -1.2 | -2.2 | -2.0 |
+| fujifilm_velvia_100 | -5.2 | -4.1 | +1.2 | -1.2 | 0.0 | -1.2 |
+| fujifilm_xtra_400 | -1.2 | +0.3 | +2.6 | +0.3 | +1.6 | -0.8 |
+| kodak_ektachrome_100 | -2.8 | -1.7 | +7.3 | -0.1 | -0.9 | -2.8 |
+| kodak_ektar_100 | +0.4 | -0.1 | +8.0 | -0.2 | +2.6 | -2.5 |
+| kodak_gold_200 | +2.0 | +1.4 | +3.7 | +0.2 | -4.5 | +0.2 |
+| kodak_kodachrome_64 | -3.2 | -2.2 | -3.6 | -0.1 | +0.1 | -1.5 |
+| kodak_portra_160 | -1.2 | -1.3 | +2.1 | -0.2 | +1.2 | -2.9 |
+| kodak_portra_400 | -2.0 | -1.5 | +2.8 | -0.2 | -0.9 | -0.8 |
+| kodak_portra_800 | +1.7 | +1.2 | +7.8 | -0.4 | +1.1 | -2.1 |
+| kodak_portra_800_push1 | +1.5 | +1.2 | +7.2 | -0.3 | +2.3 | -2.4 |
+| kodak_portra_800_push2 | +1.3 | +1.2 | +6.7 | -0.2 | +2.9 | -2.4 |
+| kodak_ultramax_400 | +0.8 | +2.2 | +6.7 | -0.3 | +0.2 | -1.4 |
+| kodak_verita_200d | +0.3 | -0.1 | +5.3 | -0.4 | +0.4 | +0.9 |
+| kodak_vision3_200t | +2.2 | +1.9 | +5.9 | +0.7 | -2.2 | +3.4 |
+| kodak_vision3_250d | -2.1 | +1.4 | +8.3 | -0.4 | +0.9 | -5.6 |
+| kodak_vision3_500t | +0.9 | -0.7 | +7.5 | +0.3 | -1.6 | +1.7 |
+| kodak_vision3_50d | -1.9 | +1.0 | +7.2 | 0.0 | +0.6 | -4.9 |
+
+**Where to use it.** Portra 800 and UltraMax 400 consistently brought the woven fabric closer to its input hue at -1, 0 and +1 EV. At +1 EV one cheek moved farther from the input hue on both films. Ektar 100 corrected the fabric by 7.4–8.0° across the three exposures while both cheeks moved very little; a solid violet patch moved farther from the source. On Vision3 200T both fabric and the violet patch improved at all three exposures, while the blue patch moved farther away. Portra 400 favoured fabric slightly but moved both cheeks farther away at all three exposures. Provia 100F moved both cheeks and the fabric farther away in every exposure trial. Velvia 100 and Kodachrome 64 also favoured the original skin hue at nominal exposure. Keep the feature optional across all stocks.
+
+**Reproduction and scope.** Run scripts/parity/hanatos_surface.py with the CLI path, Batch 13 montage PNG and scratch directory. For the exposure trials add --ev -1 or --ev 1 and --films followed by the six profile names above (Portra 800, UltraMax, Ektar, 200T, Portra 400, Provia). Each on/off pair uses the same exposure, film, paper or direct scan, default Hanatos window and sRGB transfer. Grain, DIR, halation, glare and scanner sharpening are disabled. The study produced 40 nominal and 24 bracketed Vulkan renders on Windows. The driver verifies gray polarity and sends an explicit --scan-film for reversal stocks. An earlier exploratory pass supplied an explicit paper to the slide cases; those results were discarded. [Study driver](../scripts/parity/hanatos_surface.py)
+
+The regression suite checks CPU versus resident Vulkan on a Portra 400 chart (linear per-channel tolerance 0.0001), one negative miss on activation and two hits for repeated and print-only renders. Spectral CUBE grid nodes were checked against the photo route on CPU and Vulkan. No LAB executable comparison or physical film matching was performed for this option.

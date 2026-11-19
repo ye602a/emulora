@@ -91,8 +91,8 @@ fn validate_spectral_recipe(params: &RuntimeParams) -> Result<(), String> {
             return Err(format!("{name} requires strength 0..1, a finite centre and positive width in nm"));
         }
     }
-    if params.settings.apply_hanatos2025_adaptation_surface {
-        return Err("Hanatos adaptation surface is not implemented".into());
+    if params.settings.apply_hanatos2025_adaptation_surface && params.settings.rgb_to_raw_method != "hanatos2025" {
+        return Err("Hanatos adaptation surface requires hanatos2025".into());
     }
     if params.settings.spectral_gaussian_blur != 0.0 {
         return Err("spectral_gaussian_blur is not implemented".into());
@@ -147,6 +147,7 @@ fn apply_film_specific_params(film: &Profile, params: &mut RuntimeParams) {
 struct CalibrationInputs {
     method: String,
     window: bool,
+    surface: bool,
     cat16: bool,
     input_gamut: crate::params::InputGamutCompressParams,
     development: [Option<f64>; 2],
@@ -171,6 +172,7 @@ impl CalibrationInputs {
         Self {
             method: p.settings.rgb_to_raw_method.clone(),
             window: p.settings.apply_hanatos2025_adaptation_window,
+            surface: p.settings.apply_hanatos2025_adaptation_surface,
             spectral_cuts: [p.camera.filter_uv, p.camera.filter_ir]
                 .map(|cut| (cut[0] != 0.).then_some(cut)),
             cat16: p.settings.use_cat16,
@@ -569,6 +571,9 @@ impl Pipeline {
         } else {
             film.info.reference_illuminant.clone()
         };
+        if params.settings.apply_hanatos2025_adaptation_surface && !film.has_hanatos_surface() {
+            return Err("film has no supported Hanatos adaptation surface (expected three finite 15-coefficient rows)".into());
+        }
         let spectra = match method {
             "hanatos2025" => Some(spectral_service::load_spectra_lut(data_dir)?),
             "arctic2026beta04" => Some(spectral_service::load_arctic2026beta04_lut(data_dir)?),
@@ -585,7 +590,7 @@ impl Pipeline {
                 return Ok((None, Some(core)));
             };
             let window = &film.data.hanatos2025_adaptation_window_params;
-            let lut = if method == "arctic2026beta04" {
+            let mut lut = if method == "arctic2026beta04" {
                 spectral_service::compute_reflectance_tc_lut(spectra, response, ref_illuminant_f64)
             } else if params.settings.apply_hanatos2025_adaptation_window && window.len() >= 4 {
                 spectral_service::compute_camera_lut_with_window(
@@ -598,6 +603,12 @@ impl Pipeline {
             } else {
                 spectral_service::compute_tc_lut(spectra, response)
             };
+            if params.settings.apply_hanatos2025_adaptation_surface {
+                let (x, y) = spektrafilm_math::spectral::illuminant_to_xy(select_illuminant(&front_illuminant));
+                spectral_service::apply_hanatos_surface(&mut lut,
+                    &film.data.hanatos2025_adaptation_surface_params,
+                    spektrafilm_math::spectral::xy_to_tc(x, y));
+            }
             let compression = crate::input_gamut::InputGamutCompress::build(
                 &params.io.input_gamut_compress.algorithm,
                 params.io.input_gamut_compress.knee,
@@ -1129,6 +1140,9 @@ impl Pipeline {
                     .is_none_or(|(key, _)| *key != HueCalibration::new(&self.params)))
         {
             return Err(spektrafilm_gpu::OutputError::UnsupportedNegativeHue);
+        }
+        if self.calibration.is_none() && self.params.settings.apply_hanatos2025_adaptation_surface {
+            return Err(spektrafilm_gpu::OutputError::SurfaceRequiresSpectral);
         }
         if self.calibration.is_none()
             && !self.params.io.scan_film

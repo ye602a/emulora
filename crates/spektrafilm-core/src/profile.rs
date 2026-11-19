@@ -274,6 +274,11 @@ impl Profile {
     pub fn is_bw(&self) -> bool {
         self.info.channel_model == "bw"
     }
+    pub fn has_hanatos_surface(&self) -> bool {
+        let rows = &self.data.hanatos2025_adaptation_surface_params;
+        self.is_filming() && rows.len() == 3
+            && rows.iter().all(|r| r.len() == 15 && r.iter().all(|v| v.is_finite()))
+    }
     pub fn is_filming(&self) -> bool {
         self.info.stage == "filming"
     }

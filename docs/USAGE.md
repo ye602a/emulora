@@ -191,3 +191,9 @@ For half-frame, XPan and configurable 120 roll-film gates, including a frame/dat
 In the standalone GUI open the exposure controls and expand **UV / IR cut**. The recipe equivalent is `"camera": {"filter_uv": [1, 430, 8], "filter_ir": [1, 650, 15]}`. Each triplet contains strength (0–1), transition centre and width in nanometres. Zero strength disables that edge; both default to zero. The usable spectrum comes from the stock's 380–780 nm response. An RGB input cannot recover radiation outside its captured bands.
 
 The UV edge attenuates short wavelengths and the IR edge attenuates long wavelengths. The two transmissions multiply. Calibration restores each emulsion channel's integrated exposure to the stock reference illuminant. A photographed gray can still shift after RGB spectral reconstruction and printing. The Hanatos stock adaptation window and the measured B&W lens filter retain their separate controls. Fixed UV/IR settings also enter spectral CUBE exports. Changing an active edge requires a fresh calibration and negative. [Product comparison](ENGINE_STUDIES.md#camera-uv-and-ir-cut)
+
+## Hanatos stock colour correction
+
+Select **Color management → RGB→raw upsampling → hanatos2025**, then **Stock colour correction**. In a CLI recipe set `settings.apply_hanatos2025_adaptation_surface` to `true`. It defaults to off. The GUI shows the option for the 20 camera profiles with usable coefficients; switching to a silver stock or another upsampling method clears it. An explicitly incompatible CLI recipe reports an error. The correction also enters spectral CUBE exports.
+
+For blue-violet fabric try Portra 800, UltraMax 400 or Ektar 100. On Portra 400 and Provia 100F start with it off when matching skin to the input photograph. Compare unusually saturated violet separately: a fabric and a solid violet patch can move in different directions. [Results for every eligible film](ENGINE_STUDIES.md#hanatos-stock-colour-correction-on-still-photographs)

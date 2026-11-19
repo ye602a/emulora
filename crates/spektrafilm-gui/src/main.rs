@@ -181,6 +181,7 @@ fn gui_renderer() -> eframe::Renderer {
 /// to the stock id when missing.
 #[derive(Debug, Clone)]
 struct ProfileEntry {
+    hanatos_surface: bool,
     hue_material: bool,
     graded_paper: bool,
     monochrome: bool,
@@ -887,6 +888,9 @@ impl App {
                     self.params.film_render.development_time = None;
                     if let Ok(film) = profile::load_profile_by_name(&self.data_dir, &self.film_name)
                     {
+                        if !film.has_hanatos_surface() {
+                            self.params.settings.apply_hanatos2025_adaptation_surface = false;
+                        }
                         if !film.is_bw() {
                             self.params.camera.photographic_filter =
                                 spektrafilm_core::params::CameraFilter::Off;
@@ -1424,6 +1428,14 @@ impl App {
                             changed |= ui.selectable_value(method, opt.to_string(), opt).changed();
                         }
                     });
+                if method == "hanatos2025" {
+                    if self.films.iter().any(|f| f.stock == self.film_name && f.hanatos_surface) {
+                        changed |= ui.checkbox(&mut self.params.settings.apply_hanatos2025_adaptation_surface,
+                            "Stock colour correction").changed();
+                    }
+                } else {
+                    self.params.settings.apply_hanatos2025_adaptation_surface = false;
+                }
                 if changed {
                     self.dirty = true;
                 }
@@ -1715,7 +1727,7 @@ fn scan_profiles(data_dir: &Path) -> (Vec<ProfileEntry>, Vec<ProfileEntry>) {
         // Cheap probe: just deserialize the file's `info` field. We
         // could skip the rest of the profile but `Profile` already does
         // the right thing — and we pay this once at startup.
-        let (display, is_paper, monochrome, graded_paper, hue_material) =
+        let (display, is_paper, monochrome, graded_paper, hue_material, hanatos_surface) =
             match profile::load_profile_by_name(data_dir, &stock) {
                 Ok(p) => {
                     let display = p.info.name.clone().unwrap_or_else(|| stock.clone());
@@ -1726,11 +1738,13 @@ fn scan_profiles(data_dir: &Path) -> (Vec<ProfileEntry>, Vec<ProfileEntry>) {
                         p.is_bw(),
                         p.data.paper_grades.is_some(),
                         p.is_color() && if is_paper { !p.is_positive() } else { p.is_negative() },
+                        p.has_hanatos_surface(),
                     )
                 }
-                Err(_) => (stock.clone(), false, false, false, false),
+                Err(_) => (stock.clone(), false, false, false, false, false),
             };
         let entry = ProfileEntry {
+            hanatos_surface,
             hue_material,
             graded_paper,
             stock,

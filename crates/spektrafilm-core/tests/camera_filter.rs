@@ -265,3 +265,62 @@ fn spectral_cuts_change_the_resident_negative_on_all_three_front_ends() {
         assert_eq!((after.hits-baseline.hits,after.misses-baseline.misses),(1,1));
     }
 }
+
+#[test]
+fn stock_surface_rebuilds_density_but_subsequent_print_edits_reuse_it() {
+    let Some(gpu) = WgpuBackend::new() else {
+        assert!(std::env::var_os("SPEKTRAFILM_REQUIRE_GPU").is_none());
+        return;
+    };
+    gpu.configure_negative_cache(true);
+    let data = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data");
+    let construct = |film, p| {
+        Pipeline::new_with_spectral(
+            load_profile_by_name(&data, film).unwrap(),
+            load_profile_by_name(&data, "kodak_portra_endura").unwrap(),
+            p,
+            &data,
+        )
+    };
+    let render = |pipe: &Pipeline| {
+        pipe.process_resident_with_options(
+            &chart(),
+            &gpu,
+            FilmRenderOptions {
+                source: Some(SourceIdentity(1400)),
+                ..Default::default()
+            },
+        )
+        .unwrap()
+        .unwrap()
+        .data
+    };
+    let mut p = recipe();
+    p.camera.photographic_filter = CameraFilter::Off;
+    let original = construct("kodak_portra_400", p.clone()).unwrap();
+    let before = render(&original);
+    let stats = gpu.negative_cache_stats();
+    p.settings.apply_hanatos2025_adaptation_surface = true;
+    assert!(original.refreshed(p.clone()).is_none());
+    let corrected = construct("kodak_portra_400", p.clone()).unwrap();
+    let after = render(&corrected);
+    assert_ne!(after, before);
+    assert_eq!(render(&corrected), after);
+    let cpu = corrected.try_process(chart(), &CpuBackend).unwrap();
+    assert!(
+        cpu.data
+            .iter()
+            .zip(&after)
+            .all(|(a, b)| (a - b).abs() < 0.0001)
+    );
+    p.enlarger.print_exposure = 1.3;
+    let edited = construct("kodak_portra_400", p.clone()).unwrap();
+    assert_ne!(render(&edited), after);
+    let end = gpu.negative_cache_stats();
+    assert_eq!((end.misses - stats.misses, end.hits - stats.hits), (1, 2));
+    assert!(construct("kodak_doublex", p.clone()).is_err());
+    for method in ["arctic2026beta04", "mallett2019"] {
+        p.settings.rgb_to_raw_method = method.into();
+        assert!(construct("kodak_portra_400", p.clone()).is_err());
+    }
+}
