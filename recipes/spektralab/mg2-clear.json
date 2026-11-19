@@ -1,0 +1,57 @@
+{
+  "settings": {
+    "rgb_to_raw_method": "hanatos2025"
+  },
+  "camera": {
+    "auto_exposure": false,
+    "film_format_mm": 35,
+    "photographic_filter": "clear",
+    "compensate_filter": false
+  },
+  "film_render": {
+    "grain": {
+      "active": false
+    },
+    "halation": {
+      "active": false,
+      "boost_ev": 0
+    },
+    "dir_couplers": {
+      "active": false
+    },
+    "bleach_bypass": 0,
+    "glare": {
+      "active": false
+    }
+  },
+  "print_render": {
+    "glare": {
+      "active": false
+    },
+    "bleach_bypass": 0,
+    "paper_grade": "2"
+  },
+  "io": {
+    "output_color_space": "sRGB",
+    "output_cctf_encoding": true,
+    "input_color_space": "ProPhoto RGB",
+    "output_gamut_compress": {
+      "algorithm": "cam16ucs",
+      "lightness_compression": [
+        0.7,
+        1.0,
+        2.2
+      ]
+    }
+  },
+  "enlarger": {
+    "y_filter_shift": -9.07916778940671,
+    "print_exposure": 1.0536288030324878
+  },
+  "scanner": {
+    "unsharp_mask": [
+      0.7,
+      0.7
+    ]
+  }
+}

@@ -567,3 +567,19 @@ The previous yellow-filter study used different paper and scanner settings. It e
 Rounded table entries are upper bounds. The maximum single-channel discrepancy in the sweep was 4.47 codes. The previous costume/wedge comparison at the same metric gave P95 11.38 and 11.53 codes. The white cheek with No. 8 now reads 210.30 in RS versus 210.12 in LAB; with No. 12 it reads 211.19 versus 211.01. Maximum discrepancy across the eight wedge centers was 1.34 and 1.29 codes. LAB normalizes filter transmission against the stock's reference illuminant, while RS's existing compensated option normalizes to its reconstructed neutral. The measured residual includes this difference and the separate renderers. Scope is limited to the stock, grade, exposure and filters above.
 
 **Repeat.** Run the [comparison script](../scripts/parity/lab_windows_yellow_filters.py) from the repository root with `--cli <RS executable> --lab <unpacked LAB directory> --out <scratch directory> photo1.png photo2.png ...`. Supply sRGB PNGs, numpy, Pillow, tifffile and LAB's tagged `engine/tests/host_smoke.py` on PYTHONPATH. The script checks the reference host identity, resolved controls, input space and actual backends, writes final images and metrics, and fails when the percentile limits are exceeded.
+
+### Grade 2 prints on T-Max 100, Acros II and HP5 Plus
+
+The same Windows release host and settings above were used for a clear-lens baseline followed by No. 8 and No. 12. LAB loads the requested film and paper profiles in [init_params](https://github.com/JamesQiu2005/SpektraLab/blob/9ceca338bac8aa0bcd8f17aeeb324df9174bb15c/engine/src/core/params.cpp). The test confirmed the resolved stock IDs and grade controls for each session. All three films used the same paper and scanner settings as Tri-X.
+
+Each entry gives the worst P95 / P99 over the costume photograph with the eight-step wedge, Kodak 04, Kodak 18, and both RS backends, rounded up to hundredths of an 8-bit display code. All 54 comparisons passed the previous per-image limits of 2 / 4.
+
+| Film ID | Clear | No. 8 | No. 12 |
+| --- | --- | --- | --- |
+| `kodak_tmax_100` | 0.03 / 0.04 | 1.23 / 1.98 | 1.19 / 1.91 |
+| `fujifilm_neopan_acros_100_ii` | 0.02 / 0.04 | 0.45 / 0.54 | 0.44 / 0.52 |
+| `ilford_hp5_plus_400` | 0.02 / 0.04 | 0.30 / 0.53 | 0.27 / 0.47 |
+
+All eight wedge centers remained in order in both engines (240 by 384 input, y=372, x=15,45,...,225). The largest center difference was 1.16 codes for T-Max, 0.34 for Acros and 0.23 for HP5, rounded up. The largest individual full-frame error was 6.83 codes rounded up, on HP5 with No. 8. These results cover deterministic prints at grade 2 and manual EV 0.
+
+To repeat, append `--films kodak_tmax_100 fujifilm_neopan_acros_100_ii ilford_hp5_plus_400 --filters clear` after the input filenames in the command above. Then repeat with `--filters w8 w12` and a second output directory to retain both metrics files.
