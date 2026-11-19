@@ -4,31 +4,35 @@
 
 **English** | [简体中文](README.zh-CN.md)
 
-A Rust engine for physically based film, print and scan simulation, with spectral
-processing and GPU acceleration. Based on the Rust port by
-[turbasvin](https://github.com/turbasvin/spektrafilm-rs) of
-[Andrea Volpato's spektrafilm](https://github.com/andreavolpato/spektrafilm).
+spektrafilm-rs exposes a digital photograph onto simulated film, develops it, then prints it on photographic paper or scans the film directly. It is the independently maintained Rust engine used by **FPW**. You can also process photos with the CLI, preview them in the desktop GUI, or embed the engine in another application. FPW selects its own engine revision and controls.
 
-Development is driven by **FPW**, a photography application that is **not yet
-public**. The film engine is maintained here and can be built and used independently.
+## What you can use today
 
-## Development goals
+| Stage | Available in the engine |
+| --- | --- |
+| Camera and film | Spectral exposure and development for colour negatives, reversal film and black-and-white film. Manual EV, metering with highlight or shadow protection, lens diffusion, halation, DIR interlayer effects and source-anchored multilayer grain. The optional latitude report estimates how much of a shot approaches the shadow and highlight limits. |
+| Black-and-white photography | Tri-X 400, T-Max 100, Acros II and HP5 Plus print on three-emulsion Ilford Multigrade IV RC. Select grade 00, 0, 1, **2** (default), 3, 4 or 5. Measured clear, yellow No. 8/12 and red No. 25/29 camera responses support stock-dependent exposure compensation. |
+| Darkroom and scan | Optical printing with enlarger filtration, exposure, preflash, paper curve morphing and developer exhaustion. Direct film scans skip the paper. Negative bleach bypass changes the developed film. Print bleach bypass acts on the colour paper. |
+| Film borders | Resident Vulkan renders 135 full frame, half frame, XPan and configurable 120 gates. Recipes can place edge codes, a frame number, a date or a local light leak in film coordinates. [Formats and backend limits](docs/135_FILM_BORDER.md) |
+| Files and integration | Standalone JPEG, PNG, linear TIFF and RAW input, plus spectral CUBE export for the pointwise part of a look. Hosts can supply a GPU device, reuse developed negatives and work buffers, and request GPU, RGB16 or region output. CPU rendering includes an f64 reference build. [Usage and supported routes](docs/USAGE.md) |
 
-- Improve the physical film pipeline while preserving established rendering results.
-- Keep film algorithms and GPU resource management in one engine, with documented host interfaces.
-- Verify numerical and performance changes with reproducible comparisons; version changes that affect the look.
+### Defaults and opt-in looks
 
-## Capabilities
+The default RGB-to-film method is **Hanatos 2025**, including the fitted sensitivity window on stocks that supply one. **Arctic beta04** is selectable. Hanatos stock colour correction is a separate switch, off by default and available for 20 profiles with fitted coefficients.
 
-- Spectral film exposure, development, printing and scanning, with bundled film and paper profiles.
-- Halation, DIR couplers, physical grain, glare and optical effects.
-- f32 GPU processing and an f64 CPU reference path.
-- Host-provided GPU devices, source-coordinate grain, bounded caches, and GPU / RGB16 / region output.
-- Standalone CLI and preview GUI.
+Colour negatives use **optical printing** by default. Negative-derived print hue is optional on CPU and resident Vulkan for colour paper, sRGB output and zero manual yellow/magenta shifts. Both bleach bypass controls default to zero. In the resident path, changing the paper grade, print hue or print bypass can reuse the negative. Changing film-side bypass requires redevelopment. [Recipes and controls](docs/USAGE.md)
 
-## Physical 135 film borders
+### Which outputs match LAB or OFX?
 
-The resident Vulkan pipeline supports a 35 mm strip for paper prints and direct reversal scans. Overscan extends the canvas while keeping the source pixel pitch and grain coordinates. Perforations and optional edge exposure enter the optical pipeline before the final print or scan. Hosts can request the whole canvas or an output region. [135 film border geometry](docs/135_FILM_BORDER.md)
+With the LAB reference recipes, **all 12 combinations** of the four black-and-white stocks on grade 2 with measured clear, No. 8 or No. 12 passed final-image comparison on **both CPU and Vulkan**, including two held-out photos. Against OFX Windows 0.3.12, Portra 400 / Endura passed for clear and the tested UV/IR cuts using specially prepared camera data and print settings. Ordinary RS recipes use their own calibration. The OFX bleach presets and some paper effects, as well as LAB halation and borders, still show visible differences. LAB stock correction and print hue have source-generated references. Mac application output remains unverified. [Measured results and reference recipes](docs/ENGINE_EVOLUTION.md)
+
+### What is still outside the product?
+
+| Status | Feature and reason |
+| --- | --- |
+| Studied and deliberately held back | The rem-jet/back-reflection prototype produced an excessive red tail. Wavelength smoothing, reconstructed-white normalization and Langmuir DIR remain studies. Production uses the established halation, normalization and DIR paths. |
+| Awaiting measurements or permission | Multigrade half grades are unavailable. The hard-end wedge did not support a reliable 4½ step. Portra 160NC/160VC/400NC/400VC and their matching neutral print settings await explicit redistribution terms. |
+| Not developed | Embedded-ICC conversion in standalone input and a wider-gamut workflow redesign. CPU and CUDA also lack the physical film-border renderer. CUDA is experimental. |
 
 ## Get started
 
