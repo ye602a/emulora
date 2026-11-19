@@ -183,3 +183,5 @@ On a color print, **Print bleach bypass** sets the retained-silver look from 0 (
 ### Cinema film and viewing illuminants
 
 The ordinary spectral pipeline now uses the lights specified by each material. Vision3 200T and 500T use the measured incandescent spectrum (`T`); Kodak 2383 and 2393 are viewed under the Kinoton 75P projector spectrum (`K75P`). This changes renders and newly baked cubes involving those materials. Earlier versions silently used D55 for the film or D50 for the print. Start with the stock neutral pack, including when using Arctic beta04. Recheck any manual Y/M shifts fitted to older renders. The explicit `FpwV1` constructor retains its accepted daylight substitutions, and the published FPW dependency has not changed. [Measured comparisons](ENGINE_STUDIES.md#cinema-illuminants-and-shipping-engine-comparisons)
+
+For half-frame, XPan and configurable 120 roll-film gates, including a frame/date imprint or local light leak, see the [resident recipe example](135_FILM_BORDER.md#explicit-roll-formats-and-latent-exposures).

@@ -1390,11 +1390,11 @@ impl Pipeline {
             }
         }
 
-        let pix_um = stages::filming::pixel_size_um(
-            self.params.camera.film_format_mm,
-            image.width,
-            image.height,
-        );
+        let pix_um = border_135.as_ref().and_then(|border| {
+            (border.gate_pitch_um > 0.).then_some(border.gate_pitch_um)
+        }).unwrap_or_else(|| stages::filming::pixel_size_um(
+            self.params.camera.film_format_mm, image.width, image.height,
+        ));
 
         // print_exposure_factor × print_exposure, with the B&W printing
         // exposure correction folded in (CPU applies it as a further raw
@@ -1409,11 +1409,6 @@ impl Pipeline {
         // per-channel µm sigmas, converts to pixel space, and passes the
         // resulting scalars to the shaders.
         let halation = if self.params.film_render.halation.active {
-            let pix_um = stages::filming::pixel_size_um(
-                self.params.camera.film_format_mm,
-                image.width,
-                image.height,
-            );
             let h = &self.params.film_render.halation;
             // GPU shaders take f32 — narrow at the boundary.
             let avg_f64 = |a: [f64; 3]| (a[0] + a[1] + a[2]) / 3.0;
@@ -1455,11 +1450,6 @@ impl Pipeline {
         // Held in this binding so `&density_curves_0_f64` outlives the
         // backend call.
         let dir_inputs = if self.params.film_render.dir_couplers.active {
-            let pix_um = stages::filming::pixel_size_um(
-                self.params.camera.film_format_mm,
-                image.width,
-                image.height,
-            );
             let dir = &self.params.film_render.dir_couplers;
             let matrix = spektrafilm_model::couplers::compute_dir_couplers_matrix(
                 dir.gamma_samelayer_rgb,
@@ -1548,11 +1538,6 @@ impl Pipeline {
         // sampling; CPU does the same whenever λ > 30 / var > 9, which is
         // the typical regime for ≥ 1 MP images.
         let grain = if self.params.film_render.grain.active {
-            let pix_um = stages::filming::pixel_size_um(
-                self.params.camera.film_format_mm,
-                image.width,
-                image.height,
-            );
             let g = &self.params.film_render.grain;
             let pixel_area = pix_um * pix_um;
             let n_sub = g.n_sub_layers.max(1);

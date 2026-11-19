@@ -127,6 +127,7 @@ fn exposure_and_transmission_follow_cpu_layout_in_print_and_scan() {
             overscan: [21, 19, 22, 25],
             registration,
             edge_exposure_centi_ev: Some(-100),
+            ..Default::default()
         };
         let layout = border.layout([width, height], 36.0).unwrap().unwrap();
         params.border_135 = Some(border);
@@ -184,4 +185,169 @@ fn negative_identity_tracks_border_and_reuses_layout_for_output_changes() {
     params.border_135.as_mut().unwrap().registration.offset_px = [0, 2];
     assert_ne!(render(&backend, params, &input, None, source), bright);
     assert_eq!(backend.negative_cache_stats().misses, 3);
+}
+
+#[test]
+fn explicit_roll_gates_match_the_exposure_mask_and_invalidate_density() {
+    use spektrafilm_core::border_135::{FilmGate, GateFormat, RollAxis};
+    let Some(backend) = WgpuBackend::new() else {
+        assert!(std::env::var_os("SPEKTRAFILM_REQUIRE_GPU").is_none());
+        return;
+    };
+    let mut params = options();
+    let input = image(80, 60, [0.36, 0.45, 0.2]);
+    let content = render(&backend, params.clone(), &input, None, None);
+    let fog = render(
+        &backend,
+        params.clone(),
+        &image(80, 60, [0.09; 3]),
+        None,
+        None,
+    );
+    backend.configure_negative_cache(true);
+    let mut misses = backend.negative_cache_stats().misses;
+    for format in [
+        GateFormat::HalfFrame17,
+        GateFormat::FullFrame36,
+        GateFormat::Xpan65,
+        GateFormat::Roll120 {
+            along_tenth_mm: 415,
+            across_tenth_mm: 560,
+        },
+        GateFormat::Roll120 {
+            along_tenth_mm: 560,
+            across_tenth_mm: 560,
+        },
+        GateFormat::Roll120 {
+            along_tenth_mm: 700,
+            across_tenth_mm: 560,
+        },
+        GateFormat::Roll120 {
+            along_tenth_mm: 840,
+            across_tenth_mm: 560,
+        },
+    ] {
+        for axis in [RollAxis::Horizontal, RollAxis::Vertical] {
+            let border = Border135 {
+                gate: Some(FilmGate { format, axis }),
+                overscan: [36; 4],
+                edge_exposure_centi_ev: Some(-100),
+                ..Default::default()
+            };
+            let layout = border.layout([80, 60], 35.).unwrap().unwrap();
+            params.border_135 = Some(border);
+            let frame = render(
+                &backend,
+                params.clone(),
+                &input,
+                None,
+                Some(SourceIdentity(55)),
+            );
+            verify(&frame, layout, pixel(&content, 0, 0), pixel(&fog, 0, 0));
+            misses += 1;
+            assert_eq!(backend.negative_cache_stats().misses, misses);
+            if !layout.perforated {
+                for x in 0..layout.canvas[0] {
+                    for y in 0..layout.canvas[1] {
+                        assert_eq!(
+                            layout.sample([x, y]).film_present,
+                            layout.film_at([x, y])[1].abs() < 30.75
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn latent_exposures_change_only_present_film_and_reuse_the_print_negative() {
+    use spektrafilm_core::border_135::{FilmImprint, LightLeak};
+    let Some(backend) = WgpuBackend::new() else {
+        assert!(std::env::var_os("SPEKTRAFILM_REQUIRE_GPU").is_none());
+        return;
+    };
+    backend.configure_negative_cache(true);
+    let mut params = options();
+    let input = image(180, 120, [0.18; 3]);
+    let source = Some(SourceIdentity(777));
+    let mut border = Border135 {
+        overscan: [40; 4],
+        ..Default::default()
+    };
+    let layout = border.layout([180, 120], 36.).unwrap().unwrap();
+    params.border_135 = Some(border);
+    let plain = render(&backend, params.clone(), &input, None, source);
+    let mark = FilmImprint {
+        text: "F-29".to_string().try_into().unwrap(),
+        origin_tenth_mm: [-80, 130],
+        height_tenth_mm: 30,
+        exposure_milli: [1000; 3],
+    };
+    border.imprint = Some(mark);
+    params.border_135 = Some(border);
+    let marked = render(&backend, params.clone(), &input, None, source);
+    let mut changed = 0;
+    for y in 0..marked.height {
+        for x in 0..marked.width {
+            if pixel(&marked, x, y) != pixel(&plain, x, y) {
+                let site = layout.sample([x, y]);
+                assert!(site.film_present && !site.gate_open);
+                let [s, t] = layout.film_at([x, y]);
+                assert!((-8.0..1.6).contains(&s) && (13.0..16.0).contains(&t));
+                changed += 1;
+            }
+        }
+    }
+    assert!(changed > 25);
+    border.imprint = None;
+    let mut leak = LightLeak {
+        center_tenth_mm: [60, 0],
+        sigma_tenth_mm: [20, 40],
+        exposure_milli: [0; 3],
+    };
+    border.light_leak = Some(leak);
+    params.border_135 = Some(border);
+    assert_eq!(
+        render(&backend, params.clone(), &input, None, source),
+        plain
+    );
+    leak.exposure_milli = [500, 30, 0];
+    border.light_leak = Some(leak);
+    params.border_135 = Some(border);
+    let right = render(&backend, params.clone(), &input, None, source);
+    assert_ne!(right, plain);
+    leak.center_tenth_mm[0] = -60;
+    border.light_leak = Some(leak);
+    params.border_135 = Some(border);
+    let left = render(&backend, params.clone(), &input, None, source);
+    for y in 0..left.height {
+        for x in 0..left.width {
+            assert_eq!(pixel(&left, x, y), pixel(&right, left.width - 1 - x, y));
+            if !layout.sample([x, y]).film_present {
+                assert_eq!(pixel(&left, x, y), pixel(&plain, x, y));
+            }
+        }
+    }
+    let stats = backend.negative_cache_stats();
+    params.enlarger.print_exposure = 1.2;
+    render(&backend, params, &input, None, source);
+    assert_eq!(backend.negative_cache_stats().hits, stats.hits + 1);
+
+    // In-aperture date on a frame with no shoulder pixels requested.
+    let date = FilmImprint {
+        text: "2026-11-19".to_owned().try_into().unwrap(),
+        origin_tenth_mm: [-120, 40],
+        ..mark
+    };
+    let mut date_params = options();
+    date_params.border_135 = Some(Border135 {
+        imprint: Some(date),
+        ..Default::default()
+    });
+    let date_frame = render(&backend, date_params, &input, None, source);
+    let reference = render(&backend, options(), &input, None, source);
+    assert_eq!((date_frame.width, date_frame.height), (180, 120));
+    assert_ne!(date_frame, reference);
+    assert_eq!(pixel(&date_frame, 2, 2), pixel(&reference, 2, 2));
 }

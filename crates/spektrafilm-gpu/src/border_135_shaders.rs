@@ -61,3 +61,14 @@ pub(super) fn uniform_entry<'a>(
         resource: border.unwrap_or(fallback).as_entire_binding(),
     }
 }
+
+
+pub(super) const LOG_RAW: &str = concat!(
+    include_str!("../../spektrafilm-shaders/wgsl/log10_inplace.wgsl"),
+    "fn add_latent_exposure(pixel: u32) {}",
+);
+pub(super) const LATENT_LOG_RAW: &str = bordered!(
+    "../../spektrafilm-shaders/wgsl/log10_inplace.wgsl",
+    "2",
+    include_str!("../../spektrafilm-shaders/wgsl/latent_exposure.wgsl")
+);

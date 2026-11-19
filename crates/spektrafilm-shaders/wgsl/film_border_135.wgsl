@@ -13,7 +13,12 @@ struct FilmBorderParams {
     perforation_corner_mm: f32,
     perforation_half_mm: vec2<f32>,
     perforation_row_mm: f32,
-    _pad1: f32,
+    gate_pitch_um: f32,
+    leak_shape: vec4<f32>,
+    leak_gain: vec4<f32>,
+    imprint_shape: vec4<f32>,
+    imprint_gain: vec4<f32>,
+    glyphs: array<vec4<u32>, 4>,
 }
 
 fn film_raster_pixel(pixel: u32) -> vec2<u32> {
@@ -34,6 +39,7 @@ fn film_present(position: vec2<f32>) -> bool {
         return false;
     }
     let pitch = film_border.perforation_pitch_mm;
+    if pitch == 0.0 { return true; }
     let s = position.x - pitch * floor(position.x / pitch + 0.5);
     let hole = abs(vec2<f32>(s, t - film_border.perforation_row_mm));
     let corner = film_border.perforation_corner_mm;

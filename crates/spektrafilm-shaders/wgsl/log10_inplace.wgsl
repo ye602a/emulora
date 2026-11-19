@@ -20,6 +20,7 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
         return;
     }
     let base = idx * 3u;
+    add_latent_exposure(idx);
     let log10_inv = 1.0 / log(10.0);
     data[base] = log(max(data[base], 1e-10)) * log10_inv;
     data[base + 1u] = log(max(data[base + 1u], 1e-10)) * log10_inv;

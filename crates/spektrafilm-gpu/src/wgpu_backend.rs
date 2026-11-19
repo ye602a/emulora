@@ -1586,12 +1586,15 @@ impl WgpuBackend {
             // reads buf_b → buf_a.
 
             let bg_log10 = {
-                let pipe = self.cached_pipeline(
-                    include_str!("../../spektrafilm-shaders/wgsl/log10_inplace.wgsl"),
+                let has_latent = p.border_135.as_ref().is_some_and(|b| b.leak_shape[2] > 0. || b.imprint_shape[2] > 0.);
+                let pipe = self.cached_border_pipeline(
+                    shaders::LOG_RAW, shaders::LATENT_LOG_RAW,
                     &[
                         wgpu::BufferBindingType::Uniform,
                         wgpu::BufferBindingType::Storage { read_only: false },
+                        wgpu::BufferBindingType::Uniform,
                     ],
+                    has_latent,
                 );
                 #[repr(C)]
                 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
@@ -1620,7 +1623,8 @@ impl WgpuBackend {
                             binding: 1,
                             resource: buf_b.as_entire_binding(),
                         },
-                    ],
+                        shaders::uniform_entry(border_uniform.as_ref(), &log10_params_buf, 2),
+                    ][..2 + usize::from(has_latent)],
                 });
                 // Return both the buffer (to keep it alive) and the bind group.
                 (pipe, bg, log10_params_buf)

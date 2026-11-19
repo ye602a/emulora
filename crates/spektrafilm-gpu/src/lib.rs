@@ -299,7 +299,12 @@ pub struct FilmBorderGpuParams {
     pub perforation_corner_mm: f32,
     pub perforation_half_mm: [f32; 2],
     pub perforation_row_mm: f32,
-    pub _pad1: f32,
+    pub gate_pitch_um: f32,
+    pub leak_shape: [f32; 4],
+    pub leak_gain: [f32; 4],
+    pub imprint_shape: [f32; 4],
+    pub imprint_gain: [f32; 4],
+    pub glyphs: [u32; 16],
 }
 
 /// RGB → film-raw front pass of the GPU-resident chain. Both variants are

@@ -19,9 +19,98 @@ pub struct ScanRegistration {
     pub rotation_centi_degrees: i32,
 }
 
+/// Nominal aperture in roll coordinates. A 120 back supplies its own measured
+/// gate dimensions in tenths of a millimetre (along, across).
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum GateFormat {
+    HalfFrame17,
+    FullFrame36,
+    Xpan65,
+    Roll120 {
+        along_tenth_mm: u16,
+        across_tenth_mm: u16,
+    },
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RollAxis {
+    Horizontal,
+    Vertical,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
+pub struct FilmGate {
+    pub format: GateFormat,
+    pub axis: RollAxis,
+}
+
+/// Camera-side exposure in developed-film coordinates. Gains are thousandths
+/// of linear emulsion exposure, in the film front end's three raw channels.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
+pub struct LightLeak {
+    pub center_tenth_mm: [i16; 2],
+    pub sigma_tenth_mm: [u16; 2],
+    pub exposure_milli: [u16; 3],
+}
+
+/// A short original dot-matrix imprint. Coordinates locate its upper-left
+/// corner on the roll. Callers supply the frame, date or stock identifier.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
+pub struct FilmImprint {
+    pub text: ImprintText,
+    pub origin_tenth_mm: [i16; 2],
+    pub height_tenth_mm: u16,
+    pub exposure_milli: [u16; 3],
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
+#[serde(try_from = "String", into = "String")]
+pub struct ImprintText([u8; 16]);
+
+const ALPHABET: &[u8] = b"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ- ";
+// Five rows per character, each row a three-bit octal digit.
+const GLYPHS: [u32; 38] = [
+    0o75557, 0o26227, 0o71747, 0o71717, 0o55711, 0o74717, 0o74757, 0o71111, 0o75757, 0o75717,
+    0o25755, 0o65656, 0o34443, 0o65556, 0o74647, 0o74644, 0o34553, 0o55755, 0o72227, 0o11152,
+    0o55655, 0o44447, 0o57755, 0o57555, 0o25552, 0o65644, 0o25573, 0o65655, 0o34216, 0o72222,
+    0o55557, 0o55552, 0o55775, 0o55255, 0o55222, 0o71247, 0o00700, 0,
+];
+
+impl TryFrom<String> for ImprintText {
+    type Error = &'static str;
+    fn try_from(text: String) -> Result<Self, Self::Error> {
+        if text.is_empty() || text.len() > 16 || !text.bytes().all(|b| ALPHABET.contains(&b)) {
+            return Err(
+                "film imprint accepts 1 to 16 uppercase ASCII letters, digits, spaces or dashes",
+            );
+        }
+        let mut bytes = [0; 16];
+        bytes[..text.len()].copy_from_slice(text.as_bytes());
+        Ok(Self(bytes))
+    }
+}
+
+impl From<ImprintText> for String {
+    fn from(text: ImprintText) -> Self {
+        text.0
+            .into_iter()
+            .take_while(|b| *b != 0)
+            .map(char::from)
+            .collect()
+    }
+}
+
 /// Overscan is in source pixels, in left, top, right, bottom order.
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, Hash, PartialEq, Serialize)]
 pub struct Border135 {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gate: Option<FilmGate>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub light_leak: Option<LightLeak>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub imprint: Option<FilmImprint>,
     pub overscan: [u32; 4],
     #[serde(default)]
     pub registration: ScanRegistration,
@@ -35,6 +124,8 @@ pub struct Layout135 {
     pub canvas: [u32; 2],
     pub content: [u32; 4],
     pub pixel_pitch_mm: f32,
+    pub strip_half_mm: f32,
+    pub perforated: bool,
     /// Origin and row-major inverse transform, in canvas pixels and film mm.
     pub film_origin_px: [f32; 2],
     pub film_from_canvas: [[f32; 2]; 2],
@@ -54,17 +145,24 @@ pub enum GeometryError {
     Dimensions,
     #[error("135 border requires a finite positive physical pixel pitch")]
     PixelPitch,
+    #[error("roll-film gate must fit the strip and have positive dimensions")]
+    Gate,
 }
 
 impl Border135 {
     /// The film size is the existing long-side scale of the content.
-    /// Zero overscan uses the original render path, regardless of registration.
+    /// Legacy zero overscan uses the original render path. Explicit gates and
+    /// active imprints or leaks can also render within the original canvas.
     pub fn layout(
         self,
         [width, height]: [u32; 2],
         film_format_mm: f32,
     ) -> Result<Option<Layout135>, GeometryError> {
-        if self.overscan == [0; 4] {
+        if self.overscan == [0; 4]
+            && self.gate.is_none()
+            && self.imprint.is_none_or(|v| v.exposure_milli == [0; 3])
+            && self.light_leak.is_none_or(|v| v.exposure_milli == [0; 3])
+        {
             return Ok(None);
         }
         let [left, top, right, bottom] = self.overscan;
@@ -85,8 +183,48 @@ impl Border135 {
         {
             return Err(GeometryError::Dimensions);
         }
-        let pixel_pitch_mm =
-            crate::stages::filming::pixel_size_um(film_format_mm, width, height) / 1000.0;
+        let horizontal = self
+            .gate
+            .map_or(width >= height, |g| g.axis == RollAxis::Horizontal);
+        let raster = if horizontal {
+            [width as f32, height as f32]
+        } else {
+            [height as f32, width as f32]
+        };
+        let (pixel_pitch_mm, gate_half_mm, strip_half_mm, perforated) =
+            if let Some(gate) = self.gate {
+                let (along, across, strip, perforated) = match gate.format {
+                    GateFormat::HalfFrame17 => (17., 24., 35., true),
+                    GateFormat::FullFrame36 => (36., 24., 35., true),
+                    GateFormat::Xpan65 => (65., 24., 35., true),
+                    GateFormat::Roll120 {
+                        along_tenth_mm,
+                        across_tenth_mm,
+                    } => {
+                        if along_tenth_mm == 0 || across_tenth_mm == 0 || across_tenth_mm > 615 {
+                            return Err(GeometryError::Gate);
+                        }
+                        (
+                            along_tenth_mm as f32 / 10.,
+                            across_tenth_mm as f32 / 10.,
+                            61.5,
+                            false,
+                        )
+                    }
+                };
+                // Centre-crop a mismatched source to cover the gate with square pixels.
+                (
+                    (along / raster[0]).max(across / raster[1]),
+                    [along * 0.5, across * 0.5],
+                    strip * 0.5,
+                    perforated,
+                )
+            } else {
+                let pitch =
+                    crate::stages::filming::pixel_size_um(film_format_mm, width, height) / 1000.;
+                let half = raster.map(|pixels| pixels * pitch * 0.5);
+                (pitch, half, half[1] + SHOULDER_MM, true)
+            };
         if !(pixel_pitch_mm.is_finite() && pixel_pitch_mm > 0.0) {
             return Err(GeometryError::PixelPitch);
         }
@@ -100,10 +238,10 @@ impl Border135 {
             .to_radians();
         let (sine, cosine) = angle.sin_cos();
         let (s, c) = (sine as f32 * pixel_pitch_mm, cosine as f32 * pixel_pitch_mm);
-        let (film_from_canvas, gate_half_mm) = if width >= height {
-            ([[c, s], [-s, c]], [width as f32, height as f32])
+        let film_from_canvas = if horizontal {
+            [[c, s], [-s, c]]
         } else {
-            ([[-s, c], [-c, -s]], [height as f32, width as f32])
+            [[-s, c], [-c, -s]]
         };
         Ok(Some(Layout135 {
             canvas: [canvas_width, canvas_height],
@@ -111,7 +249,9 @@ impl Border135 {
             pixel_pitch_mm,
             film_origin_px: origin,
             film_from_canvas,
-            gate_half_mm: gate_half_mm.map(|pixels| pixels * pixel_pitch_mm * 0.5),
+            gate_half_mm,
+            strip_half_mm,
+            perforated,
         }))
     }
 
@@ -134,8 +274,47 @@ impl Border135 {
         if !edge_exposure.is_finite() {
             return Err(OutputError::InvalidFilmBorder);
         }
-        let strip_half_mm = layout.gate_half_mm[1] + SHOULDER_MM;
+        let strip_half_mm = layout.strip_half_mm;
+        let mut leak_shape = [0.; 4];
+        let mut leak_gain = [0.; 4];
+        if let Some(leak) = self.light_leak.filter(|v| v.exposure_milli != [0; 3]) {
+            if leak.sigma_tenth_mm.contains(&0) {
+                return Err(OutputError::InvalidFilmBorder);
+            }
+            for i in 0..2 {
+                leak_shape[i] = f32::from(leak.center_tenth_mm[i]) / 10.;
+                leak_shape[2 + i] = 10. / f32::from(leak.sigma_tenth_mm[i]);
+            }
+            leak_gain[..3].copy_from_slice(&leak.exposure_milli.map(|v| f32::from(v) / 1000.));
+        }
+        let mut imprint_shape = [0.; 4];
+        let mut imprint_gain = [0.; 4];
+        let mut glyphs = [0; 16];
+        if let Some(mark) = self.imprint.filter(|v| v.exposure_milli != [0; 3]) {
+            if mark.height_tenth_mm == 0 {
+                return Err(OutputError::InvalidFilmBorder);
+            }
+            imprint_shape = [
+                f32::from(mark.origin_tenth_mm[0]) / 10.,
+                f32::from(mark.origin_tenth_mm[1]) / 10.,
+                50. / f32::from(mark.height_tenth_mm),
+                0.,
+            ];
+            for (glyph, byte) in glyphs
+                .iter_mut()
+                .zip(mark.text.0)
+                .take_while(|(_, b)| *b != 0)
+            {
+                *glyph = GLYPHS[ALPHABET.iter().position(|b| *b == byte).unwrap()];
+            }
+            imprint_gain[..3].copy_from_slice(&mark.exposure_milli.map(|v| f32::from(v) / 1000.));
+        }
         Ok(Some(FilmBorderGpuParams {
+            leak_shape,
+            leak_gain,
+            imprint_shape,
+            imprint_gain,
+            glyphs,
             canvas: layout.canvas,
             _pad0: [0; 2],
             content: layout.content,
@@ -144,11 +323,19 @@ impl Border135 {
             film_from_canvas: layout.film_from_canvas,
             strip_half_mm,
             edge_exposure,
-            perforation_pitch_mm: PERFORATION_PITCH_MM,
+            perforation_pitch_mm: if layout.perforated {
+                PERFORATION_PITCH_MM
+            } else {
+                0.
+            },
             perforation_corner_mm: PERFORATION_CORNER_MM,
             perforation_half_mm: PERFORATION_HALF_SIZE_MM,
             perforation_row_mm: strip_half_mm - PERFORATION_CENTER_INSET_MM,
-            _pad1: 0.0,
+            gate_pitch_um: if self.gate.is_some() {
+                layout.pixel_pitch_mm * 1000.
+            } else {
+                0.
+            },
         }))
     }
 }
@@ -174,7 +361,7 @@ impl Layout135 {
     pub fn sample(self, canvas_pixel: [u32; 2]) -> FilmSite {
         let [s, t] = self.film_at(canvas_pixel);
         let [gate_s, gate_t] = self.gate_half_mm;
-        let film_edge = gate_t + SHOULDER_MM;
+        let film_edge = self.strip_half_mm;
         let periodic_s = s - PERFORATION_PITCH_MM * (s / PERFORATION_PITCH_MM + 0.5).floor();
         let hole_t = t.abs() - (film_edge - PERFORATION_CENTER_INSET_MM);
         let [half_s, half_t] = PERFORATION_HALF_SIZE_MM;
@@ -184,7 +371,7 @@ impl Layout135 {
         ];
         let perforated = q[0] * q[0] + q[1] * q[1] <= PERFORATION_CORNER_MM * PERFORATION_CORNER_MM;
         FilmSite {
-            film_present: t.abs() < film_edge && !perforated,
+            film_present: t.abs() < film_edge && !(self.perforated && perforated),
             gate_open: s.abs() < gate_s && t.abs() < gate_t,
         }
     }
