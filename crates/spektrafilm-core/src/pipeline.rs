@@ -57,7 +57,23 @@ use crate::spectral_service;
 use crate::stages;
 use crate::stock_setup::{AcceptedStockSetup, ResolvedStockSetup};
 
-fn validate_spectral_input(params: &RuntimeParams) -> Result<(), String> {
+fn validate_spectral_recipe(params: &RuntimeParams) -> Result<(), String> {
+    for (direction, space) in [
+        ("input", params.io.input_color_space.as_str()),
+        ("output", params.io.output_color_space.as_str()),
+    ] {
+        if !matches!(
+            space,
+            "sRGB" | "ProPhoto RGB" | "Rec. 2020" | "Rec2020" | "ITU-R BT.2020" | "ACES2065-1"
+        ) {
+            return Err(format!(
+                "unsupported spectral {direction} primaries: {space}"
+            ));
+        }
+    }
+    if params.io.output_cctf_encoding && params.io.output_color_space != "sRGB" {
+        return Err("encoded spectral output requires sRGB primaries; select linear output for other primaries".into());
+    }
     if params.io.input_cctf_decoding {
         return Err("spectral input must be linear (decode the input transfer function before rendering)".into());
     }
@@ -256,10 +272,6 @@ pub struct Pipeline {
 }
 
 impl Pipeline {
-    pub(crate) fn output_gamut_active(&self) -> bool {
-        self.output_gamut.is_active()
-    }
-
     /// Accessor for the pre-computed TC LUT (used by parity tests).
     pub fn tc_lut(&self) -> Option<&TcLut> {
         self.tc_lut.as_ref()
@@ -291,7 +303,7 @@ impl Pipeline {
     /// On `None`, rebuild from the original profiles and propagate constructor errors.
     /// Resource changes always require a new pipeline.
     pub fn refreshed(&self, mut params: RuntimeParams) -> Option<Self> {
-        validate_spectral_input(&params).ok()?;
+        validate_spectral_recipe(&params).ok()?;
         let key = CalibrationInputs::from_params(
             &params,
             self.calibrated_neutrals.is_some(),
@@ -313,10 +325,11 @@ impl Pipeline {
         if let Some(setup) = self.accepted_stock_setup {
             setup.after_calibration(&mut params);
         }
-        next.output_gamut = crate::gamut_compression::OutputGamutCompress::build(
+        next.output_gamut = crate::gamut_compression::OutputGamutCompress::build_checked(
             &params.io.output_gamut_compress,
             &params.io.output_color_space,
-        );
+        )
+        .ok()?;
         next.params = params;
         next.refresh_negative_hue().ok()?;
         Some(next)
@@ -387,7 +400,7 @@ impl Pipeline {
         mut params: RuntimeParams,
         data_dir: &Path,
     ) -> Result<Self, String> {
-        validate_spectral_input(&params)?;
+        validate_spectral_recipe(&params)?;
         // B&W profiles: collapse the development-time family to the selected
         // time and broadcast the single channel onto the 3-channel engine
         // layout. Must happen before anything reads the profile data.
@@ -690,10 +703,10 @@ impl Pipeline {
             "pipeline calibrated"
         );
 
-        let output_gamut = crate::gamut_compression::OutputGamutCompress::build(
+        let output_gamut = crate::gamut_compression::OutputGamutCompress::build_checked(
             &params.io.output_gamut_compress,
             &params.io.output_color_space,
-        );
+        )?;
         let calibration = CalibrationInputs::from_params(
             &params,
             neutral_cmy_f64.is_some(),

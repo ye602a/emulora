@@ -35,6 +35,21 @@ fn spectral_refresh_matches_fresh_print_and_rejects_stale_calibration() {
         edit(&mut changed);
         assert!(base.refreshed(changed).is_none());
     }
+    for (input, output, encode, algorithm) in [
+        ("AdobeRGB", "sRGB", true, "off"),
+        ("sRGB", "typo", false, "off"),
+        ("sRGB", "Rec2020", true, "off"),
+        ("sRGB", "Rec2020", false, "cam16ucs"),
+        ("sRGB", "sRGB", true, "unimplemented"),
+    ] {
+        let mut invalid = p.clone();
+        invalid.io.input_color_space = input.into();
+        invalid.io.output_color_space = output.into();
+        invalid.io.output_cctf_encoding = encode;
+        invalid.io.output_gamut_compress.algorithm = algorithm.into();
+        assert!(base.refreshed(invalid.clone()).is_none());
+        assert!(Pipeline::new_with_spectral(film.clone(), print.clone(), invalid, &data).is_err());
+    }
     let mut gamma = p.clone();
     gamma.film_render.density_curve_gamma = 1.2;
     assert_ne!(

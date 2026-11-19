@@ -20,7 +20,7 @@ use spektrafilm_core::pipeline::Pipeline;
 use spektrafilm_core::profile;
 use spektrafilm_gpu::ComputeBackend;
 use spektrafilm_math::image::ImageBuf;
-use spektrafilm_math::precision::{Scalar, from_f32, srgb_decode, to_f32};
+use spektrafilm_math::precision::{Scalar, from_f32, to_f32};
 
 const PREVIEW_DEBOUNCE: Duration = Duration::from_millis(120);
 const IN_FLIGHT_REPAINT: Duration = Duration::from_millis(16);
@@ -360,21 +360,16 @@ impl App {
 
     fn load_image_from_path(&mut self, path: &Path) {
         let t = Instant::now();
-        match load_image(path) {
-            Ok(img) => {
-                let ext = path
-                    .extension()
-                    .and_then(|e| e.to_str())
-                    .unwrap_or("")
-                    .to_lowercase();
-                // PNG (post sRGB-decode) and RAW (linear sRGB after
-                // disabling imagepipe's gamma+basecurve) both deliver
-                // linear sRGB. Tell the pipeline accordingly so it
-                // doesn't double-decode the gamma.
-                if ext == "png" || is_raw_extension(&ext) {
-                    self.params.io.input_color_space = "sRGB".to_string();
-                    self.params.io.input_cctf_decoding = false;
-                }
+        match spektrafilm_photo_input::load_photo(path) {
+            Ok(photo) => {
+                self.params.io.input_color_space = match photo.primaries {
+                    spektrafilm_photo_input::InputPrimaries::Srgb => "sRGB".into(),
+                    spektrafilm_photo_input::InputPrimaries::FromRecipe => {
+                        spektrafilm_core::params::IoParams::default().input_color_space
+                    }
+                };
+                self.params.io.input_cctf_decoding = false;
+                let img = photo.pixels;
                 self.status = format!(
                     "Loaded {} × {} ({:.1} MP) in {:.0} ms",
                     img.width,
@@ -834,15 +829,8 @@ impl App {
         ui.horizontal(|ui| {
             if ui.button("Open…").clicked() {
                 if let Some(path) = rfd::FileDialog::new()
-                    .add_filter(
-                        "Image",
-                        &[
-                            "png", "tif", "tiff", // standard
-                            "dng", "cr2", "cr3", "nef", "nrw", "arw", "srf", "sr2", "raf", "orf",
-                            "rw2", "pef", "srw", "x3f", "iiq", "3fr", "crw", "rwl", "mrw", "mef",
-                            "kdc",
-                        ],
-                    )
+                    .add_filter("Images", spektrafilm_photo_input::RASTER_EXTENSIONS)
+                    .add_filter("Camera RAW", spektrafilm_photo_input::RAW_EXTENSIONS)
                     .pick_file()
                 {
                     self.load_image_from_path(&path);
@@ -1857,157 +1845,6 @@ fn pick_default_stock(entries: &[ProfileEntry], preferred: &str) -> String {
     }
 }
 
-fn load_image(path: &Path) -> Result<ImageBuf> {
-    let ext = path
-        .extension()
-        .and_then(|e| e.to_str())
-        .unwrap_or("")
-        .to_lowercase();
-    if is_raw_extension(&ext) {
-        return load_raw(path);
-    }
-    // Disable the `image` crate's default 512 MiB allocation cap — a 60 MP
-    // 32-bit float TIFF alone needs ~720 MiB and would otherwise be
-    // rejected with "Memory limit exceeded". Local files are trusted.
-    let mut reader = image::ImageReader::open(path)
-        .with_context(|| format!("opening image: {}", path.display()))?
-        .with_guessed_format()
-        .with_context(|| format!("detecting image format: {}", path.display()))?;
-    reader.no_limits();
-    let img = reader
-        .decode()
-        .with_context(|| format!("decoding image: {}", path.display()))?;
-    let rgb = img.to_rgb32f();
-    let (w, h) = (rgb.width(), rgb.height());
-    let data: Vec<f32> = rgb.into_raw();
-    let scalars: Vec<Scalar> = match ext.as_str() {
-        "png" => data
-            .into_par_iter()
-            .map(|v| srgb_decode(from_f32(v)))
-            .collect(),
-        _ => data.into_par_iter().map(from_f32).collect(),
-    };
-    Ok(ImageBuf::from_data(w, h, scalars))
-}
-
-/// Camera RAW extensions supported via `imagepipe` / `rawloader`. The
-/// underlying decoder handles many proprietary formats; this list is
-/// the dispatch trigger only (we still try the decoder for unknown
-/// extensions).
-fn is_raw_extension(ext: &str) -> bool {
-    matches!(
-        ext,
-        "dng"
-            | "cr2"
-            | "cr3"
-            | "nef"
-            | "nrw"
-            | "arw"
-            | "srf"
-            | "sr2"
-            | "raf"
-            | "orf"
-            | "rw2"
-            | "pef"
-            | "ptx"
-            | "srw"
-            | "x3f"
-            | "iiq"
-            | "3fr"
-            | "ari"
-            | "bay"
-            | "crw"
-            | "dcr"
-            | "drf"
-            | "erf"
-            | "fff"
-            | "k25"
-            | "kdc"
-            | "mef"
-            | "mos"
-            | "mrw"
-            | "rwl"
-    )
-}
-
-/// Decode a camera RAW file and return a **linear** image in sRGB
-/// primaries. The pipeline runs `rawler` (a modern fork of rawloader
-/// with broader camera coverage — Sony ARW, newer Nikon NEF, recent
-/// DNGs) instead of the older `imagepipe` chain.
-///
-/// `rawler::RawDevelop::default()` already covers rescale → demosaic →
-/// crop → white balance → camera→sRGB matrix. We drop the final
-/// `SRgb` gamma step so we get LINEAR sRGB out (the spektrafilm
-/// pipeline applies its own sRGB encoding at the very end).
-///
-/// Limitations: Lightroom-exported "lossy DNG" (`ljpeg sof.precision 8`)
-/// is not supported by rawler — those files come back as an error,
-/// which we surface in the GUI status bar.
-fn load_raw(path: &Path) -> Result<ImageBuf> {
-    use rawler::{
-        decode_file,
-        imgop::develop::{ProcessingStep, RawDevelop},
-    };
-    let raw = decode_file(path).map_err(|e| anyhow::anyhow!("RAW decode failed: {e:?}"))?;
-    let mut dev = RawDevelop::default();
-    // Drop the sRGB gamma step — we want linear sRGB primaries, the
-    // spektrafilm pipeline applies its own sRGB OETF at the end.
-    dev.steps.retain(|s| !matches!(s, ProcessingStep::SRgb));
-    let intermediate = dev
-        .develop_intermediate(&raw)
-        .map_err(|e| anyhow::anyhow!("RAW develop failed: {e:?}"))?;
-    rawler_intermediate_to_image_buf(intermediate)
-}
-
-fn rawler_intermediate_to_image_buf(
-    intermediate: rawler::imgop::develop::Intermediate,
-) -> Result<ImageBuf> {
-    use rawler::imgop::develop::Intermediate;
-
-    let floor = |v: f32| from_f32(v.max(0.0));
-    match intermediate {
-        Intermediate::Monochrome(pixels) => {
-            let scalars: Vec<Scalar> = pixels
-                .data
-                .par_iter()
-                .flat_map_iter(|&v| {
-                    let v = floor(v);
-                    [v, v, v]
-                })
-                .collect();
-            Ok(ImageBuf::from_data(
-                pixels.width as u32,
-                pixels.height as u32,
-                scalars,
-            ))
-        }
-        Intermediate::ThreeColor(pixels) => {
-            let scalars: Vec<Scalar> = pixels
-                .data
-                .par_iter()
-                .flat_map_iter(|px| [floor(px[0]), floor(px[1]), floor(px[2])])
-                .collect();
-            Ok(ImageBuf::from_data(
-                pixels.width as u32,
-                pixels.height as u32,
-                scalars,
-            ))
-        }
-        Intermediate::FourColor(pixels) => {
-            let scalars: Vec<Scalar> = pixels
-                .data
-                .par_iter()
-                .flat_map_iter(|px| [floor(px[0]), floor(px[1]), floor(px[2])])
-                .collect();
-            Ok(ImageBuf::from_data(
-                pixels.width as u32,
-                pixels.height as u32,
-                scalars,
-            ))
-        }
-    }
-}
-
 /// Write the pipeline's RGB ImageBuf to disk. PNG is 8-bit (matches what
 /// the preview shows); TIFF is 16-bit (more headroom — recommended for
 /// further editing). The pipeline already emits sRGB-encoded values
@@ -2425,6 +2262,26 @@ mod tests {
                 ),
                 visible
             );
+        }
+    }
+
+    #[test]
+    fn successive_photo_inputs_set_their_own_linear_primaries() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut app = App::new(Arc::new(spektrafilm_gpu::cpu_backend::CpuBackend), None);
+        let rgb = image::RgbImage::from_pixel(16, 16, image::Rgb([128u8; 3]));
+        for (name, space, expected) in [
+            ("照片.JPG", "sRGB", 0.21586),
+            ("linear.tiff", "ProPhoto RGB", 128.0 / 255.0),
+            ("again.png", "sRGB", 0.21586),
+        ] {
+            let path = dir.path().join(name);
+            rgb.save(&path).unwrap();
+            app.load_image_from_path(&path);
+            assert_eq!(app.image_path.as_ref(), Some(&path));
+            assert_eq!(app.params.io.input_color_space, space);
+            assert!(!app.params.io.input_cctf_decoding);
+            assert!((app.image.as_ref().unwrap().data[0] - expected).abs() < 0.001);
         }
     }
 

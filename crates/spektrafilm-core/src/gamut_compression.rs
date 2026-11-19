@@ -237,12 +237,21 @@ impl OutputGamutCompress {
         self.kind != Kind::Off
     }
 
-    /// Build from params for the given output color space. `off` is a silent
-    /// identity; `oklch`/`cam16ucs` (sRGB only) build their `C_max` table. An
-    /// unported-but-valid algorithm (`jzazbz`/`oklrab`/`aces_rgc`), an unknown
-    /// algorithm, or a non-sRGB output all log an error and fall back to
-    /// identity (so colors pass through uncompressed rather than silently
-    /// appearing to be handled).
+    pub(crate) fn build_checked(
+        params: &OutputGamutCompressParams,
+        space: &str,
+    ) -> Result<Self, String> {
+        let gamut = Self::build(params, space);
+        if params.algorithm != "off" && !gamut.is_active() {
+            return Err(format!(
+                "unsupported output gamut algorithm '{}' for {space}",
+                params.algorithm
+            ));
+        }
+        Ok(gamut)
+    }
+
+    /// Build the compressor. The legacy simple pipeline uses identity for unsupported choices.
     pub fn build(params: &OutputGamutCompressParams, output_color_space: &str) -> Self {
         let knee = (
             params.knee[0] as f64,

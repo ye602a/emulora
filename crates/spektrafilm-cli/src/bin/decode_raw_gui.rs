@@ -16,10 +16,6 @@ use std::io::BufWriter;
 use std::path::Path;
 
 use anyhow::{Context, Result, anyhow};
-use rawler::{
-    decode_file,
-    imgop::develop::{Intermediate, ProcessingStep, RawDevelop},
-};
 use tiff::encoder::{TiffEncoder, colortype::RGB32Float};
 
 fn main() -> Result<()> {
@@ -34,13 +30,13 @@ fn main() -> Result<()> {
     let output = Path::new(&output);
 
     eprintln!("[decode_raw_gui] decoding {} via rawler …", input.display());
-    let raw = decode_file(input).map_err(|e| anyhow!("RAW decode failed: {e:?}"))?;
-    let mut dev = RawDevelop::default();
-    dev.steps.retain(|s| !matches!(s, ProcessingStep::SRgb));
-    let intermediate = dev
-        .develop_intermediate(&raw)
-        .map_err(|e| anyhow!("RAW develop failed: {e:?}"))?;
-    let (w, h, floats) = intermediate_to_rgb32f(intermediate);
+    let image = spektrafilm_photo_input::load_raw(input)?;
+    let (w, h) = (image.width, image.height);
+    let floats: Vec<f32> = image
+        .data
+        .into_iter()
+        .map(spektrafilm_math::precision::to_f32)
+        .collect();
     eprintln!("[decode_raw_gui] decoded {}×{} → linear sRGB", w, h);
 
     let f = File::create(output).with_context(|| format!("creating {}", output.display()))?;
@@ -50,32 +46,4 @@ fn main() -> Result<()> {
         .context("write TIFF image")?;
     eprintln!("[decode_raw_gui] wrote {}", output.display());
     Ok(())
-}
-
-fn intermediate_to_rgb32f(intermediate: Intermediate) -> (u32, u32, Vec<f32>) {
-    let floor = |v: f32| v.max(0.0);
-    match intermediate {
-        Intermediate::Monochrome(pixels) => {
-            let mut out = Vec::with_capacity(pixels.data.len() * 3);
-            for v in pixels.data {
-                let v = floor(v);
-                out.extend_from_slice(&[v, v, v]);
-            }
-            (pixels.width as u32, pixels.height as u32, out)
-        }
-        Intermediate::ThreeColor(pixels) => {
-            let mut out = Vec::with_capacity(pixels.data.len() * 3);
-            for px in pixels.data {
-                out.extend_from_slice(&[floor(px[0]), floor(px[1]), floor(px[2])]);
-            }
-            (pixels.width as u32, pixels.height as u32, out)
-        }
-        Intermediate::FourColor(pixels) => {
-            let mut out = Vec::with_capacity(pixels.data.len() * 3);
-            for px in pixels.data {
-                out.extend_from_slice(&[floor(px[0]), floor(px[1]), floor(px[2])]);
-            }
-            (pixels.width as u32, pixels.height as u32, out)
-        }
-    }
 }

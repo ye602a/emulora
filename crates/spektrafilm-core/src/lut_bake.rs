@@ -22,15 +22,6 @@ pub fn bake_3d_lut(
         return Err("3D LUT size must be between 2 and 65".into());
     }
     let io = &params.io;
-    if !matches!(
-        io.input_color_space.as_str(),
-        "sRGB" | "ProPhoto RGB" | "Rec. 2020" | "Rec2020" | "ITU-R BT.2020" | "ACES2065-1"
-    ) {
-        return Err(format!(
-            "unsupported LUT input primaries: {}",
-            io.input_color_space
-        ));
-    }
     if io.output_color_space != "sRGB" {
         return Err(format!(
             "3D LUT output requires sRGB primaries, got {}",
@@ -63,14 +54,6 @@ pub fn bake_3d_lut(
     params.settings.use_scanner_lut = false;
 
     let pipeline = Pipeline::new_with_spectral(film, print, params, data_dir)?;
-    if pipeline.params.io.output_gamut_compress.algorithm != "off"
-        && !pipeline.output_gamut_active()
-    {
-        return Err(format!(
-            "unsupported LUT output gamut algorithm: {}",
-            pipeline.params.io.output_gamut_compress.algorithm
-        ));
-    }
     let mut grid = ImageBuf::new(size * size, size);
     let denominator = (size - 1) as Scalar;
     for (index, rgb) in grid.pixels_mut().enumerate() {

@@ -5,6 +5,7 @@ members = [
     "crates/spektrafilm-gpu",
     "crates/spektrafilm-math",
     "crates/spektrafilm-model",
+    "crates/spektrafilm-photo-input",
     "crates/spektrafilm-cli",
     "crates/spektrafilm-gui",
 ]
@@ -16,6 +17,7 @@ license = "GPL-3.0"
 rust-version = "1.99"
 
 [workspace.dependencies]
+spektrafilm-photo-input = { path = "crates/spektrafilm-photo-input" }
 spektrafilm-core = { path = "crates/spektrafilm-core" }
 spektrafilm-gpu = { path = "crates/spektrafilm-gpu" }
 spektrafilm-math = { path = "crates/spektrafilm-math" }

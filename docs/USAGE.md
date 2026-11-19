@@ -33,9 +33,9 @@ selects direct film scanning instead of printing; use it only with the intended
 profile and output contract. The generic CLI does not automatically select the
 versioned host stock/calibrated-output setup.
 
-The CLI accepts supported image and camera RAW formats through its existing
-decoders. Camera/model coverage depends on those decoders. Run `process --help`
-for available options.
+The CLI, GUI and RAW parity helper share the standalone photo decoder. Use sRGB JPEG or PNG for display-referred photos. Both are decoded to linear sRGB before exposure. Embedded ICC conversion is outside this loader; convert other display profiles to sRGB first. Supported camera RAWs use rawler's linear sRGB development. FPW owns its separate RAW preparation.
+
+Supply linear samples in TIFF. The GUI assumes linear ProPhoto RGB on every TIFF open. The CLI uses the recipe's `io.input_color_space` for TIFF (default ProPhoto RGB). A TIFF tagged with another transfer function needs conversion before rendering. The spectral constructor and recipe refresh accept sRGB, ProPhoto RGB, Rec. 2020 and ACES2065-1 primaries. Encoded output uses sRGB. For linear output in other primaries, turn off encoding and select a supported gamut policy, e.g. `off`. Unsupported primaries and active unsupported gamut algorithms now fail preparation. Existing FPW linear AP0 negative-scan and encoded sRGB routes keep their settings.
 
 ### Black-and-white camera filters
 
@@ -91,7 +91,7 @@ Hosts can switch the recipe through `Pipeline::refreshed` on the same immutable 
     --paper kodak_portra_endura --params look.json --size 65 -o portra.cube
 ```
 
-For a PNG/RAW comparison, set `look.json` to `{"io":{"input_color_space":"sRGB"}}` plus any desired look settings. Feed **decoded, linear** RGB to the LUT. Without overrides, the cube input uses the standalone TIFF convention of linear ProPhoto RGB. The grid supports the engine's named sRGB, ProPhoto RGB, Rec. 2020 and ACES2065-1 input primaries. Its input domain is [0,1], with 2–65 points per axis, red varying fastest. Output uses sRGB primaries, clipped to [0,1], with sRGB encoding by default or linear output when `io.output_cctf_encoding=false`. The header identifies the route, input, output, spectral method, actual backend and source profile credits.
+For a JPEG/PNG/RAW comparison, set `look.json` to `{"io":{"input_color_space":"sRGB"}}` plus any desired look settings. Feed **decoded, linear** RGB to the LUT. Without overrides, the cube input uses the standalone TIFF convention of linear ProPhoto RGB. The grid supports the engine's named sRGB, ProPhoto RGB, Rec. 2020 and ACES2065-1 input primaries. Its input domain is [0,1], with 2–65 points per axis, red varying fastest. Output uses sRGB primaries, clipped to [0,1], with sRGB encoding by default or linear output when `io.output_cctf_encoding=false`. The header identifies the route, input, output, spectral method, actual backend and source profile credits.
 
 The bake keeps fixed exposure, local DIR, calibrated print filters, preflash, fitted print chemistry, scanner correction and supported output gamut compression. It omits metering, frame-normalized highlight boost, grain, glare, spatial DIR, optical diffusion and sharpening, borders and resampling. It evaluates the spectral integrations directly. Compare it with a photo rendered with those same pointwise settings on the same backend. A LUT interpolates between samples. Scene values above 1 lie outside its sampled domain. See the [measured interpolation errors](ENGINE_STUDIES.md#spectral-cube-export).
 
