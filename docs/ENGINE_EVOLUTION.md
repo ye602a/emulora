@@ -66,7 +66,7 @@ FPW main retains its published RS pin and host `PipelineKey`. The batch-10 adopt
 
 Batch verification on Windows used the default precision. The core library, refresh and stock-setup suites passed (43 + 3 + 4 tests). An offscreen egui frame sequence checked the controls for film scan, paper print and film scan again. All five existing `calibrated_output_v1` tests passed with `SPEKTRAFILM_REQUIRE_GPU=1`, including the resident physical negative route. The RGB patch parity check ran on CPU. This batch did not run a fresh photographic acceptance set or a preview performance benchmark.
 
-Further input work remains separate. The Hanatos adaptation window runs today. Active UV/IR transmission, the adaptation surface, spectral Gaussian blur and encoded camera input currently fail spectral construction. Input gamut compression is baked into Hanatos/Arctic tables. Mallett uses a matrix. The monochrome camera filter and its neutral exposure policy are documented below.
+Further input work remains separate. The Hanatos adaptation window runs today. Camera UV/IR transmission now uses the stock reference light during spectral preparation. The adaptation surface, spectral Gaussian blur and encoded camera input still fail spectral construction. Input gamut compression is baked into Hanatos/Arctic tables. Mallett uses a matrix. The monochrome camera filter and its neutral exposure policy are documented below.
 
 ## 3. Deliver resources with their photographic process
 

@@ -81,8 +81,15 @@ fn validate_spectral_recipe(params: &RuntimeParams) -> Result<(), String> {
     if params.io.input_cctf_decoding {
         return Err("spectral input must be linear (decode the input transfer function before rendering)".into());
     }
-    if params.camera.filter_uv[0] != 0.0 || params.camera.filter_ir[0] != 0.0 {
-        return Err("camera filter_uv/filter_ir transmission is not implemented".into());
+    for (name, [strength, center, width]) in [
+        ("filter_uv", params.camera.filter_uv),
+        ("filter_ir", params.camera.filter_ir),
+    ] {
+        if !(0.0..=1.0).contains(&strength)
+            || (strength > 0.0 && (!center.is_finite() || !width.is_finite() || width <= 0.0))
+        {
+            return Err(format!("{name} requires strength 0..1, a finite centre and positive width in nm"));
+        }
     }
     if params.settings.apply_hanatos2025_adaptation_surface {
         return Err("Hanatos adaptation surface is not implemented".into());
@@ -146,6 +153,7 @@ struct CalibrationInputs {
     paper_grade: Option<crate::params::PaperGrade>,
     film_gamma: f32,
     filter: CameraFilter,
+    spectral_cuts: [Option<[f32; 3]>; 2],
     filter_input_space: Option<String>,
     compensate_filter: bool,
     illuminant: String,
@@ -163,6 +171,8 @@ impl CalibrationInputs {
         Self {
             method: p.settings.rgb_to_raw_method.clone(),
             window: p.settings.apply_hanatos2025_adaptation_window,
+            spectral_cuts: [p.camera.filter_uv, p.camera.filter_ir]
+                .map(|cut| (cut[0] != 0.).then_some(cut)),
             cat16: p.settings.use_cat16,
             input_gamut: p.io.input_gamut_compress.clone(),
             development: [
@@ -497,7 +507,7 @@ impl Pipeline {
 
         // Film sensitivity: Python `sensitivity = np.nan_to_num(10 ** log_sensitivity)` — f64.
         let filter = params.camera.photographic_filter;
-        let sensitivity: Vec<[f64; 3]> = if filter == CameraFilter::Off {
+        let mut sensitivity: Vec<[f64; 3]> = if filter == CameraFilter::Off {
             film.log_sensitivity_f64()
                 .into_iter()
                 .map(|row| row.map(|v| 10.0_f64.powf(v)))
@@ -535,6 +545,15 @@ impl Pipeline {
 
         let (_, ref_illuminant_f64) = crate::profile_illuminant::spectrum(&film.info.reference_illuminant)
             .ok_or_else(|| format!("unknown film reference illuminant {:?}", film.info.reference_illuminant))?;
+        if params.camera.filter_uv[0] != 0. || params.camera.filter_ir[0] != 0. {
+            spectral_service::apply_camera_cuts(
+                &mut sensitivity,
+                &film.data.wavelengths,
+                ref_illuminant_f64,
+                params.camera.filter_uv,
+                params.camera.filter_ir,
+            )?;
+        }
         for material in [&film, &print] {
             if crate::profile_illuminant::spectrum(&material.info.viewing_illuminant).is_none() {
                 return Err(format!(
@@ -1118,7 +1137,10 @@ impl Pipeline {
         {
             return Err(spektrafilm_gpu::OutputError::PaperGradeRequiresSpectral);
         }
-        if self.calibration.is_none() && self.params.camera.photographic_filter != CameraFilter::Off
+        if self.calibration.is_none()
+            && (self.params.camera.photographic_filter != CameraFilter::Off
+                || self.params.camera.filter_uv[0] != 0.
+                || self.params.camera.filter_ir[0] != 0.)
         {
             return Err(spektrafilm_gpu::OutputError::CameraFilterRequiresSpectral);
         }

@@ -332,3 +332,17 @@ Rendered all four presets at full print bleach on the identical Portra 400/Portr
 Vintage Silver came closest by this metric and still gave a substantially darker gray than RS (97, 92, 92). No release preset qualifies as a replacement for the public-source approximation.
 
 With camera Black Pro-Mist strength 0.5 and the other effects disabled, the photographic P95 change from each engine's own baseline was 9.02 codes for RS and 7.00 for OFX. Their changes differed by 3.32 at P95 and 15.54 at maximum. OFX used its 35mm preset and RS its 35 mm long-side setting. This compares end results on a small raster; it does not isolate internal downsampling thresholds or measure full-size performance. Keep the qualified RS diffusion. Reproduce with `OFX_CASE=diffusion` or `OFX_CASE=on` and `OFX_PRINT_MODEL` set to a listed preset. [Natron script](../scripts/parity/ofx_natron_print.py)
+
+### Camera UV and IR cut
+
+RS applies the error-function edges in wavelength space during calibration. The original Python filter, LAB's per-channel stock-white normalization and the public OFX Metal implementation use the same edge shape. RS keeps its existing missing-sensitivity convention and its own Hanatos stock window. It rejects invalid active widths and a filter which leaves no usable channel exposure. The calibrated table or matrix serves CPU and resident Vulkan. There is no per-frame filter pass. [Python](https://github.com/andreavolpato/spektrafilm/blob/3bb2c2d/src/spektrafilm/model/color_filters.py) · [LAB](https://github.com/JamesQiu2005/SpektraLab/blob/b51e672/engine/src/core/hanatos.cpp) · [OFX](https://github.com/chaert-s/spektrafilm-ofx/blob/86476af/src/SpektraMetalRenderer.mm)
+
+The shipping Windows OFX in Natron and RS Vulkan rendered the existing 480 × 144 photographic montage on Portra 400 / Portra Endura with Hanatos 2025. Grain, auto exposure and spatial effects were disabled. Each column is the P95 across the five central 72 × 72 photographic crops, using the largest absolute RGB channel change per pixel in 8-bit sRGB codes. The last column compares each engine's change from its own unfiltered print. OFX uses PNG output and RS uses its clipped floating-point output.
+
+| Full-strength cut | RS change | OFX change | Disagreement |
+| --- | ---: | ---: | ---: |
+| UV 430 nm, width 8 nm | 11.67 | 13.00 | 6.80 |
+| IR 650 nm, width 15 nm | 4.54 | 10.00 | 7.35 |
+| Both | 12.26 | 12.00 | 4.25 |
+
+The combined setting moved the central gray patch by (+1.74, +0.53, -1.72) in RS and (0, +4, -4) in OFX. The IR-only effect differed most. These comparisons cover one film/paper pair, with no claim of equivalent looks across products. Reproduce the OFX renders with the existing Natron script using OFX_CASE off, uv, ir and uv-ir. In RS use the camera recipe in USAGE and disable one or both edges with zero strength.

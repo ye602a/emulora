@@ -1044,6 +1044,24 @@ impl App {
                             .changed();
                     }
                 }
+                ui.collapsing("UV / IR cut", |ui| {
+                    let camera = &mut self.params.camera;
+                    for (name, cut, range) in [
+                        ("UV", &mut camera.filter_uv, 380.0..=450.0),
+                        ("IR", &mut camera.filter_ir, 600.0..=780.0),
+                    ] {
+                        changed |= ui.add(egui::Slider::new(&mut cut[0], 0.0..=1.0)
+                            .text(format!("{name} strength"))).changed();
+                        if cut[0] > 0.0 {
+                            changed |= ui.add(egui::Slider::new(&mut cut[1], range)
+                                .clamping(egui::SliderClamping::Edits)
+                                .text(format!("{name} cutoff (nm)"))).changed();
+                            changed |= ui.add(egui::DragValue::new(&mut cut[2])
+                                .range(0.1..=f32::MAX).clamp_existing_to_range(false).speed(0.5)
+                                .prefix(format!("{name} transition ")).suffix(" nm")).changed();
+                        }
+                    }
+                });
                 if self.params.camera.auto_exposure {
                     let method = &mut self.params.camera.auto_exposure_method;
                     egui::ComboBox::from_label("Metering")
@@ -2318,6 +2336,7 @@ mod tests {
                     _ => None,
                 })
                 .collect();
+            assert!(labels.contains(&"UV / IR cut"));
             assert_eq!(labels.contains(&"Camera filter"), stock == "kodak_doublex");
             assert_eq!(labels.contains(&"Compensate filter exposure"), filtered);
             assert_eq!(

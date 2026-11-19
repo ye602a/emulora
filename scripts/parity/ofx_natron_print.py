@@ -2,7 +2,7 @@
 
 Set OFX_PLUGIN_PATH to the unpacked bundle directory. Set PRINT_STUDY_INPUT to
 the Batch 13 PNG, PRINT_STUDY_DIR to a scratch directory and run once for each
-OFX_CASE (transport, off, on, diffusion). OFX_PRINT_MODEL selects a release
+OFX_CASE (transport, off, on, diffusion, uv, ir, uv-ir). OFX_PRINT_MODEL selects a release
 print-silver preset for the on case. NatronRenderer --no-settings SCRIPT.py 1 writes
 one full-resolution PNG. Compare transport to the source before using output.
 """
@@ -10,7 +10,7 @@ import os
 from pathlib import Path
 
 case = os.environ["OFX_CASE"]
-assert case in ("transport","off","on","diffusion")
+assert case in ("transport","off","on","diffusion","uv","ir","uv-ir")
 model = os.environ.get("OFX_PRINT_MODEL", "Stock Character")
 reader = app1.createReader(os.environ["PRINT_STUDY_INPUT"])
 
@@ -31,6 +31,12 @@ if case != "transport":
         param = source.getParam(name)
         options = [param.getOption(i) for i in range(param.getNumOptions())]
         param.set(options.index(label))
+    if case in ("uv", "uv-ir"):
+        source.getParam("cameraUvFilterEnabled").set(True)
+        source.getParam("cameraUvCutNm").set(430.)
+    if case in ("ir", "uv-ir"):
+        source.getParam("cameraIrFilterEnabled").set(True)
+        source.getParam("cameraIrCutNm").set(650.)
     if case == "diffusion":
         source.getParam("cameraDiffusionEnabled").set(True)
         source.getParam("cameraDiffusionStrength").set(0.5)

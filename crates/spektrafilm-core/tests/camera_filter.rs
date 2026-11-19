@@ -233,3 +233,35 @@ fn measured_response_on_trix_reversal_reaches_direct_scan() {
     assert!((bare.data[1] - red.data[1]).abs() < 0.001);
     assert!(red.data[4] > bare.data[4] && red.data[7] < bare.data[7]);
 }
+
+#[test]
+fn spectral_cuts_change_the_resident_negative_on_all_three_front_ends() {
+    let Some(gpu) = WgpuBackend::new() else {
+        assert!(std::env::var_os("SPEKTRAFILM_REQUIRE_GPU").is_none());
+        return;
+    };
+    gpu.configure_negative_cache(true);
+    for method in ["hanatos2025", "arctic2026beta04", "mallett2019"] {
+        let mut p = recipe();
+        p.io.scan_film = true;
+        p.camera.photographic_filter = CameraFilter::Off;
+        p.settings.rgb_to_raw_method = method.into();
+        let bare = build("kodak_portra_400", p.clone()).unwrap();
+        let render = |pipe: &Pipeline| pipe.process_resident_with_options(&chart(), &gpu,
+            FilmRenderOptions {source: Some(SourceIdentity(410)), ..Default::default()})
+            .unwrap().unwrap().data;
+        let original = render(&bare);
+        let baseline = gpu.negative_cache_stats();
+        p.camera.filter_uv = [1., 450., 12.];
+        p.camera.filter_ir = [0.85, 630., 15.];
+        assert!(bare.refreshed(p.clone()).is_none());
+        let filtered = build("kodak_portra_400", p).unwrap();
+        let actual = render(&filtered);
+        assert!(actual.iter().zip(&original).any(|(x,y)| (x-y).abs()>0.001), "{method}");
+        let cpu = filtered.try_process(chart(), &CpuBackend).unwrap();
+        assert!(cpu.data.iter().zip(&actual).all(|(x,y)| (x-y).abs()<0.0001), "{method}");
+        assert_eq!(render(&filtered),actual);
+        let after = gpu.negative_cache_stats();
+        assert_eq!((after.hits-baseline.hits,after.misses-baseline.misses),(1,1));
+    }
+}

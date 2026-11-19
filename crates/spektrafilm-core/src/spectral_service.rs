@@ -397,8 +397,74 @@ fn eval_erf4_bandpass(params: &[f64]) -> Vec<[f64; 3]> {
     window
 }
 
+/// Apply the camera bandpass to stock sensitivity while preserving each
+/// emulsion's integrated exposure to its own reference white.
+pub(crate) fn apply_camera_cuts(
+    response: &mut [[f64; 3]],
+    wavelengths: &[f64],
+    white: &[f64],
+    uv: [f32; 3],
+    ir: [f32; 3],
+) -> Result<(), String> {
+    if wavelengths.len() != white.len() || response.len() != white.len()
+        || wavelengths.iter().enumerate().any(|(i, &nm)| nm != 380. + 5. * i as f64)
+    {
+        return Err("UV/IR cuts require the 380-780 nm film grid at 5 nm intervals".into());
+    }
+    let transmission = |nm: f64, cut: [f32; 3], sign: f64| {
+        let [amount, center, width] = cut.map(f64::from);
+        if amount == 0. { return 1.; }
+        1. - amount * 0.5 * libm::erfc(sign * (nm - center) / width)
+    };
+    let mut before = [0.; 3];
+    let mut after = [0.; 3];
+    for ((row, &nm), &light) in response.iter_mut().zip(wavelengths).zip(white) {
+        let pass = transmission(nm, uv, 1.) * transmission(nm, ir, -1.);
+        for c in 0..3 {
+            before[c] += row[c] * light;
+            row[c] *= pass;
+            after[c] += row[c] * light;
+        }
+    }
+    let gain: [f64; 3] = std::array::from_fn(|c| before[c] / after[c]);
+    if gain.iter().any(|g| !g.is_finite() || *g <= 0.) {
+        return Err("UV/IR cuts leave no usable reference exposure in a film channel".into());
+    }
+    for row in response {
+        for c in 0..3 { row[c] *= gain[c]; }
+    }
+    Ok(())
+}
+
+
 /// f64 erf via libm — matches scipy.special.erf at full f64 precision.
 #[inline]
 fn erf(x: f64) -> f64 {
     libm::erf(x)
+}
+
+#[cfg(test)]
+mod camera_cut_tests {
+    use super::apply_camera_cuts;
+
+    #[test]
+    fn camera_bandpass_preserves_reference_exposure_and_matches_erf_edges() {
+        let wl: Vec<_> = (0..81).map(|i| 380. + 5. * f64::from(i)).collect();
+        let white: Vec<_> = wl.iter().map(|nm| nm / 500.).collect();
+        let bare: Vec<_> = wl.iter().map(|nm| [1., nm / 500., 500. / nm]).collect();
+        let integral = |rows: &[[f64; 3]], c: usize| -> f64 {
+            rows.iter().zip(&white).map(|(row, light)| row[c] * light).sum()
+        };
+        let mut response = bare.clone();
+        apply_camera_cuts(&mut response, &wl, &white, [1., 430., 10.], [0.5, 650., 10.]).unwrap();
+        for c in 0..3 {
+            assert!((integral(&response, c) - integral(&bare, c)).abs() < 1e-10);
+            let t = |i: usize| response[i][c] / bare[i][c];
+            // The middle of the passband has unit transmission before normalization.
+            assert!((t(10) / t(32) - 0.5).abs() < 1e-12);
+            assert!((t(12) / t(32) - 0.9213503964748575).abs() < 1e-12);
+            assert!((t(54) / t(32) - 0.75).abs() < 1e-12);
+            assert!((t(80) / t(32) - 0.5).abs() < 1e-12);
+        }
+    }
 }
