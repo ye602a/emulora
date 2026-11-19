@@ -60,6 +60,12 @@ In the GUI, select a monochrome film and open **Exposure → Camera filter**. Fo
 
 On Hanatos the linear print green channel for the neutral/red/blue patches was 0.184/0.173/0.289 with the clear lens setting and 0.184/0.527/0.044 with compensated No. 25. This follows the neutral-preservation and red/blue separation checked by [LAB's B&W render tests](https://github.com/JamesQiu2005/SpektraLab/blob/b51e672/engine/tests/bw_checks.py). The stocks and print recipes differ between the suites. On the same three compensated No. 25 patches, the largest absolute CPU/Vulkan linear output difference across all three models was 0.00000465. Windows Vulkan also rendered one 512-pixel-long-edge photo through the CLI, and the dedicated resident test checked shoulder fog and negative-cache reuse. Broader photographic acceptance and CUDA/macOS runs remain open.
 
+For Double-X at the 6.5-minute development setting, this optional CLI recipe measured near Kodak's granularity of 14 through a 48 µm aperture at 3–6 µm sampling. Use it with `process --film kodak_doublex --paper kodak_2302 --params FILE`. Sampling pitch changes with film format and image dimensions. [Measured range and reference conditions](ENGINE_STUDIES.md#48-µm-aperture-granularity-batch-12)
+
+```json
+{"film_render":{"development_time":6.5,"grain":{"active":true,"agx_particle_area_um2":0.39}}}
+```
+
 ### Graded black-and-white prints
 
 Tri-X 400, T-Max 100, Acros II and HP5 Plus select Ilford Multigrade IV RC as their target paper. In the GUI, **Profiles → Paper grade** selects 00, 0, 1, 2, 3, 4 or 5. Grade 2 is the default. A low grade compresses contrast; a high grade deepens shadows and separates highlights.
