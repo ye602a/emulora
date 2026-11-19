@@ -8,7 +8,7 @@ use spektrafilm_math::spectral::{self, N_WAVELENGTHS};
 /// at full f64 precision. Baked from Python's
 /// `standard_illuminant('TH-KG3')`. The f32 fallback drops ~7 digits
 /// per sample and accumulates ~3e-8 in the filtered illuminant.
-const ILLUMINANT_TH_KG3_F64: [f64; N_WAVELENGTHS] = [
+pub(crate) const ILLUMINANT_TH_KG3_F64: [f64; N_WAVELENGTHS] = [
     0.27115487737678473,
     0.2933630241983439,
     0.31540886133985474,
@@ -94,7 +94,7 @@ const ILLUMINANT_TH_KG3_F64: [f64; N_WAVELENGTHS] = [
 
 /// TH-KG3 illuminant SPD (tungsten-halogen + Schott KG3 heat filter).
 /// Baked from Python's `standard_illuminant('TH-KG3')`.
-const ILLUMINANT_TH_KG3: [f32; N_WAVELENGTHS] = [
+pub(crate) const ILLUMINANT_TH_KG3: [f32; N_WAVELENGTHS] = [
     0.271155, 0.293363, 0.315409, 0.336981, 0.358678, 0.380520, 0.403013, 0.426787, 0.451652,
     0.478065, 0.506671, 0.536658, 0.568077, 0.599922, 0.630515, 0.661222, 0.692091, 0.723665,
     0.757601, 0.793069, 0.829085, 0.865485, 0.902213, 0.938990, 0.974700, 1.008742, 1.040917,

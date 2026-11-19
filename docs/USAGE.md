@@ -179,3 +179,7 @@ The OFX version label refers to a per-stock window already active in the FPW def
 ## Print bleach bypass
 
 On a color print, **Print bleach bypass** sets the retained-silver look from 0 (the normal optical print) to 1 (full modeled strength). A CLI recipe can set `{"print_render":{"bleach_bypass":0.5}}`. Film scans and silver B&W paper ignore the print control. The parameter is downstream of the developed negative; a resident host reprinting the same source can reuse its negative. Standalone GUI interaction and FPW control wiring were not tested. [Model and photograph comparison](ENGINE_STUDIES.md#print-bleach-bypass)
+
+### Cinema film and viewing illuminants
+
+The ordinary spectral pipeline now uses the lights specified by each material. Vision3 200T and 500T use the measured incandescent spectrum (`T`); Kodak 2383 and 2393 are viewed under the Kinoton 75P projector spectrum (`K75P`). This changes renders and newly baked cubes involving those materials. Earlier versions silently used D55 for the film or D50 for the print. Start with the stock neutral pack, including when using Arctic beta04. Recheck any manual Y/M shifts fitted to older renders. The explicit `FpwV1` constructor retains its accepted daylight substitutions, and the published FPW dependency has not changed. [Measured comparisons](ENGINE_STUDIES.md#cinema-illuminants-and-shipping-engine-comparisons)

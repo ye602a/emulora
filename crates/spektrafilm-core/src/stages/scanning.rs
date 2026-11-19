@@ -492,22 +492,12 @@ pub fn process(
     scan(density_cmy, profile, params, backend, color_ref, gamut)
 }
 
-fn select_illuminant(name: &str) -> &'static [f32] {
-    match name {
-        "D50" => &spectral::ILLUMINANT_D50,
-        "D55" => &spectral::ILLUMINANT_D55,
-        "D65" => &spectral::ILLUMINANT_D65,
-        _ => &spectral::ILLUMINANT_D50,
-    }
+pub(crate) fn select_illuminant(name: &str) -> &'static [f32] {
+    crate::profile_illuminant::spectrum(name).map_or(&spectral::ILLUMINANT_D50, |pair| pair.0)
 }
 
 pub fn select_illuminant_f64(name: &str) -> &'static [f64] {
-    match name {
-        "D50" => &spectral::ILLUMINANT_D50_F64,
-        "D55" => &spectral::ILLUMINANT_D55_F64,
-        "D65" => &spectral::ILLUMINANT_D65_F64,
-        _ => &spectral::ILLUMINANT_D50_F64,
-    }
+    crate::profile_illuminant::spectrum(name).map_or(&spectral::ILLUMINANT_D50_F64, |pair| pair.1)
 }
 
 fn output_colorspace_from_xyz_f64(name: &str) -> [[f64; 3]; 3] {

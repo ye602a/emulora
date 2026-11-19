@@ -367,7 +367,7 @@ Backends:
         Write-Host "Icon:     $(Resolve-Path -LiteralPath $iconPath)"
     }
 
-    Copy-Item -LiteralPath "LICENSE", "SPEKTRAFILM_DATA_LICENSE.txt" -Destination $DistDir
+    Copy-Item -LiteralPath "LICENSE", "SPEKTRAFILM_DATA_LICENSE.txt", "COLOUR_LICENSE.txt" -Destination $DistDir
 } finally {
     Pop-Location
 }

@@ -10,6 +10,8 @@ use std::io::Read;
 pub const WAVELENGTH_MIN: f32 = 380.0;
 pub const WAVELENGTH_MAX: f32 = 780.0;
 pub const WAVELENGTH_STEP: f32 = 5.0;
+pub mod cinema;
+
 pub const N_WAVELENGTHS: usize = 81;
 
 pub const CMF_X: [f32; N_WAVELENGTHS] = [

@@ -13,6 +13,7 @@ pub mod params;
 pub mod pipeline;
 pub mod print_morph;
 pub mod profile;
+mod profile_illuminant;
 pub mod spectral_service;
 pub mod stages;
 pub mod stock_setup;

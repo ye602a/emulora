@@ -55,6 +55,7 @@ use crate::params::RuntimeParams;
 use crate::profile::Profile;
 use crate::spectral_service;
 use crate::stages;
+use crate::stages::filming::select_illuminant;
 use crate::stock_setup::{AcceptedStockSetup, ResolvedStockSetup};
 
 fn validate_spectral_recipe(params: &RuntimeParams) -> Result<(), String> {
@@ -406,13 +407,26 @@ impl Pipeline {
     /// original host adapter. This does not select RAW preparation, the scan
     /// transport, output inversion or other application recipe parameters.
     pub fn new_with_spectral_and_stock_setup(
-        film: Profile,
-        print: Profile,
+        mut film: Profile,
+        mut print: Profile,
         mut params: RuntimeParams,
         data_dir: &Path,
         setup: AcceptedStockSetup,
     ) -> Result<Self, String> {
         let resolved = setup.resolve(&film).map_err(|error| error.to_string())?;
+        match setup {
+            AcceptedStockSetup::FpwV1(_) => {
+                // Preserve the historical effective lights on owned profiles for every stage.
+                if !matches!(film.info.reference_illuminant.as_str(), "D50" | "D55" | "D65") {
+                    film.info.reference_illuminant = "D55".into();
+                }
+                for material in [&mut film, &mut print] {
+                    if !matches!(material.info.viewing_illuminant.as_str(), "D50" | "D55" | "D65") {
+                        material.info.viewing_illuminant = "D50".into();
+                    }
+                }
+            }
+        }
         resolved.before_calibration(&mut params);
         let mut pipeline = Self::new_with_spectral(film, print, params, data_dir)?;
         resolved.after_calibration(&mut pipeline.params);
@@ -519,7 +533,17 @@ impl Pipeline {
                 .collect()
         };
 
-        let ref_illuminant_f64 = select_illuminant_f64(&film.info.reference_illuminant);
+        let (_, ref_illuminant_f64) = crate::profile_illuminant::spectrum(&film.info.reference_illuminant)
+            .ok_or_else(|| format!("unknown film reference illuminant {:?}", film.info.reference_illuminant))?;
+        for material in [&film, &print] {
+            if crate::profile_illuminant::spectrum(&material.info.viewing_illuminant).is_none() {
+                return Err(format!(
+                    "unknown viewing illuminant {:?} on {}",
+                    material.info.viewing_illuminant,
+                    material.info.stock.as_deref().unwrap_or("unnamed profile"),
+                ));
+            }
+        }
         let method = params.settings.rgb_to_raw_method.as_str();
         let front_illuminant = if method == "arctic2026beta04" {
             "D65".to_string()
@@ -1330,12 +1354,7 @@ impl Pipeline {
         } else {
             &self.print
         };
-        let viewing_illu_f32 = match scan_profile.info.viewing_illuminant.as_str() {
-            "D50" => &spektrafilm_math::spectral::ILLUMINANT_D50[..],
-            "D55" => &spektrafilm_math::spectral::ILLUMINANT_D55[..],
-            "D65" => &spektrafilm_math::spectral::ILLUMINANT_D65[..],
-            _ => &spektrafilm_math::spectral::ILLUMINANT_D50[..],
-        };
+        let viewing_illu_f32 = stages::scanning::select_illuminant(&scan_profile.info.viewing_illuminant);
         let viewing_illu: Vec<f64> = viewing_illu_f32.iter().map(|&v| v as f64).collect();
         let n_wl = if self.params.io.scan_film {
             film_channel_density.len()
@@ -1744,25 +1763,5 @@ impl Pipeline {
                 .for_each(|v| *v = (*v).clamp(zero, one));
         }
         rgb
-    }
-}
-
-fn select_illuminant(name: &str) -> &'static [f32] {
-    use spektrafilm_math::spectral;
-    match name {
-        "D50" => &spectral::ILLUMINANT_D50,
-        "D55" => &spectral::ILLUMINANT_D55,
-        "D65" => &spectral::ILLUMINANT_D65,
-        _ => &spectral::ILLUMINANT_D55,
-    }
-}
-
-fn select_illuminant_f64(name: &str) -> &'static [f64] {
-    use spektrafilm_math::spectral;
-    match name {
-        "D50" => &spectral::ILLUMINANT_D50_F64,
-        "D55" => &spectral::ILLUMINANT_D55_F64,
-        "D65" => &spectral::ILLUMINANT_D65_F64,
-        _ => &spectral::ILLUMINANT_D55_F64,
     }
 }

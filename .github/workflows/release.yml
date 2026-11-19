@@ -41,7 +41,7 @@ jobs:
           Copy-Item target\release\spektrafilm.exe $dist\
           Copy-Item target\release\spektrafilm-f64.exe $dist\
           Copy-Item -Recurse data $dist\data
-          Copy-Item LICENSE, SPEKTRAFILM_DATA_LICENSE.txt $dist\
+          Copy-Item LICENSE, SPEKTRAFILM_DATA_LICENSE.txt, COLOUR_LICENSE.txt $dist\
           @"
           spektrafilm-rs Windows x64
 

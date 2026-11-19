@@ -41,10 +41,18 @@ fn parameters(route: StockRoute) -> RuntimeParams {
 fn pinned_adapter(
     stock: &str,
     route: StockRoute,
-    film: Profile,
-    paper: Profile,
+    mut film: Profile,
+    mut paper: Profile,
     mut params: RuntimeParams,
 ) -> Pipeline {
+    // Frozen engine only recognized D50/D55/D65 in these roles.
+    if film.info.reference_illuminant == "T" {
+        film.info.reference_illuminant = "D55".into();
+    }
+    if paper.info.viewing_illuminant == "K75P" {
+        paper.info.viewing_illuminant = "D50".into();
+    }
+
     assert_eq!(film.is_positive(), route == StockRoute::Slide);
     let sigma = if film.info.usage == "cine" {
         50.0
@@ -231,4 +239,60 @@ fn unsupported_stock_and_route_fail_before_spectral_resource_loading() {
         AcceptedStockSetup::FpwV1(StockRoute::Slide),
     );
     assert!(result.err().unwrap().contains("does not match route"));
+}
+
+#[test]
+fn cinema_prints_use_the_film_reference_and_print_viewing_lights() {
+    use spektrafilm_gpu::cpu_backend::CpuBackend;
+    use spektrafilm_math::{image::ImageBuf, precision::{from_f64, srgb_decode}};
+
+    // Full-tier SpektraLab Windows 1.3.4-beta.3, native Vulkan, shared
+    // linear ProPhoto TIFF. Each cross-pair independently exercises one lamp.
+    let mut params = RuntimeParams::default();
+    params.camera.auto_exposure = false;
+    params.film_render.grain.active = false;
+    params.film_render.halation.active = false;
+    params.film_render.halation.boost_ev = 0.0;
+    params.film_render.dir_couplers.active = false;
+    params.print_render.glare.active = false;
+    let level = srgb_decode(from_f64(118.0 / 255.0));
+    for (film, paper, reference) in [
+        ("kodak_vision3_500t", "kodak_portra_endura", [115.70, 116.25, 118.56]),
+        ("kodak_portra_400", "kodak_2383", [113.63, 115.36, 118.44]),
+        ("kodak_vision3_200t", "kodak_2393", [109.31, 110.63, 112.50]),
+    ] {
+        let pipeline = Pipeline::new_with_spectral(
+            profile::load_profile_by_name(&data_dir(), film).unwrap(),
+            profile::load_profile_by_name(&data_dir(), paper).unwrap(),
+            params.clone(), &data_dir(),
+        ).unwrap();
+        let out = pipeline.try_process(ImageBuf::from_data(1, 1, vec![level; 3]), &CpuBackend).unwrap();
+        for (value, target) in out.data.iter().zip(reference) {
+            assert!((*value as f64 * 255.0 - target).abs() < 0.25, "{film}/{paper}: {:?}", out.data);
+        }
+    }
+}
+
+#[test]
+fn accepted_cinema_print_preserves_both_daylight_substitutions() {
+    use spektrafilm_gpu::cpu_backend::CpuBackend;
+    use spektrafilm_math::{image::ImageBuf, precision::from_f64};
+
+    let stock = "kodak_vision3_500t";
+    let film = profile::load_profile_by_name(&data_dir(), stock).unwrap();
+    let paper = profile::load_profile_by_name(&data_dir(), "kodak_2383").unwrap();
+    let mut p = parameters(StockRoute::Paper);
+    p.camera.auto_exposure = false;
+    p.film_render.grain.active = false;
+    p.print_render.glare.active = false;
+    let expected = pinned_adapter(stock, StockRoute::Paper, film.clone(), paper.clone(), p.clone());
+    let actual = Pipeline::new_with_spectral_and_stock_setup(
+        film, paper, p, &data_dir(), AcceptedStockSetup::FpwV1(StockRoute::Paper),
+    ).unwrap();
+    let input = ImageBuf::from_data(2, 1, [0.184, 0.184, 0.184, 0.08, 0.26, 0.72]
+        .into_iter().map(from_f64).collect());
+    assert_eq!(
+        actual.try_process(input.clone(), &CpuBackend).unwrap().data,
+        expected.try_process(input, &CpuBackend).unwrap().data,
+    );
 }
