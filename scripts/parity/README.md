@@ -36,3 +36,5 @@ parameters with the result; this helper does not enforce their equivalence.
 
 Current engine regressions live under `crates/*/tests/` and run through
 [the standalone smoke workflow](../../.github/workflows/standalone-engine-smoke.yml).
+
+The calibrated Windows product comparisons use the LAB host and the published OFX plug-in headlessly. See the [input, commands, pinned binaries and measured results](../../docs/ENGINE_STUDIES.md#cinema-illuminants-and-shipping-engine-comparisons).
