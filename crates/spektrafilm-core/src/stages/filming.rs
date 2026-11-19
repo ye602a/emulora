@@ -41,7 +41,7 @@ pub fn pixel_size_um(film_format_mm: f32, width: u32, height: u32) -> f32 {
 ///
 /// `method` selects the metering pattern: `average`, `median`,
 /// `center_weighted`, `partial`, `matrix`, `multi_zone`,
-/// `highlight_weighted`. Anything else meters a flat 1.0 (0 EV), matching
+/// `highlight_weighted`, or LAB balanced/center/protect modes. Anything else meters a flat 1.0 (0 EV), matching
 /// the Python `else` branch.
 pub fn measure_autoexposure_ev(image: &ImageBuf, rgb_to_xyz: &[[f32; 3]; 3], method: &str) -> f32 {
     const MAX_SIZE: usize = 256;
@@ -93,6 +93,11 @@ pub fn measure_autoexposure_ev(image: &ImageBuf, rgb_to_xyz: &[[f32; 3]; 3], met
         })
         .collect();
 
+    if matches!(method, "balanced" | "center" | "protect_highlights" | "protect_shadows") {
+        let ev = balanced_exposure_ev(&lum, sw, sh, method) as f32;
+        tracing::info!(sw, sh, method, ev, "autoexposure");
+        return ev;
+    }
     let metered = meter_luminance(&lum, sw, sh, method);
     let exposure = (metered / 0.184) as f32;
     if exposure <= 0.0 || exposure.is_infinite() {
@@ -115,6 +120,43 @@ pub fn measure_autoexposure_ev(image: &ImageBuf, rgb_to_xyz: &[[f32; 3]; 3], met
 /// so the long edge spans [-0.5, 0.5] (Python `_normalized_coords`).
 fn norm_coord(i: usize, dim: usize, max_dim: usize) -> f64 {
     (i as f64 / dim as f64 - 0.5) * (dim as f64 / max_dim as f64)
+}
+
+/// LAB trims by exact percentile ranks, including ties at each boundary.
+fn balanced_exposure_ev(lum: &[f64], sw: usize, sh: usize, method: &str) -> f64 {
+    const GRAY: f64 = 0.184;
+    const FLOOR: f64 = GRAY / 4096.0;
+    if lum.is_empty() {
+        return 0.0;
+    }
+    let mut sorted: Vec<_> = lum.iter().map(|&v| v.max(FLOOR)).collect();
+    sorted.sort_unstable_by(f64::total_cmp);
+    let rank = |per_mille: usize| sorted[per_mille * (sorted.len() - 1) / 1000];
+    let (low, high) = (rank(10), rank(990));
+    let mut sum = 0.0;
+    let mut mass = 0.0;
+    let max_dim = sw.max(sh);
+    for (i, &value) in lum.iter().enumerate() {
+        let y = value.max(FLOOR);
+        if y < low || y > high {
+            continue;
+        }
+        let weight = if method == "center" {
+            let x = norm_coord(i % sw, sw, max_dim);
+            let y = norm_coord(i / sw, sh, max_dim);
+            (-(x * x + y * y) / (2.0 * 0.2 * 0.2)).exp()
+        } else {
+            1.0
+        };
+        sum += weight * y.log2();
+        mass += weight;
+    }
+    let balanced = GRAY.log2() - sum / mass;
+    match method {
+        "protect_highlights" => ((GRAY / rank(995)).log2() + 2.5).clamp(balanced - 3.0, balanced),
+        "protect_shadows" => ((GRAY / rank(50)).log2() - 3.5).clamp(balanced, balanced + 2.0),
+        _ => balanced,
+    }
 }
 
 /// Meter the downsampled luminance grid with the named pattern, returning the
@@ -574,6 +616,26 @@ mod tests {
                 (ev as f64 - expected).abs() < 1e-5,
                 "method {method}: got {ev}, expected {expected}",
             );
+        }
+    }
+
+    #[test]
+    fn balanced_meter_matches_lab_ramp_and_protection_limits() {
+        // LAB parity_exposure.py: 10,001 distinct samples spanning +/-5 stops.
+        let ramp: Vec<_> = (0..10001)
+            .map(|i| 0.184 * 2.0_f64.powf((i - 5000) as f64 / 1000.0))
+            .collect();
+        for (method, expected) in [("balanced", 0.0), ("protect_highlights", -2.45), ("protect_shadows", 1.0)] {
+            assert!((balanced_exposure_ev(&ramp, 137, 73, method) - expected).abs() < 1e-9);
+        }
+        for (ratio, method, limit) in [(4096.0, "protect_highlights", -3.0), (1.0/2048.0, "protect_shadows", 2.0)] {
+            let mut samples = vec![0.184; 1000];
+            samples[..100].fill(0.184 * ratio);
+            let base = balanced_exposure_ev(&samples, 100, 10, "balanced");
+            assert!((balanced_exposure_ev(&samples, 100, 10, method) - base - limit).abs() < 1e-10);
+        }
+        for method in ["balanced", "center", "protect_highlights", "protect_shadows"] {
+            assert!((balanced_exposure_ev(&[0.0], 1, 1, method) - 12.0).abs() < 1e-10);
         }
     }
 

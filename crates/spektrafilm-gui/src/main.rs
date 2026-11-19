@@ -1079,6 +1079,10 @@ impl App {
                                 "matrix",
                                 "multi_zone",
                                 "highlight_weighted",
+                                "balanced",
+                                "center",
+                                "protect_highlights",
+                                "protect_shadows",
                             ] {
                                 changed |=
                                     ui.selectable_value(method, opt.to_string(), opt).changed();

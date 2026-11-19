@@ -25,6 +25,8 @@ The goal is one independently maintained still-film engine with verifiable stand
 
 **Cinema lights and product comparisons.** Standalone CPU/Vulkan now resolve the film's T and the print's K75P spectra. Retain Arctic beta04's current normalization and stock filtration. The earlier 500T-specific trim proposal compensated for two silent light substitutions and is retired. The explicit FPW v1 route retains both historical lights. Nine optical/trim/preflash cases, a lens impulse and Portra grain apertures were compared with the shipping LAB Windows engine. The OFX Windows release was rendered headlessly at zero and full print bleach. Its stock-character preset differs materially from RS's public-source model. [Sources, limits and reproduction](ENGINE_STUDIES.md#cinema-illuminants-and-shipping-engine-comparisons)
 
+**Still-photo metering.** LAB-style balanced, center and bounded highlight/shadow protection now run through the shared RS camera meter and standalone GUI/CLI. The color montage and backlit chart were compared directly with the shipping Windows LAB solver. [Photo results and cache qualification](ENGINE_STUDIES.md#still-photo-exposure-metering). For a future exposure aid, LAB also reports scene latitude by film stock. That would require a calibrated interpretation of film toe and shoulder. OFX film bleach remains a separate negative-stage look; neither is implemented by this metering change.
+
 **Outstanding work and acceptance.**
 
 | Area | Status and next decision |

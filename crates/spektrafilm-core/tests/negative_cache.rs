@@ -146,6 +146,23 @@ fn negative_cache_preserves_full_film_pixels_with_exact_stage_invalidation() {
     changed.io.scan_film = true;
     compare(&make(changed), &cached, &oracle, &first, source, true);
 
+    // Changing the measured exposure changes the negative; an identical repeat reuses it.
+    let mut lit = first.clone();
+    for x in 0..lit.width {
+        lit.set(x, 0, [from_f32(8.0); 3]);
+    }
+    let lit_source = SourceIdentity(0x1004);
+    let mut metered = params.clone();
+    metered.camera.auto_exposure = true;
+    metered.camera.auto_exposure_method = "balanced".into();
+    let balanced = base.refreshed(metered.clone()).unwrap();
+    compare(&balanced, &cached, &oracle, &lit, lit_source, false);
+    metered.camera.auto_exposure_method = "protect_highlights".into();
+    let protected = base.refreshed(metered).unwrap();
+    compare(&protected, &cached, &oracle, &lit, lit_source, false);
+    compare(&protected, &cached, &oracle, &lit, lit_source, true);
+    compare(&base, &cached, &oracle, &first, source, false);
+
     let mut changed = params.clone();
     changed.camera.exposure_compensation_ev = 0.25;
     compare(&make(changed), &cached, &oracle, &first, source, false);

@@ -197,3 +197,16 @@ The UV edge attenuates short wavelengths and the IR edge attenuates long wavelen
 Select **Color management → RGB→raw upsampling → hanatos2025**, then **Stock colour correction**. In a CLI recipe set `settings.apply_hanatos2025_adaptation_surface` to `true`. It defaults to off. The GUI shows the option for the 20 camera profiles with usable coefficients; switching to a silver stock or another upsampling method clears it. An explicitly incompatible CLI recipe reports an error. The correction also enters spectral CUBE exports.
 
 For blue-violet fabric try Portra 800, UltraMax 400 or Ektar 100. On Portra 400 and Provia 100F start with it off when matching skin to the input photograph. Compare unusually saturated violet separately: a fabric and a solid violet patch can move in different directions. [Results for every eligible film](ENGINE_STUDIES.md#hanatos-stock-colour-correction-on-still-photographs)
+
+### Still-photo exposure metering
+
+In the standalone GUI open **Exposure**, enable auto exposure and choose a meter. CLI recipes and the engine API use the same camera settings. For example, use `{"camera":{"auto_exposure":true,"auto_exposure_method":"protect_highlights"}}` for a backlit scene.
+
+| Meter | When to use it |
+| --- | --- |
+| `balanced` | Start here for a mixed scene. It averages brightness in stops after trimming the darkest and brightest 1% by rank. |
+| `center` | Give the center more weight in that same trimmed estimate, for example for a centrally framed subject. |
+| `protect_highlights` | Keep a bright region in range. It can lower balanced exposure by up to 3 EV, using the 99.5th percentile. |
+| `protect_shadows` | Lift a substantial dark region. It can raise balanced exposure by up to 2 EV, using the 5th percentile. |
+
+These modes meter linear input before film exposure. They estimate one exposure adjustment for the whole photo. Manual camera EV still adds to it. Existing settings retain their meaning and the default meter is center_weighted. The older highlight_weighted method weights luminance by its square and can respond more strongly to a single lamp. Spectral LUT export omits scene-dependent metering. [Measured comparisons](ENGINE_STUDIES.md#still-photo-exposure-metering)
