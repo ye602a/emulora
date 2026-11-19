@@ -1,6 +1,23 @@
 # Engine evolution
 
-Reviewed on 2026-11-18. Use this plan for independent RS development and the [host adoption contract](maintenance/FPW_PARITY_MIGRATION_PLAN.md) for FPW. The first batch is implemented. The remaining batches are ordered by the evidence below.
+## Current position and next work · 2026-11-19
+
+The goal is one independently maintained still-film engine with verifiable standalone entry points and a versioned FPW consumer. Batches 1–8 are committed on `codex/engine-evolution` through `0272502`. Published RS main still points at `b47948e`; FPW main `e1d0759` pins RS `1947ee8` and keeps the persisted contract identity separate. The upstream source branch heads below were checked again on November 19. Publication, FPW adoption and model qualification are separate milestones.
+
+| Goal | Delivered on the RS branch | Remaining decision |
+| --- | --- | --- |
+| Reliable public entry points | Calibrated CUBE, explicit preparation errors, checked calibration refresh and route-aware GUI controls (1–2). Shared JPEG/PNG/TIFF/RAW photo input and explicit spectral I/O combinations (9). | FPW still owns a recipe dependency list. Integrate checked refresh when adopting a reachable RS revision. |
+| Complete photographic processes | Measured red camera filters, stock-dependent compensation, four silver negatives and graded three-emulsion prints (3–5). | Keep full paper grades pending measured darkroom evidence. NC/VC profiles and neutral rows await redistribution terms. |
+| Useful optical and colour work | In-place resident diffusion reconstruction (6), with the accepted direct/scatter rounding order restored in batch 9; optional neutral-pack negative hue, retained negatives and a measured manual-trim limit (7–8). | Preserve the default optical print. Neither diffusion nor negative hue needs another batch on current evidence. |
+| Original RS foundations | 135 border, source-anchored multilayer grain, exact IIR, negative snapshots, reusable work planes, regional/RGB16 output, morph, exhaustion and preflash predate these batches. | Half-frame/XPan need roll-axis and gate/fit contracts. 120, markings and leaks need separate geometry or exposure work. |
+
+**Priority after batch 9.** First finish FPW adoption qualification on an isolated host checkout: replay saved settings on representative full-resolution photographs, compare preview/region/export on the same device, then replace the host's per-field calibration decisions with RS checked refresh. Keep source identity, stock selection, device ownership and resource identity in FPW. A change to accepted pixels needs a recorded decision before changing the host pin. [Compatibility and adoption evidence](maintenance/FPW_PARITY_MIGRATION_PLAN.md)
+
+**Next engine experiment.** Compare linear and Langmuir DIR on saturated fabric, skin and highlight density wedges, including the characteristic-curve correction, at matched exposure and development. An opt-in look needs a measurable difference and compatible CPU/resident handling. RMS grain calibration follows when aperture and scan pitch can be matched. Arctic beta04, neutral normalization, bleach bypass, backing reflection and film markings remain candidates. Wider-gamut working-space migration remains a separate project.
+
+**Batch 9 photo-input checks.** The GUI opened JPEG → linear TIFF → PNG and verified the decoded samples and primaries per file. A real Sony A7 III RAW (6000×4000) produced byte-identical float TIFFs with the previous and shared RAW parity helper. The CLI rendered a JPEG derived from Kodak 04 and an independently decoded lossless PNG on CPU. The mean absolute linear-output difference was 0.000035, p99 0.000238 and peak 0.01796 (different JPEG decoders). One camera and sRGB photos were exercised; embedded ICC conversion remains outside the standalone input contract. [Usage](USAGE.md#cli)
+
+The sections below retain the source and verification details behind these decisions.
 
 ## Source boundaries
 

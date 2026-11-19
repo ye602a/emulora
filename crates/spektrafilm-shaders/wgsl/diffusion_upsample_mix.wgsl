@@ -45,6 +45,7 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
         let top = sample(x0, y0, c) * (1.0 - wx) + sample(x1, y0, c) * wx;
         let bot = sample(x0, y1, c) * (1.0 - wx) + sample(x1, y1, c) * wx;
         let scattered = top * (1.0 - wy) + bot * wy;
-        output[o + c] = params.direct * output[o + c] + params.scatter * scattered;
+        // The old first pass stored the rounded direct term. Accumulate scatter in that order.
+        output[o + c] = fma(params.scatter, scattered, params.direct * output[o + c]);
     }
 }

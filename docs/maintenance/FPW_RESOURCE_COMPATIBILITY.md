@@ -71,8 +71,7 @@ unlisted files, host configuration, display/export ICC profiles and external
 digital-look LUTs are outside that scope. A successful check does not certify
 host packaging or visual output.
 
-This also catches missing neutral-filter data: the ordinary engine loader can
-use an empty database for missing/unreadable input. Qualification should reject
+This also catches missing neutral-filter data: the spectral constructor permits manual filtration when the table is absent and rejects a present but unreadable or malformed table. Qualification should reject
 that condition explicitly. A manifest declaration alone cannot prove that the
 referenced physical files are present and unchanged.
 

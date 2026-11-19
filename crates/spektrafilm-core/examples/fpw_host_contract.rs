@@ -3,7 +3,8 @@
 //! This is a synthetic integration smoke, not the FPW application or its photo
 //! acceptance suite. A real host passes its existing device/queue and maps its
 //! persisted recipe into RuntimeParams. No FPW checkout or private assets are
-//! required. Run with `cargo run -p spektrafilm-core --example fpw_host_contract`.
+//! required. Run `cargo run -p spektrafilm-core --example fpw_host_contract -- <data-dir>`
+//! to exercise a host resource directory, or omit the argument for the bundled data.
 
 use std::{
     error::Error,
@@ -213,10 +214,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     let (device, queue) = bootstrap.compute_device();
     let handles = (device.clone(), queue.clone());
     drop(bootstrap);
-    run_on_host_device(
-        handles.0,
-        handles.1,
-        Arc::new(Mutex::new(())),
-        &Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data"),
-    )
+    let data = std::env::args_os()
+        .nth(1)
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data"));
+    run_on_host_device(handles.0, handles.1, Arc::new(Mutex::new(())), &data)
 }

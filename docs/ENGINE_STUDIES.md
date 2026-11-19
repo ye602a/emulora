@@ -107,6 +107,8 @@ Each changed PNG sample moved one code. The smaller photo's RMS differences were
 
 **Temporary GPU memory.** In separate single-frame camera renders, sample `device.generate_allocator_report()` immediately before returning the constructed diffusion state. Live device allocations were 28.49 → 19.46 MiB for the point field (2× grid reduction), and 96.06 → 60.00 MiB for the smaller photo (4×). Reserved Vulkan blocks were 192 MiB in all four runs. This sample measures live allocations at that stage; whole-process peak residency was not sampled. Keep the allocator instrumentation out of the render loop. The timing and output comparisons used uninstrumented builds.
 
+**Batch 9 follow-up.** Grain-on FPW replays exposed a small numerical difference in the fused mix. The former first pass rounded the weighted direct pixel before accumulating weighted scatter. Make that order explicit with `fma(scatter_weight, scattered, rounded_direct)`. On RTX 3060 Ti, all 1,183,491 channels of the point-light frame and all 4,726,275 channels of the 1025×1537 photo matched the pre-fusion float output exactly, at both camera and enlarger positions. The original timing and allocation measurements above describe batch 6. [Host RGB16 comparison](maintenance/FPW_PARITY_MIGRATION_PLAN.md#candidate-replay-on-fpw-main--2026-11-19)
+
 ## Negative-derived print hue (batch 7)
 
 Blue and violet fabrics retained more of the input photograph's hue. Skin results depended on grain and DIR. RS offers this as an optional colour print look. Optical remains the default. [Usage](USAGE.md#hue-from-negative)

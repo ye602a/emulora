@@ -39,6 +39,24 @@ delivery gates; engine test success alone does not complete host adoption.
 5. Record acceptance evidence and retain a rollback revision before replacing
    an existing host dependency. Remove migrated algorithm copies after adoption.
 
+### Candidate replay on FPW main · 2026-11-19
+
+FPW main `e1d0759` pins RS `1947ee8`. The persisted output identity remains `27ca80e`. An isolated copy of the host runtime was compiled twice against the pinned revision and the RS candidate. Only the dependency source and scratch paths changed. The host's own resource directory came from its Git tree; the resource checker matched all 55 shared entries. The bundled RS check also matched its three calibration artifacts. The public `fpw_host_contract` example accepts an external data directory and exercised all five stock routes, full surface and finished region, on one RTX 3060 Ti.
+
+The actual host test `physical_exposure_reuses_calibration_with_fresh_route_parity` passed with the candidate. It compares fresh and retained results at −0.40, +0.30 and 0 EV on three routes. A second probe passed a fixed 480×240 linear-sRGB montage (Kodak 03, 04, 15 and the batch-7 silk photo) through FPW's own `film::render`, default 35 mm FilmSettings, grain, halation and DIR on, seed 1, with a fresh engine per case. Each output contained 345,600 RGB16 channel samples.
+
+| FPW route | Against pinned RS, before the batch-9 mix correction | After correction |
+| --- | --- | --- |
+| Portra 400 / Portra Endura, diffusion off | Exact | Exact |
+| Portra 400 / Portra Endura, diffusion on | 1,932 samples differed, peak 480 codes | Exact |
+| Provia 100F slide, diffusion off | Exact | Exact |
+| Provia 100F slide, diffusion on | 1,888 samples differed, peak 134 codes | Exact |
+| Pro 400H calibrated negative scan | Exact; host rejects active diffusion | Exact; same rejection |
+
+Restoring the old rounding order at the in-place scatter accumulation removed the differences without bringing back the two full-size intermediates. The separate batch-6 CLI point-light and photographic fixtures, each tested at the camera and enlarger, also exactly matched the saved pre-fusion float outputs on this device. No new timing measurements were taken.
+
+This comparison covers the existing host adapter using candidate RS, one driver and one small photographic raster. The host pin and saved identity still point to the published contract. Full-resolution saved-project replay, preview/export and region parity in the application, plus a host migration to checked refresh remain delivery work.
+
 ### Reduced CPU negative output
 
 The historical reduced CPU fallback can resize transmission before nonlinear
