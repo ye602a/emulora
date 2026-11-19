@@ -1,0 +1,42 @@
+diff --git a/crates/spektrafilm-model/src/diffusion.rs b/crates/spektrafilm-model/src/diffusion.rs
+index 764b6cd..850819a 100644
+--- a/crates/spektrafilm-model/src/diffusion.rs
++++ b/crates/spektrafilm-model/src/diffusion.rs
+@@ -121,6 +121,7 @@ pub fn apply_halation_um(
+         }
+     }
+
++    let study_timer = std::time::Instant::now();
+     // 2. Halation pass — per-channel σ + per-channel strength.
+     let a_tot: [f64; 3] = [
+         halation_strength[0] * halation_amount,
+@@ -129,7 +130,10 @@ pub fn apply_halation_um(
+     ];
+
+     if halation_n_bounces >= 1 && (a_tot[0] > 0.0 || a_tot[1] > 0.0 || a_tot[2] > 0.0) {
+-        let n_bounces = halation_n_bounces as usize;
++        let backing = std::env::var_os("RS_STUDY_NO_BACKING").is_some();
++        let n_bounces = if backing { 4 } else { halation_n_bounces as usize };
++        let sigma = [[0.184586,0.178469,0.170237],[1.121207,1.000078,0.546805],[1.651048,1.581389,0.808738],[4.677567,9.448921,1.340598]];
++        let weight = [[0.041510,0.106789,0.202791],[-0.500000,-0.500000,0.156578],[1.034500,1.384389,-0.500000],[0.423990,0.008822,1.140631]];
+         // Decay computed in f64 to match Python's `rho ** (k - 1)` and
+         // subsequent normalize-by-sum at full f64 precision.
+         let mut decay = vec![0.0f64; n_bounces];
+@@ -153,6 +157,9 @@ pub fn apply_halation_um(
+             let mut hb = vec![ZERO; n_pix];
+             for (k, &wk) in decay.iter().enumerate() {
+                 let sigma_k = (sigma_first_px_f64 * ((k as f64) + 1.0).sqrt()).max(1e-6) as f32;
++                let (sigma_k, wk) = if backing {
++                    ((120.0 * sigma[k][c] / pix_um_f64) as f32, weight[k][c])
++                } else { (sigma_k, wk) };
+                 let blurred = gaussian_blur_channel(&channels[c], w, h, sigma_k);
+                 let wk_s = from_f64(wk);
+                 for i in 0..n_pix {
+@@ -177,6 +184,7 @@ pub fn apply_halation_um(
+     }
+
+     // Pack channels back into a single interleaved ImageBuf.
++    eprintln!("halo_us={}", study_timer.elapsed().as_micros());
+     let mut out = ImageBuf::new(w, h);
+     for c in 0..3 {
+         out.write_channel(c, &channels[c]);
