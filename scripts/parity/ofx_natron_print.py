@@ -11,11 +11,15 @@ adaptation group. OFX_CUTS_SCAN=1 selects the display scan before printing.
 OFX_DISABLE_FILTER_COMPENSATION=1 isolates the release's camera filter exposure control.
 OFX_CUTS_NEGATIVE=cineon writes a float TIFF in Cineon / DPX Log Density.
 Set it to reprint to feed that TIFF into Process Negative on the same paper.
+OFX_CUTS_FLOAT_OUTPUT selects "sRGB" or "Rec.709 Gamma 2.2" for a float32 optical print.
 """
 import os
 from pathlib import Path
 
 case = os.environ["OFX_CASE"]
+float_output = os.environ.get("OFX_CUTS_FLOAT_OUTPUT")
+if float_output:
+    assert case in ("off", "uv", "ir", "uv-ir") and float_output in ("sRGB", "Rec.709 Gamma 2.2")
 bw_filters = {"hp5-clear": "None", "hp5-w8": "Wratten 08 Yellow (K2 Full Cor.)",
               "hp5-w12": "Wratten 12 Deep Yellow (-blue)", "hp5-w25": "Wratten 25 Red (Tricolor Separation)",
               "hp5-w29": "Wratten 29 Red (Color Separation)"}
@@ -46,7 +50,7 @@ if case != "transport":
     if case in bw_filters:
         choices = {"filmCategory":"B&W Still Film","film":"Ilford HP5 Plus",
                    "process":"Scan negative","cameraColorFilter":bw_filters[case]}
-    choices.update(inputColorSpace="sRGB", sdrOutputColorSpace="sRGB",
+    choices.update(inputColorSpace="sRGB", sdrOutputColorSpace=float_output or "sRGB",
                    rgbToRawMethod={"arctic":"Arctic 2026", "hanatos-2026":"Hanatos 2026"}.get(case, "Hanatos 2025"),
                    printBleachBypassModel=model)
     for name,label in choices.items():
@@ -120,9 +124,12 @@ if uncompensated:
     suffix += "-uncompensated"
 if negative_io:
     suffix += "-" + negative_io
-ext = ".tif" if negative_io == "cineon" else ".png"
+if float_output:
+    assert not negative_io and not cuts_scan
+    suffix += "-float-" + ("srgb" if float_output == "sRGB" else "gamma22")
+ext = ".tif" if negative_io == "cineon" or float_output else ".png"
 writer = app1.createWriter(str(Path(os.environ["PRINT_STUDY_DIR"])/("ofx-"+case+suffix+ext)))
-if negative_io == "cineon":
+if ext == ".tif":
     depth = writer.getParam("bitDepth")
     depth.set([depth.getOption(i) for i in range(depth.getNumOptions())].index("32f"))
     compression = writer.getParam("compression")

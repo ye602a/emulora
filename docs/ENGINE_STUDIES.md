@@ -668,3 +668,30 @@ For roll layout, start from the same landscape image cropped to each LAB gate as
 **Evidence still open.** The Windows LAB host rejected the wire names for the Hanatos surface, negative hue and RGB-to-raw method. The tagged code evaluates the surface internally and fixes the renderer to Hanatos 2025. The mainline negative-hue renderer uses Metal. The existing comparison with LAB's compiled hue-calibration routines and the Python polynomial-cell checks cover those implementations; their enabled LAB product outputs remain unverified. Other full-image sizes, stocks and platforms were not exhaustively swept. Current results do not qualify a physical half-grade, an unreleased rem-jet control or an unlicensed Portra NC/VC pack.
 
 **Existing checks retained.** Five LAB Hanatos optical film/paper pairs plus four trim/preflash cases, the meter and latitude probe, lens impulse and Portra grain aperture have measured reference results above. The CUBE bake is checked against the engine's pointwise photo render. Cache invalidation, buffer reuse, image I/O, CPU/Vulkan regression and FPW saved RAW/export checks use their own acceptance contracts. The current branch's standalone real-window interactions, LAB Metal product renders and FPW mainline adoption are separate outstanding acceptance or integration tasks.
+
+### Endura calibration on the OFX negative
+
+Use Windows OFX 0.3.12, Portra 400 / Portra Endura, Hanatos 2025, EV 0 and the adaptation-bypassed controls from the preceding density study. Capture the native optical print as raw-transport float32 sRGB, paired with its Cineon negative. Calibrate on 25 neutral inputs (sRGB codes 32 through 224 in steps of 8) on the appended strip of the costume fixture. Fit only Y shift, M shift and log2 print exposure to these RGB outputs. Keep RS's existing stock pack, calibrated print-exposure normalization, optical stages and scanner. The second image is the independent Batch 13 skin/fabric/foliage and swatch montage. Its image and strip contribute no samples to fitting. The results below use the original 240×384 and 480×144 regions excluding appended pixels, both sides clipped to display range. The shared-negative replay uses the production CPU paper and scan stages.
+
+| Clear print from identical OFX density | Costume P95 / P99 | Held-out montage P95 / P99 |
+| --- | ---: | ---: |
+| Native RS pack | 7.96 / 8.56 | 7.79 / 8.21 |
+| Exposure adjustment alone | 6.22 / 6.84 | 6.25 / 7.19 |
+| Y and M adjustments alone | 1.78 / 1.82 | 1.88 / 1.88 |
+| Y −3.96614, M −0.75753, print EV +0.01927 | 0.28 / 0.31 | 0.35 / 0.35 |
+
+These shifts are relative to RS's packaged C/M/Y 0 / 51.56801 / 52.53400. The fitted EV multiplies RS print exposure by 1.013444. The measured settings are an effective match for this release and process. The full 256-step strip, including the levels excluded from fitting, has peak error 0.12 display code. A separate float Rec.709 gamma 2.2 capture of the costume, decoded and re-encoded to sRGB, differs from the OFX float sRGB capture by at most 0.044 display code. Display transfer differences on the costume do not account for the original paper discrepancy.
+
+**Cut-dependent compensation.** Keep the two clear filtration shifts and change only print exposure, retaining each cut's normal RS calibration. Use the same training gray levels and each cut's actual OFX negative, and validate on the held-out montage. The table gives total EV relative to the RS slider at 1; the two values separated by a slash are OFX camera-filter compensation on / off.
+
+| Lens setting | RS print EV on / off | Held-out P95 on / off | Held-out P99 on / off |
+| --- | ---: | ---: | ---: |
+| UV 430 nm | −0.02430 / +0.03223 | 0.255 / 0.362 | 0.300 / 0.362 |
+| IR 650 nm | −0.01068 / +0.01784 | 0.245 / 0.315 | 0.274 / 0.315 |
+| Both | −0.05447 / +0.03078 | 0.326 / 0.328 | 0.326 / 0.328 |
+
+This measures the effective optical-print exposure difference at these cut settings. Interpolation to other wavelengths, stocks or manual EV settings has not been qualified. Float interchange also differs: on the saturated blue patch of the clear montage OFX emits an encoded red channel of −65.29 in 0–255 units; RS emits zero. Both display as zero. The unclipped P95 is 65.29 for this montage. The tool reports unclipped error separately; the reference-photo gate uses display codes.
+
+**Normal photo entry point.** Applying the fitted clear settings to RS's own Portra negative gave P95 / P99 of 6.39 / 7.67 on the costume and 6.09 / 6.91 on the held-out montage (worse of CPU and resident Vulkan, rounded up). The previous errors with the native pack against these float references were 4.20 / 4.36 and 5.12 / 5.12 on CPU, respectively. Keep the stage calibration diagnostic. In a private resource copy, substituting the archived Python 6e7de28 Portra bandpass from the preceding study with the clear calibrated pack reduced CPU print P95 to 3.26 and 5.08; the held-out density P95 still differed by 0.0586. Next compare neutral and saturated film exposures before curve interpolation and the developed-density curves, holding the qualified paper setup fixed.
+
+**Repeat.** Set `OFX_CASE=off`, `OFX_DISABLE_COLOR_ADAPTATION=1` and `OFX_CUTS_FLOAT_OUTPUT=sRGB` in the Natron driver for a float optical print. Use a separate Cineon capture with the float-output variable unset as in the preceding study. Run `python scripts/parity/ofx_endura_calibration.py <ofx_density_print executable> <RS recipe> <training Cineon TIFF> <training float print TIFF> <held-out Cineon TIFF> <held-out float print TIFF> <scratch recipe.json> --region 480 144` from the RS root. For the UV/IR tests start with the corresponding cut's recipe, copy the fitted clear enlarger settings into it and add `--exposure-only`. The diagnostic writes a replay recipe only after passing the independent display check.
