@@ -1,4 +1,4 @@
-"""Compare the normal CPU and Vulkan photo paths to a clear OFX float sRGB capture."""
+"""Compare normal CPU and Vulkan Portra prints to the matching OFX float sRGB capture."""
 import argparse
 import os
 from pathlib import Path
@@ -21,7 +21,7 @@ def check(args, work):
         raw = work / "frame.bin"
         p = subprocess.run([
             args.cli, "process", args.photo, "--film", "kodak_portra_400", "--paper", "kodak_portra_endura",
-            "--data-dir", args.data, "--params", "recipes/ofx/portra_400_endura_clear.json",
+            "--data-dir", args.data, "--params", args.recipe,
             "-o", work / "frame.png", "--raw-out", raw,
         ], env=dict(os.environ, SPEKTRAFILM_BACKEND=backend), capture_output=True, check=True)
         if label not in p.stderr:
@@ -31,13 +31,14 @@ def check(args, work):
         p95, p99 = np.percentile(error[:height, :width], [95, 99])
         print(f"{backend} P95 {p95:.3f}, P99 {p99:.3f}")
         if not (p95 <= 2 and p99 <= 4):
-            raise SystemExit("clear print exceeds display tolerance")
+            raise SystemExit("Portra print exceeds display tolerance")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ("cli", "data", "photo", "reference"):
         parser.add_argument(name, type=Path)
+    parser.add_argument("--recipe", type=Path, default=Path("recipes/ofx/portra_400_endura_clear.json"))
     parser.add_argument("--region", nargs=2, type=int, required=True, metavar=("WIDTH", "HEIGHT"))
     with tempfile.TemporaryDirectory() as work:
         check(parser.parse_args(), Path(work))

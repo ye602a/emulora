@@ -161,7 +161,7 @@ struct CalibrationInputs {
     negative_bleach: Option<[f32; 2]>,
     film_gamma: f32,
     filter: CameraFilter,
-    spectral_cuts: [Option<[f32; 3]>; 2],
+    spectral_cuts: [Option<([f32; 3], bool)>; 2],
     filter_input_space: Option<String>,
     compensate_filter: bool,
     illuminant: String,
@@ -181,7 +181,7 @@ impl CalibrationInputs {
             window: p.settings.apply_hanatos2025_adaptation_window,
             surface: p.settings.apply_hanatos2025_adaptation_surface,
             spectral_cuts: [p.camera.filter_uv, p.camera.filter_ir]
-                .map(|cut| (cut[0] != 0.).then_some(cut)),
+                .map(|cut| (cut[0] != 0.).then_some((cut, p.camera.normalize_camera_cuts))),
             cat16: p.settings.use_cat16,
             input_gamut: p.io.input_gamut_compress.clone(),
             development: [
@@ -577,6 +577,7 @@ impl Pipeline {
                 ref_illuminant_f64,
                 params.camera.filter_uv,
                 params.camera.filter_ir,
+                params.camera.normalize_camera_cuts,
             )?;
         }
         for material in [&film, &print] {

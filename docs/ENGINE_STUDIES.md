@@ -722,3 +722,26 @@ python scripts/parity/ofx_portra_clear_check.py <spektrafilm-executable> <privat
 ```
 
 Use 240 × 384 for the costume and 480 × 144 for the held-out montage to exclude appended fixture pixels. To refit the print, supply the prepared directory via `--data-dir` to the preceding Endura calibration command.
+
+## Portra 400 UV and IR cuts in OFX 0.3.12
+
+Using the clear reference data above, compare the Windows OFX Cineon negative before paper on both fixtures. Toggling OFX filter exposure compensation left the captured negative identical at every pixel for each cut. From neutral steps 48–209, inverting the RS development curves put the OFX exposure below the default RS cut response by 0.06930 log10 in the blue layer for UV and 0.04900 in the red layer for IR (medians). The transmission and windowed Portra response under D55 predict losses of 0.06935 and 0.04906. Retaining this light loss in RS brought peak CPU negative-density error below 0.000523 over both complete fixtures, all three cuts and both compensation states. The public [OFX Vulkan renderer](https://github.com/chaert-s/spektrafilm-ofx/blob/86476af/src/SpektraVulkanRenderer.cpp) restores per-layer exposure before applying the archived window. The Windows release measurement supports using unnormalized transmission here.
+
+For the OFX compensated print, the clear recipe already recalculates enlarger exposure from the filtered negative. For the uncompensated print, disable both RS enlarger exposure normalizations and hold the effective clear exposure fixed. Fitting that one absolute exposure on the **clear** training wedge gives 0.812967445. Both modes retain the clear Y and M. No cut or colored sample was used to select those settings.
+
+Each cell gives the worse P95 / P99 across the costume and held-out montage and both production backends, in display codes. The CPU 256-step gray strip stayed within 0.113 code in all six cases.
+
+| Lens setting | OFX compensation on | OFX compensation off |
+| --- | ---: | ---: |
+| UV 430 nm, 8 nm transition | 0.316 / 0.353 | 0.408 / 0.408 |
+| IR 650 nm, 15 nm transition | 0.292 / 0.323 | 0.343 / 0.343 |
+| Both | 0.363 / 0.363 | 0.368 / 0.368 |
+
+The resident test checks recalibration and a negative-cache miss when changing the active lens normalization on Hanatos, Arctic and Mallett. On a Hanatos optical print, changing only enlarger compensation and exposure changed the print and hit the cached negative. Cross-product acceptance covers displayed sRGB, manual EV 0 and the listed settings on Portra 400 / Endura.
+
+**Repeat.** Generate the recipe in a new file. Select `uv`, `ir` or `uv-ir` and add `--uncompensated` for the OFX switch off. Use the prepared clear data directory and the matching native OFX float sRGB print.
+
+```text
+python scripts/parity/ofx_portra_cut_recipe.py uv-ir <recipe.json>
+python scripts/parity/ofx_portra_clear_check.py <spektrafilm-executable> <private-data-dir> <input.png> <OFX-float-sRGB.tif> --recipe <recipe.json> --region 480 144
+```

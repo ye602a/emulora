@@ -265,7 +265,7 @@ fn spectral_cuts_change_the_resident_negative_on_all_three_front_ends() {
         p.camera.filter_uv = [1., 450., 12.];
         p.camera.filter_ir = [0.85, 630., 15.];
         assert!(bare.refreshed(p.clone()).is_none());
-        let filtered = build("kodak_portra_400", p).unwrap();
+        let filtered = build("kodak_portra_400", p.clone()).unwrap();
         let actual = render(&filtered);
         assert!(actual.iter().zip(&original).any(|(x,y)| (x-y).abs()>0.001), "{method}");
         let cpu = filtered.try_process(chart(), &CpuBackend).unwrap();
@@ -273,6 +273,26 @@ fn spectral_cuts_change_the_resident_negative_on_all_three_front_ends() {
         assert_eq!(render(&filtered),actual);
         let after = gpu.negative_cache_stats();
         assert_eq!((after.hits-baseline.hits,after.misses-baseline.misses),(1,1));
+        p.camera.normalize_camera_cuts = false;
+        assert!(filtered.refreshed(p.clone()).is_none());
+        let transmitted = build("kodak_portra_400", p.clone()).unwrap();
+        let negative = render(&transmitted);
+        assert_ne!(negative, actual, "{method}");
+        let stats = gpu.negative_cache_stats();
+        assert_eq!(stats.misses - after.misses, 1);
+        if method == "hanatos2025" {
+            p.io.scan_film = false;
+            let compensated = build("kodak_portra_400", p.clone()).unwrap();
+            let print = render(&compensated);
+            let before_edit = gpu.negative_cache_stats();
+            p.enlarger.normalize_print_exposure = false;
+            p.enlarger.print_exposure_compensation = false;
+            p.enlarger.print_exposure = 0.81;
+            let fixed = build("kodak_portra_400", p).unwrap();
+            assert_ne!(render(&fixed), print);
+            let stats = gpu.negative_cache_stats();
+            assert_eq!((stats.hits - before_edit.hits, stats.misses - before_edit.misses), (1, 0));
+        }
     }
 }
 

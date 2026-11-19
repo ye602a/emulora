@@ -433,7 +433,7 @@ pub(crate) fn apply_hanatos_surface(lut: &mut TcLut, rows: &[Vec<f64>], white: (
     }
 }
 
-/// Apply the camera bandpass to stock sensitivity while preserving each
+/// Apply the camera bandpass to stock sensitivity with optional normalization of each
 /// emulsion's integrated exposure to its own reference white.
 pub(crate) fn apply_camera_cuts(
     response: &mut [[f64; 3]],
@@ -441,6 +441,7 @@ pub(crate) fn apply_camera_cuts(
     white: &[f64],
     uv: [f32; 3],
     ir: [f32; 3],
+    normalize: bool,
 ) -> Result<(), String> {
     if wavelengths.len() != white.len() || response.len() != white.len()
         || wavelengths.iter().enumerate().any(|(i, &nm)| nm != 380. + 5. * i as f64)
@@ -466,8 +467,10 @@ pub(crate) fn apply_camera_cuts(
     if gain.iter().any(|g| !g.is_finite() || *g <= 0.) {
         return Err("UV/IR cuts leave no usable reference exposure in a film channel".into());
     }
-    for row in response {
-        for c in 0..3 { row[c] *= gain[c]; }
+    if normalize {
+        for row in response {
+            for c in 0..3 { row[c] *= gain[c]; }
+        }
     }
     Ok(())
 }
@@ -492,7 +495,7 @@ mod camera_cut_tests {
             rows.iter().zip(&white).map(|(row, light)| row[c] * light).sum()
         };
         let mut response = bare.clone();
-        apply_camera_cuts(&mut response, &wl, &white, [1., 430., 10.], [0.5, 650., 10.]).unwrap();
+        apply_camera_cuts(&mut response, &wl, &white, [1., 430., 10.], [0.5, 650., 10.], true).unwrap();
         for c in 0..3 {
             assert!((integral(&response, c) - integral(&bare, c)).abs() < 1e-10);
             let t = |i: usize| response[i][c] / bare[i][c];

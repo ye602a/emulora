@@ -136,6 +136,9 @@ pub struct CameraParams {
     pub filter_uv: [f32; 3],
     #[serde(default = "default_filter_ir")]
     pub filter_ir: [f32; 3],
+    /// Restore each emulsion's reference-white exposure after applying UV/IR cuts.
+    #[serde(default = "default_true")]
+    pub normalize_camera_cuts: bool,
     #[serde(default)]
     pub diffusion_filter: DiffusionFilterParams,
 }
@@ -152,6 +155,7 @@ impl Default for CameraParams {
             film_format_mm: 35.0,
             filter_uv: [0.0, 410.0, 8.0],
             filter_ir: [0.0, 675.0, 15.0],
+            normalize_camera_cuts: true,
             diffusion_filter: DiffusionFilterParams::default(),
         }
     }
