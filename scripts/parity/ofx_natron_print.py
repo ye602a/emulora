@@ -9,6 +9,8 @@ one full-resolution PNG. Compare transport to the source before using output.
 For the UV/IR study, OFX_DISABLE_COLOR_ADAPTATION=1 bypasses the color
 adaptation group. OFX_CUTS_SCAN=1 selects the display scan before printing.
 OFX_DISABLE_FILTER_COMPENSATION=1 isolates the release's camera filter exposure control.
+OFX_CUTS_NEGATIVE=cineon writes a float TIFF in Cineon / DPX Log Density.
+Set it to reprint to feed that TIFF into Process Negative on the same paper.
 """
 import os
 from pathlib import Path
@@ -28,6 +30,10 @@ raw_io(reader)
 source = reader
 adaptation_off = os.environ.get("OFX_DISABLE_COLOR_ADAPTATION") == "1"
 cuts_scan = case in ("off", "uv", "ir", "uv-ir") and os.environ.get("OFX_CUTS_SCAN") == "1"
+negative_io = os.environ.get("OFX_CUTS_NEGATIVE", "")
+assert negative_io in ("", "cineon", "reprint")
+if negative_io:
+    assert (case in ("off", "uv", "ir", "uv-ir") or (case == "transport" and negative_io == "cineon")) and not cuts_scan
 uncompensated = os.environ.get("OFX_DISABLE_FILTER_COMPENSATION") == "1"
 if case != "transport":
     source = app1.createNode("org.spektrafilm")
@@ -41,6 +47,15 @@ if case != "transport":
     if adaptation_off:
         source.getParam("colorAdaptation").set(False)
         assert not source.getParam("colorAdaptation").get()
+    if negative_io:
+        for name, label in (
+            ("process", "Scan negative" if negative_io == "cineon" else "Process negative"),
+            ("negativeScanOutput" if negative_io == "cineon" else "negativeScanInput", "Cineon / DPX Log Density"),
+        ):
+            param = source.getParam(name)
+            options = [param.getOption(i) for i in range(param.getNumOptions())]
+            param.set(options.index(label))
+            assert options[param.get()] == label
     if cuts_scan:
         process = source.getParam("process")
         options = [process.getOption(i) for i in range(process.getNumOptions())]
@@ -85,7 +100,15 @@ if cuts_scan:
     suffix += "-scan"
 if uncompensated:
     suffix += "-uncompensated"
-writer = app1.createWriter(str(Path(os.environ["PRINT_STUDY_DIR"])/("ofx-"+case+suffix+".png")))
+if negative_io:
+    suffix += "-" + negative_io
+ext = ".tif" if negative_io == "cineon" else ".png"
+writer = app1.createWriter(str(Path(os.environ["PRINT_STUDY_DIR"])/("ofx-"+case+suffix+ext)))
+if negative_io == "cineon":
+    depth = writer.getParam("bitDepth")
+    depth.set([depth.getOption(i) for i in range(depth.getNumOptions())].index("32f"))
+    compression = writer.getParam("compression")
+    compression.set([compression.getOption(i) for i in range(compression.getNumOptions())].index("none"))
 writer.getParam("formatType").set(0)  # Match input dimensions.
 writer.connectInput(0,source)
 raw_io(writer)
