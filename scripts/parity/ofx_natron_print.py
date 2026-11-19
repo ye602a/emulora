@@ -6,6 +6,9 @@ OFX_CASE (transport, off, on, negative, diffusion, uv, ir, uv-ir). OFX_PRINT_MOD
 print-silver preset for the on case. In the negative case OFX_NEGATIVE_MODEL,
 OFX_NEGATIVE_AMOUNT (0..1) and OFX_CYAN_COUPLING (0..2) select an isolated trial. OFX_NEGATIVE_SCAN=1 skips the paper. NatronRenderer --no-settings SCRIPT.py 1 writes
 one full-resolution PNG. Compare transport to the source before using output.
+For the UV/IR study, OFX_DISABLE_COLOR_ADAPTATION=1 bypasses the color
+adaptation group. OFX_CUTS_SCAN=1 selects the display scan before printing.
+OFX_DISABLE_FILTER_COMPENSATION=1 isolates the release's camera filter exposure control.
 """
 import os
 from pathlib import Path
@@ -23,6 +26,9 @@ def raw_io(node):
 
 raw_io(reader)
 source = reader
+adaptation_off = os.environ.get("OFX_DISABLE_COLOR_ADAPTATION") == "1"
+cuts_scan = case in ("off", "uv", "ir", "uv-ir") and os.environ.get("OFX_CUTS_SCAN") == "1"
+uncompensated = os.environ.get("OFX_DISABLE_FILTER_COMPENSATION") == "1"
 if case != "transport":
     source = app1.createNode("org.spektrafilm")
     source.connectInput(0, reader)
@@ -32,6 +38,17 @@ if case != "transport":
         param = source.getParam(name)
         options = [param.getOption(i) for i in range(param.getNumOptions())]
         param.set(options.index(label))
+    if adaptation_off:
+        source.getParam("colorAdaptation").set(False)
+        assert not source.getParam("colorAdaptation").get()
+    if cuts_scan:
+        process = source.getParam("process")
+        options = [process.getOption(i) for i in range(process.getNumOptions())]
+        process.set(options.index("Scan negative"))
+        assert options[process.get()] == "Scan negative"
+    if uncompensated:
+        source.getParam("cameraFilterExposureCompensation").set(False)
+        assert not source.getParam("cameraFilterExposureCompensation").get()
     if case == "negative":
         preset = os.environ.get("OFX_NEGATIVE_MODEL", "Modern Neutral")
         amount = float(os.environ.get("OFX_NEGATIVE_AMOUNT", "1"))
@@ -62,6 +79,12 @@ if case == "negative" and any(k in os.environ for k in ("OFX_NEGATIVE_MODEL", "O
     suffix = "-%s-%g-c%g" % (preset.lower().replace(" ", "-"), amount, coupling)
 if case == "negative" and os.environ.get("OFX_NEGATIVE_SCAN") == "1":
     suffix += "-scan"
+if adaptation_off:
+    suffix += "-adaptation-off"
+if cuts_scan:
+    suffix += "-scan"
+if uncompensated:
+    suffix += "-uncompensated"
 writer = app1.createWriter(str(Path(os.environ["PRINT_STUDY_DIR"])/("ofx-"+case+suffix+".png")))
 writer.getParam("formatType").set(0)  # Match input dimensions.
 writer.connectInput(0,source)
