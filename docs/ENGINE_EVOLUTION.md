@@ -6,6 +6,8 @@
 
 For an OFX or LAB alignment feature, the acceptance target is the selected upstream render. Name the product revision, backend, stock pair, recipe and output transform. Compare absolute final pixels on shared inputs, including neutral steps and relevant color/detail regions. Use a separate held-out photo. Comparing the change from each engine's baseline helps locate drift but can conceal a mismatch in both final images. Set tolerances for the particular comparison and retain previously accepted default renders.
 
+The [minimum release checks and outstanding evidence](ENGINE_STUDIES.md#minimum-release-checks-across-implemented-features) cover the remaining full paper grades, red glass, camera methods, paper chemistry, diffusion, DIR, halation and roll layouts. Known failures have a measured baseline. The unexposed Hanatos correction and Metal-only hue path still lack a released-product image comparison. One-photo checks qualify only the stated example.
+
 | Order | Reference and work | Completion evidence |
 | --- | --- | --- |
 | 1 · delivered | LAB Windows 1.3.4-beta.3, Tri-X 400 / Multigrade IV RC grade 2, clear, yellow No. 8 and No. 12. Use the supplied reference recipes for manual exposure and grain off. | Final LAB Vulkan outputs compared directly to production RS CPU and Vulkan on the costume/wedge and two held-out photos. [Results and repeatable check](ENGINE_STUDIES.md#lab-reference-prints-for-the-yellow-filters) |

@@ -1,4 +1,4 @@
-"""Verify the black-and-white / grade 2 yellow-filter recipes against the Windows LAB host.
+"""Compare monochrome full grades and camera filters against the Windows LAB host.
 
 Run from the RS root. Put the release tag's engine/tests/host_smoke.py on
 PYTHONPATH. Inputs are sRGB PNGs; both engines receive the same linear TIFF.
@@ -31,7 +31,10 @@ def shared_input(source, path):
 def run(args):
     args.out.mkdir(parents=True, exist_ok=True)
     resources = args.lab / "host/engine"
-    grade = json.loads((resources / "paper_grades.json").read_text())["grades"]["2"]
+    grades = ("00", "0", "1", "2", "3", "4", "5")
+    grade = json.loads((resources / "paper_grades.json").read_text())["grades"][args.grade]
+    paper = json.loads(Path("data/profiles/ilford_multigrade_iv_rc.json").read_text(encoding="utf8"))
+    pack = paper["data"]["paper_grades"][grades.index(args.grade)]
     host = Host([str(args.lab / "spektralab-host.exe"), "--resources", str(resources)])
 
     def call(method, **params):
@@ -49,7 +52,7 @@ def run(args):
             tif = (args.out / f"{index}-{source.stem}.tif").resolve()
             shape = shared_input(source, tif)
             for film, glass in product(args.films, args.filters):
-                name = f"{tif.stem}-{film}-{glass}"
+                name = f"{tif.stem}-{film}-g{args.grade}-{args.pack}-{glass}"
                 params = dict(film_stock=film, print_stock="ilford_multigrade_iv_rc",
                               output_color_space="sRGB", camera_filter="" if glass == "clear" else glass,
                               film_format_mm=35, auto_exposure=False, grain_active=False,
@@ -66,12 +69,25 @@ def run(args):
                 lab = np.frombuffer(blob, "<u2").reshape(*shape[:2], 4)[:, :, :3] / 257
                 Image.fromarray(lab.round().astype("uint8")).save(args.out / f"{name}-lab.png")
 
-                recipe = "mg2-clear" if glass == "clear" else f"trix400-mg2-{glass}"
+                preset = f"trix400-mg2-{glass}" if glass in ("w8", "w12") else "mg2-clear"
+                recipe = Path(f"recipes/spektralab/{preset}.json")
+                if args.grade != "2" or args.pack == "native" or glass == "w25":
+                    settings = json.loads(recipe.read_text())
+                    settings["print_render"]["paper_grade"] = args.grade
+                    if glass == "w25":
+                        settings["camera"].update(photographic_filter="wratten25", compensate_filter=True)
+                    settings["enlarger"] = {} if args.pack == "native" else {
+                        "y_filter_shift": grade["y_filter_neutral"] - pack["yellow"],
+                        "m_filter_shift": grade["m_filter_neutral"] - pack["magenta"],
+                        "print_exposure": grade["print_exposure"] / pack["exposure"],
+                    }
+                    recipe = args.out / f"{name}.json"
+                    recipe.write_text(json.dumps(settings, indent=2))
                 for backend in ("cpu", "wgpu"):
                     raw = args.out / f"{name}-{backend}.bin"
                     p = subprocess.run([
                         args.cli, "process", tif, "--film", params["film_stock"], "--paper", params["print_stock"],
-                        "--params", f"recipes/spektralab/{recipe}.json",
+                        "--params", recipe,
                         "-o", raw.with_suffix(".png"), "--raw-out", raw,
                     ], env={**os.environ, "SPEKTRAFILM_BACKEND": backend}, capture_output=True, check=True)
                     expected = b"CPU (rayon)" if backend == "cpu" else b"wgpu (GPU)"
@@ -79,7 +95,8 @@ def run(args):
                     rs = np.fromfile(raw, "<f8").reshape(shape) * 255
                     error = np.max(np.abs(rs - lab), axis=2)
                     p50, p95, p99 = np.percentile(error, [50, 95, 99])
-                    results.append(dict(image=source.name, film=film, filter=glass, backend=backend,
+                    results.append(dict(image=source.name, film=film, grade=args.grade, pack=args.pack,
+                                        filter=glass, backend=backend,
                                         p50=p50, p95=p95, p99=p99, peak=float(error.max())))
     finally:
         host.call("shutdown")
@@ -99,6 +116,9 @@ if __name__ == "__main__":
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--films", nargs="+", default=["kodak_tri_x_400"], choices=[
         "kodak_tri_x_400", "kodak_tmax_100", "fujifilm_neopan_acros_100_ii", "ilford_hp5_plus_400"])
-    parser.add_argument("--filters", nargs="+", default=["clear", "w8", "w12"], choices=["clear", "w8", "w12"])
+    parser.add_argument("--filters", nargs="+", default=["clear", "w8", "w12"], choices=["clear", "w8", "w12", "w25"])
+    parser.add_argument("--grade", default="2", choices=["00", "0", "1", "2", "3", "4", "5"])
+    parser.add_argument("--pack", default="matched", choices=["matched", "native"],
+                        help="use the LAB enlarger pack or the native RS pack for this grade")
     parser.add_argument("photo", nargs="+", type=Path)
     run(parser.parse_args())

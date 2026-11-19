@@ -625,3 +625,46 @@ Same Portra 400 / Endura recipe and OFX 0.3.12 package as above, with color adap
 Both the negative response and subsequent print path contribute. Even the clear shared negative fails the final 2 / 4 limits. OFX's separate Process Negative import route also needs its own baseline: exporting and reimporting its clear Cineon negative through that route produced a P95 difference of 43 codes on the costume and 45 on the montage relative to the native optical print. The imported negative gave identical pixels with the camera IR switch on and off. Use the native optical print as the target. Prioritize the clear Endura pack and print exposure calibration before adjusting cut-dependent compensation. The shared-negative replay is CPU-only; the previous end-to-end Vulkan results remain the GPU coverage.
 
 **Repeat from the repository root.** Use the preceding Natron controls plus `OFX_CUTS_NEGATIVE=cineon` for a 32-bit float TIFF, then unset that option for the native PNG print. Set `OFX_DISABLE_FILTER_COMPENSATION=1` for the uncompensated control. Run the matching RS CLI recipe with `SPEKTRAFILM_BACKEND=cpu`, `SPEKTRAFILM_DUMP_FILM_DENSITY=<negative.bin>` and `--raw-out <direct.bin>`. Build the diagnostic with `cargo build --locked -p spektrafilm-cli --example ofx_density_print`. Run `python scripts/parity/ofx_density_replay.py <example-executable> <recipe.json> <cineon.tif> <native-ofx.png> <negative.bin> <direct.bin> --region <width> <height>`. It checks the RS control before reporting the shared-negative result. To check OFX import separately, pass the float TIFF to Natron with `OFX_CUTS_NEGATIVE=reprint`.
+
+### Minimum release checks across implemented features
+
+RS 5bf9c64, SpektraLab Windows 1.3.4-beta.3 native Vulkan, OFX Windows 0.3.12 in Natron. Both release identities and the source photos are described in the preceding studies. A minimum check here means one representative photo per distinct operation, with a neutral control. The whole-frame deterministic print gate is P95 ≤ 2 and P99 ≤ 4 for the largest absolute channel error in 8-bit sRGB codes. The pass decision uses the unrounded values. Grain, meter EV, optical impulse response, geometry and cache identity use the observable specific to those operations. A single photo passing does not extend a qualification to other recipes or stocks.
+
+**LAB full grades.** Tri-X 400, clear lens, original costume photo and eight-step wedge. Manual EV 0, 35 mm, linear ProPhoto input, grain/DIR/halation/glare disabled, standard LAB output and sharpening. The only difference between the two RS columns is the enlarger pack. “Matched” uses LAB's bundled per-grade Y, M and print exposure, converted by subtracting the RS grade filtration and dividing by its exposure. No data were fitted to this image. The two-backend maxima are below.
+
+| Multigrade IV RC | RS native pack P95 / P99 | LAB pack P95 / P99 |
+| --- | ---: | ---: |
+| 00 | 1.41 / 1.58 | 0.02 / 0.02 |
+| 0 | 3.51 / 3.95 | 0.02 / 0.02 |
+| 1 | 3.55 / 3.83 | 0.02 / 0.03 |
+| 2 | 5.38 / 6.37 | 0.023 / 0.033¹ |
+| 3 | 1.72 / 2.40 | 0.02 / 0.04 |
+| 4 | 8.76 / 9.83 | 0.03 / 0.05 |
+| 5 | 0.59 / 0.75 | 0.04 / 0.06 |
+
+¹ Retained upper bounds across the previously verified three inputs. On grade 2 with compensated No. 25 red, both RS backends passed the costume/wedge: worst P95 / P99 were 1.40 / 1.49 (Tri-X), 1.29 / 1.37 (T-Max), 0.69 / 0.76 (Acros), 0.35 / 0.47 (HP5). Use the [LAB comparison driver](../scripts/parity/lab_windows_yellow_filters.py) with one photo, `--grade`, `--pack native|matched`, and `--filters clear` or `w25`. The driver writes the converted recipe into the scratch directory and returns failure for a tolerance miss. The existing 12 yellow/clear combinations at grade 2 retain their three-input acceptance. ISO paper speed and darkroom half grades use different physical evidence.
+
+**OFX release.** The skin, woven fabric, foliage and swatches montage from Batch 13, raw Natron transport, sRGB in/out, EV 0, 35 mm, grain/DIR/halation/scanner/glare off. Bypass OFX color adaptation and both RS gamut compressors as in the preceding UV/IR check. The B&W Still Film print selector offered Ilfobrom Galerie FB 1K; RS ships Multigrade IV RC. Compare HP5 as a direct scan so that the paper choice drops out. The selected cameraColorFilter labels include the plain Wratten 08, 12, 25 and 29. For color, use Portra 400 / Endura. Worst backend over CPU and Vulkan:
+
+| Case | Absolute P95 / P99 | P95 disagreement in change from clear or optical control |
+| --- | ---: | ---: |
+| HP5 clear scan | 26.34 / 29.51 | baseline |
+| HP5 No. 8 | 30.51 / 30.55 | 14.00 |
+| HP5 No. 12 | 18.15 / 18.18 | 16.64 |
+| HP5 No. 25 | 14.07 / 16.66 | 24.37 |
+| HP5 No. 29 | 14.41 / 18.05 | 26.38 |
+| RS beta04, OFX release menu Arctic 2026 | 33.00 / 34.00 | 33.00 |
+| RS normal Hanatos stock window, OFX Hanatos 2026 | 6.53 / 6.90 | 6.00 |
+| Print Black Pro-Mist, strength 0.5 | 7.35 / 16.76 | 6.71 |
+| Parametric paper gamma factor 1.2 | 5.89 / 5.89 | 1.30 |
+| Paper developer exhaustion 0.5 | 16.71 / 19.40 | 13.69 |
+
+Use `OFX_DISABLE_COLOR_ADAPTATION=1` with the corresponding `OFX_CASE` in the [Natron driver](../scripts/parity/ofx_natron_print.py). For Hanatos 2026 the control is OFX Hanatos 2025 versus the same RS windowed print. The Arctic check compares the selectable release effects. The OFX menu supplies no beta revision. A small difference in the effect of gamma coexists with the unaligned optical baseline. The saved full-strength bypass outputs already decide the release-preset question: re-scoring the existing six negative presets gave final P95 43.17–62.84; the four print presets gave 50.28–89.21. The saved camera Black Pro-Mist render gave 35.49 with its original color settings. Existing UV/IR clear and cut outputs also exceed the gate. No rerender or preset search was needed for those decisions.
+
+**LAB spatial cases.** On the same backlit costume/wedge and Portra / Endura with 4 mm film scale (the host minimum, to resolve the effects on the small image), clear, DIR on and halation on gave P95 / P99 0.03 / 0.06, 1.54 / 3.76 and 10.43 / 25.54 respectively on RS Vulkan. The earlier lens impulse and grain aperture studies remain the spatial-radius and noise-statistic checks. White-noise pixels are not paired across independent renderers.
+
+For roll layout, start from the same landscape image cropped to each LAB gate aspect ratio; square gate, black holes, no fog/leak, seeds 1. Set RS overscan symmetrically to match the LAB output dimensions. Full-frame P95 / P99 were 78.16 / 213.04 on 135 (250×232), 157.78 / 211.55 on half frame (280×150) and 91.87 / 165.72 on 645 (244×180). These measure the entire placement and border result at equal output size. The implementations specify 17 versus 18 mm half gates and 61.5 versus 61 mm 120 strips. For a separate 135 activation check the same date text changed 317 LAB / 376 RS pixels by more than two codes. A LAB seeded leak and an RS authored side leak changed 658 / 7301 pixels. The two controls have no defined coordinate/intensity mapping between products. These are separate looks; XPan has no corresponding format in the tested LAB release. RS geometry, cache and ROI tests remain relevant to the RS contract.
+
+**Evidence still open.** The Windows LAB host rejected the wire names for the Hanatos surface, negative hue and RGB-to-raw method. The tagged code evaluates the surface internally and fixes the renderer to Hanatos 2025. The mainline negative-hue renderer uses Metal. The existing comparison with LAB's compiled hue-calibration routines and the Python polynomial-cell checks cover those implementations; their enabled LAB product outputs remain unverified. Other full-image sizes, stocks and platforms were not exhaustively swept. Current results do not qualify a physical half-grade, an unreleased rem-jet control or an unlicensed Portra NC/VC pack.
+
+**Existing checks retained.** Five LAB Hanatos optical film/paper pairs plus four trim/preflash cases, the meter and latitude probe, lens impulse and Portra grain aperture have measured reference results above. The CUBE bake is checked against the engine's pointwise photo render. Cache invalidation, buffer reuse, image I/O, CPU/Vulkan regression and FPW saved RAW/export checks use their own acceptance contracts. The current branch's standalone real-window interactions, LAB Metal product renders and FPW mainline adoption are separate outstanding acceptance or integration tasks.

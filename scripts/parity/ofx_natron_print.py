@@ -16,7 +16,11 @@ import os
 from pathlib import Path
 
 case = os.environ["OFX_CASE"]
-assert case in ("transport","off","on","negative","diffusion","uv","ir","uv-ir")
+bw_filters = {"hp5-clear": "None", "hp5-w8": "Wratten 08 Yellow (K2 Full Cor.)",
+              "hp5-w12": "Wratten 12 Deep Yellow (-blue)", "hp5-w25": "Wratten 25 Red (Tricolor Separation)",
+              "hp5-w29": "Wratten 29 Red (Color Separation)"}
+assert case in ("transport","off","on","negative","diffusion","uv","ir","uv-ir",
+                "arctic","hanatos-2026","print-diffusion","print-gamma","print-exhaustion") or case in bw_filters
 model = os.environ.get("OFX_PRINT_MODEL", "Stock Character")
 reader = app1.createReader(os.environ["PRINT_STUDY_INPUT"])
 
@@ -38,12 +42,18 @@ uncompensated = os.environ.get("OFX_DISABLE_FILTER_COMPENSATION") == "1"
 if case != "transport":
     source = app1.createNode("org.spektrafilm")
     source.connectInput(0, reader)
-    for name,label in {"film":"Kodak Portra 400","paper":"Kodak Professional Portra Endura",
-                       "inputColorSpace":"sRGB","sdrOutputColorSpace":"sRGB",
-                       "rgbToRawMethod":"Hanatos 2025","printBleachBypassModel":model}.items():
+    choices = {"film":"Kodak Portra 400","paper":"Kodak Professional Portra Endura"}
+    if case in bw_filters:
+        choices = {"filmCategory":"B&W Still Film","film":"Ilford HP5 Plus",
+                   "process":"Scan negative","cameraColorFilter":bw_filters[case]}
+    choices.update(inputColorSpace="sRGB", sdrOutputColorSpace="sRGB",
+                   rgbToRawMethod={"arctic":"Arctic 2026", "hanatos-2026":"Hanatos 2026"}.get(case, "Hanatos 2025"),
+                   printBleachBypassModel=model)
+    for name,label in choices.items():
         param = source.getParam(name)
         options = [param.getOption(i) for i in range(param.getNumOptions())]
         param.set(options.index(label))
+        assert options[param.get()] == label
     if adaptation_off:
         source.getParam("colorAdaptation").set(False)
         assert not source.getParam("colorAdaptation").get()
@@ -84,6 +94,14 @@ if case != "transport":
     if case == "diffusion":
         source.getParam("cameraDiffusionEnabled").set(True)
         source.getParam("cameraDiffusionStrength").set(0.5)
+    if case == "print-diffusion":
+        source.getParam("printDiffusionEnabled").set(True)
+        source.getParam("printDiffusionStrength").set(0.5)
+    if case in ("print-gamma", "print-exhaustion"):
+        source.getParam("printChemistryActive").set(True)
+        knob, value = ("printChemistryGammaFactor", 1.2) if case == "print-gamma" else ("printChemistryDeveloperExhaustion", 0.5)
+        source.getParam(knob).set(value)
+        assert abs(source.getParam(knob).get() - value) < 1e-5
     for name,value in {"dirAmount":0.0,"grainEnabled":False,"halationEnabled":False,
                        "scannerEnabled":False,"autoExposure":False,"glarePercent":0.0,
                        "negativeBleachBypassAmount":amount if case=="negative" else 0.0,
