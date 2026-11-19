@@ -5,6 +5,7 @@ pub mod data;
 pub mod enlarger;
 pub mod gamut_compression;
 pub mod input_gamut;
+pub mod latitude;
 pub mod lut_bake;
 pub mod mallett;
 mod negative_hue;

@@ -210,3 +210,11 @@ In the standalone GUI open **Exposure**, enable auto exposure and choose a meter
 | `protect_shadows` | Lift a substantial dark region. It can raise balanced exposure by up to 2 EV, using the 5th percentile. |
 
 These modes meter linear input before film exposure. They estimate one exposure adjustment for the whole photo. Manual camera EV still adds to it. Existing settings retain their meaning and the default meter is center_weighted. The older highlight_weighted method weights luminance by its square and can respond more strongly to a single lamp. Spectral LUT export omits scene-dependent metering. [Measured comparisons](ENGINE_STUDIES.md#still-photo-exposure-metering)
+
+### Film exposure latitude
+
+Use `spektrafilm process photo.png --film kodak_portra_400 --paper kodak_portra_endura --latitude -o print.png` when changing stock, paper or exposure on a backlit scene. The CLI reports the usable neutral stop range relative to 18.4% gray and the fractions of the rendered samples near the medium's black and white ends. The ordinary output image keeps its requested recipe. A direct slide scan also supports the report. A transmission negative or a medium with no measurable positive black returns a diagnostic error.
+
+The JSON line includes two views. `scene` estimates placement from linear input before development using LAB's channel-weighted brightness. `output` counts the samples in the finished image against the measured luminance thresholds. Use the latter for brightly colored fur, stage lighting and saturated clothing. Both sample up to 1024 positions per axis by stride; counts are relative to the valid sample count. Zero/dark-only or invalid RGB samples are excluded from the scene estimate. Black output pixels count as shadows. These are boundaries on a neutral tone ramp; texture can survive past them and an individual color channel can clip earlier.
+
+Host integrations can retain the result of `Pipeline::measure_latitude`, analyze a supplied linear frame with `place_scene` and optionally measure an already available rendered buffer with `measure_output`. The diagnostic is opt-in. [Exposure ownership](maintenance/HOST_GPU_INTEGRATION_CONTRACT.md#exposure-ownership-and-read-only-latitude) · [Matched photos and measured boundaries](ENGINE_STUDIES.md#film-latitude-on-backlit-fur-and-a-neutral-wedge)

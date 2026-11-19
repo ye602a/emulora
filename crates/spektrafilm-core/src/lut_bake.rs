@@ -28,6 +28,45 @@ pub fn bake_3d_lut(
             io.output_color_space
         ));
     }
+    pointwise_params(&mut params);
+    let pipeline = Pipeline::new_with_spectral(film, print, params, data_dir)?;
+    let mut grid = ImageBuf::new(size * size, size);
+    let denominator = (size - 1) as Scalar;
+    for (index, rgb) in grid.pixels_mut().enumerate() {
+        let i = index as u32;
+        let coordinates = [i % size, (i / size) % size, i / (size * size)];
+        rgb.copy_from_slice(&coordinates.map(|v| v as Scalar / denominator));
+    }
+    render_probe(&pipeline, grid, backend)
+}
+
+/// Isolate deterministic probes from the host's retained negative and work planes.
+pub(crate) fn render_probe(
+    pipeline: &Pipeline,
+    grid: ImageBuf,
+    backend: &dyn ComputeBackend,
+) -> Result<ImageBuf, String> {
+    let output = if backend.is_gpu() {
+        let options = FilmRenderOptions {
+            isolate_photo_caches: true,
+            ..Default::default()
+        };
+        pipeline
+            .process_resident_with_options(&grid, backend, options)
+            .map_err(|e| e.to_string())?
+            .ok_or("no resident spectral probe route on the selected backend")?
+    } else {
+        pipeline
+            .try_process(grid, backend)
+            .map_err(|e| e.to_string())?
+    };
+    if output.data.iter().any(|v| !v.is_finite()) {
+        return Err("non-finite spectral probe sample".into());
+    }
+    Ok(output)
+}
+
+pub(crate) fn pointwise_params(params: &mut RuntimeParams) {
     params.camera.auto_exposure = false;
     params.camera.diffusion_filter.active = false;
     params.camera.lens_blur_um = 0.0;
@@ -52,31 +91,4 @@ pub fn bake_3d_lut(
     // interpolation when the caller uses the optional CPU acceleration LUTs.
     params.settings.use_enlarger_lut = false;
     params.settings.use_scanner_lut = false;
-
-    let pipeline = Pipeline::new_with_spectral(film, print, params, data_dir)?;
-    let mut grid = ImageBuf::new(size * size, size);
-    let denominator = (size - 1) as Scalar;
-    for (index, rgb) in grid.pixels_mut().enumerate() {
-        let i = index as u32;
-        let coordinates = [i % size, (i / size) % size, i / (size * size)];
-        rgb.copy_from_slice(&coordinates.map(|v| v as Scalar / denominator));
-    }
-    let output = if backend.is_gpu() {
-        let options = FilmRenderOptions {
-            isolate_photo_caches: true,
-            ..Default::default()
-        };
-        pipeline
-            .process_resident_with_options(&grid, backend, options)
-            .map_err(|e| e.to_string())?
-            .ok_or("no resident spectral LUT route on the selected backend")?
-    } else {
-        pipeline
-            .try_process(grid, backend)
-            .map_err(|e| e.to_string())?
-    };
-    if output.data.iter().any(|v| !v.is_finite()) {
-        return Err("non-finite spectral LUT sample".into());
-    }
-    Ok(output)
 }

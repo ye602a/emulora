@@ -288,6 +288,18 @@ pub struct Pipeline {
 }
 
 impl Pipeline {
+    /// Measure the neutral paper-print or slide response using this prepared calibration.
+    /// No scene metering or render-state changes are applied to the caller.
+    pub fn measure_latitude(
+        &self,
+        backend: &dyn ComputeBackend,
+    ) -> Result<crate::latitude::MediumLatitude, String> {
+        if self.calibration.is_none() {
+            return Err("latitude requires a calibrated spectral pipeline".into());
+        }
+        crate::latitude::measure(self, backend)
+    }
+
     /// Accessor for the pre-computed TC LUT (used by parity tests).
     pub fn tc_lut(&self) -> Option<&TcLut> {
         self.tc_lut.as_ref()

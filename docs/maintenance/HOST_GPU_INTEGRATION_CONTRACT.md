@@ -105,3 +105,11 @@ The [public host example](../../crates/spektrafilm-core/examples/fpw_host_contra
 exercises paper, slide and calibrated-negative routes with bundled resources.
 Current test evidence is in [VALIDATION.md](VALIDATION.md); changes to accepted
 rendering follow the [compatibility plan](FPW_PARITY_MIGRATION_PLAN.md).
+
+### Exposure ownership and read-only latitude
+
+FPW main e1d0759 and the adoption branch 9ec49d9 set camera.auto_exposure=false, send the recipe camera EV once, and set enlarger.print_exposure_compensation=false. The standalone LAB-style meters are opt-in for a host. The adoption branch already samples its preprocessed scene on GPU and probes a prepared stock pipeline for its latitude panel. RS now exposes the corresponding read-only medium measurement; when FPW next updates the pin it can reuse this API and keep its existing frame histogram and worker cache. This batch did not change FPW's pin.
+
+For a future host pre-development auto adjustment, supply the resulting linear frame to both the film render and scene measurement. Keep the RS meter off. If the host has applied the gain to pixels, camera EV carries only the photographer's additional film trim. Alternatively a host can supply untouched pixels and fold a global gain into the camera trim once when using the FPW non-retimed paper contract. A local tone adjustment must travel in the pixels. The prepared source identity must change with the preprocessed pixels so a cached scene histogram or negative cannot outlive that adjustment. Manual film EV and enlarger compensation are included in the probed medium. Applying manual EV to the scene samples again would double-count it. Any deliberately enabled RS meter contributes only its measured auto EV to these samples.
+
+For resident work, measure the small neutral ramp on the existing backend. The isolated probe leaves the retained photo negative and work planes alone. A host already holding its scene histogram can compare bins directly to shadow_ev and highlight_ev. A host with GPU-only final textures need not read back a full photo to use the medium boundaries. [FPW exposure adapter](https://github.com/ye602a/fursuit-photo-workflow/blob/9ec49d9/native/crates/fpw-runtime/src/film.rs) · [FPW latitude implementation](https://github.com/ye602a/fursuit-photo-workflow/blob/9ec49d9/native/crates/fpw-runtime/src/latitude.rs)

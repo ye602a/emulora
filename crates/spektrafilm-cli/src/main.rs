@@ -39,6 +39,9 @@ enum Commands {
         /// Scan film directly (skip printing stage).
         #[arg(long)]
         scan_film: bool,
+        /// Report print/slide latitude and how much of the rendered photo lies near black or white.
+        #[arg(long)]
+        latitude: bool,
         /// Print per-stage timing information.
         #[arg(long)]
         timings: bool,
@@ -108,6 +111,7 @@ fn main() -> Result<()> {
             paper,
             scan_film,
             timings,
+            latitude,
             params: params_file,
             raw_out,
             iters,
@@ -120,6 +124,7 @@ fn main() -> Result<()> {
                 paper.as_deref(),
                 scan_film,
                 timings,
+                latitude,
                 params_file.as_deref(),
                 raw_out.as_deref(),
                 iters,
@@ -161,6 +166,7 @@ fn cmd_process(
     paper_name: Option<&str>,
     scan_film: bool,
     show_timings: bool,
+    latitude: bool,
     params_file: Option<&Path>,
     raw_out: Option<&Path>,
     iters: usize,
@@ -198,6 +204,13 @@ fn cmd_process(
     let pipeline = Pipeline::new_with_spectral(film, print, params, data_dir)
         .map_err(anyhow::Error::msg)
         .context("initializing spectral photo pipeline")?;
+    let diagnostic = if latitude {
+        let medium = pipeline.measure_latitude(backend.as_ref()).map_err(anyhow::Error::msg)?;
+        let placement = medium.place_scene(&image, &pipeline.params).map_err(anyhow::Error::msg)?;
+        Some((medium, placement))
+    } else {
+        None
+    };
     let result = if iters > 1 {
         // Warm-cache bench: process the image `iters` times in the same backend
         // instance. The first iteration pays shader-compile cost; subsequent ones
@@ -221,6 +234,21 @@ fn cmd_process(
         r
     };
 
+    if let Some((medium, scene)) = diagnostic {
+        let output = medium.measure_output(&result, &pipeline.params).map_err(anyhow::Error::msg)?;
+        if output.sampled > 0 {
+            let percent = 100.0 / output.sampled as f64;
+            eprintln!(
+                "Film latitude {:+.2} to {:+.2} EV. Rendered samples near black: {:.2}%, near white: {:.2}%.",
+                medium.shadow_ev, medium.highlight_ev,
+                output.below_shadow as f64 * percent, output.above_highlight as f64 * percent,
+            );
+        }
+        eprintln!("Latitude: {}", serde_json::json!({
+            "shadow_ev": medium.shadow_ev, "highlight_ev": medium.highlight_ev,
+            "black_y": medium.black_y, "white_y": medium.white_y, "scene": scene, "output": output,
+        }));
+    }
     // Save output
     let t = Instant::now();
     save_image(&result, output)?;
