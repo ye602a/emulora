@@ -47,7 +47,7 @@ fn chart() -> ImageBuf {
 }
 
 #[test]
-fn compensated_red_filters_preserve_gray_and_separate_red_and_blue_in_print() {
+fn compensated_filters_preserve_gray_and_separate_red_and_blue_in_print() {
     for method in ["hanatos2025", "arctic2026beta04", "mallett2019"] {
         let mut p = recipe();
         p.settings.rgb_to_raw_method = method.into();
@@ -57,7 +57,9 @@ fn compensated_red_filters_preserve_gray_and_separate_red_and_blue_in_print() {
         // Kodak H-1-5222 daylight factors. These are independent of the
         // LUTs and catch treating null log samples as unit sensitivity.
         for (filter, daylight) in [
-            (CameraFilter::Wratten25, 8.0_f64),
+            (CameraFilter::Wratten8, 1.5_f64),
+            (CameraFilter::Wratten12, 2.0),
+            (CameraFilter::Wratten25, 8.0),
             (CameraFilter::Wratten29, 20.0),
         ] {
             p.camera.photographic_filter = filter;
@@ -149,10 +151,18 @@ fn resident_filter_changes_density_once_and_preserves_fog() {
     let physical = render(p.clone());
     p.camera.compensate_filter = true;
     let comp = render(p.clone());
-    let again = render(p);
+    let again = render(p.clone());
     assert_eq!(again.data, comp.data);
     let stats = gpu.negative_cache_stats();
     assert_eq!((stats.hits, stats.misses), (1, 3));
+    p.camera.photographic_filter = CameraFilter::Wratten8;
+    let yellow = render(p.clone());
+    p.camera.photographic_filter = CameraFilter::Wratten12;
+    let deep_yellow = render(p.clone());
+    assert_ne!(yellow.data, deep_yellow.data);
+    assert_eq!(deep_yellow.data, render(p).data);
+    let stats = gpu.negative_cache_stats();
+    assert_eq!((stats.hits, stats.misses), (2, 5));
     let mut shoulder = 0;
     let mut changed = 0;
     for y in 0..bare.height {

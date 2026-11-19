@@ -67,7 +67,7 @@ impl Default for DiffusionFilterParams {
     }
 }
 
-/// Lens-mounted photographic red filters, sampled on the film wavelength grid.
+/// Lens-mounted photographic filters, sampled on the film wavelength grid.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CameraFilter {
@@ -75,30 +75,44 @@ pub enum CameraFilter {
     Off,
     /// Open lens using the measured monochrome passband (zero outside sampled sensitivity).
     Clear,
+    Wratten8,
+    Wratten12,
     Wratten25,
     Wratten29,
 }
 
 impl CameraFilter {
     pub fn has_glass(self) -> bool {
-        matches!(self, Self::Wratten25 | Self::Wratten29)
+        !matches!(self, Self::Off | Self::Clear)
     }
 
-    /// B-3 transmission fractions at 10 nm from 580 to 700 nm. Shorter
+    /// B-3 transmission fractions at 10 nm intervals ending at 700 nm. Shorter
     /// wavelengths are blocked; the last measured value is held to 780 nm.
     pub(crate) fn transmission(self, nm: f64) -> f64 {
-        let knots = match self {
+        let knots: &[f64] = match self {
             Self::Off | Self::Clear => return 1.0,
-            Self::Wratten25 => [
+            Self::Wratten8 => &[
+                0., 0.0025, 0.055, 0.190, 0.410, 0.635, 0.780, 0.841, 0.865,
+                0.877, 0.884, 0.888, 0.892, 0.895, 0.898, 0.901, 0.903, 0.905,
+                0.907, 0.909, 0.910, 0.911, 0.912, 0.913, 0.914, 0.915,
+            ],
+            Self::Wratten12 => &[
+                0., 0.015, 0.173, 0.550, 0.778, 0.860, 0.884, 0.894, 0.897,
+                0.901, 0.903, 0.904, 0.905, 0.907, 0.908, 0.909, 0.910, 0.911,
+                0.912, 0.912, 0.912, 0.913,
+            ],
+            Self::Wratten25 => &[
                 0., 0.126, 0.5, 0.75, 0.826, 0.855, 0.867, 0.876, 0.882, 0.885, 0.89, 0.893, 0.895,
             ],
-            Self::Wratten29 => [
+            Self::Wratten29 => &[
                 0., 0., 0., 0.105, 0.45, 0.735, 0.842, 0.878, 0.892, 0.898, 0.903, 0.905, 0.905,
             ],
         };
-        let pos = ((nm - 580.0) / 10.0).clamp(0.0, 12.0);
+        let last = knots.len() - 1;
+        let first_nm = 700.0 - 10.0 * last as f64;
+        let pos = ((nm - first_nm) / 10.0).clamp(0.0, last as f64);
         let i = pos as usize;
-        knots[i] + pos.fract() * (knots[(i + 1).min(12)] - knots[i])
+        knots[i] + pos.fract() * (knots[(i + 1).min(last)] - knots[i])
     }
 }
 

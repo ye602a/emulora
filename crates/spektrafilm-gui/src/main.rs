@@ -1039,6 +1039,8 @@ impl App {
                     let options = [
                         (CameraFilter::Off, "Original stock response"),
                         (CameraFilter::Clear, "Measured response, clear lens"),
+                        (CameraFilter::Wratten8, "No. 8 yellow"),
+                        (CameraFilter::Wratten12, "No. 12 deep yellow"),
                         (CameraFilter::Wratten25, "No. 25 red"),
                         (CameraFilter::Wratten29, "No. 29 deep red"),
                     ];
