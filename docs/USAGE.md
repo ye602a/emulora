@@ -197,7 +197,7 @@ For a color negative, set **Negative bleach bypass** in the standalone film cont
 
 ## Print bleach bypass
 
-On a color print, **Print bleach bypass** sets the retained-silver look from 0 (the normal optical print) to 1 (full modeled strength). A CLI recipe can set `{"print_render":{"bleach_bypass":0.5}}`. Film scans and silver B&W paper ignore the print control. The parameter is downstream of the developed negative; a resident host reprinting the same source can reuse its negative. Standalone GUI interaction and FPW control wiring were not tested. [Model and photograph comparison](ENGINE_STUDIES.md#print-bleach-bypass)
+On a color print, **Print bleach bypass** sets the retained-silver look from 0 (the normal optical print) to 1 (full modeled strength). A CLI recipe can set `{"print_render":{"bleach_bypass":0.5}}`. Film scans and silver B&W paper ignore the print control. The parameter is downstream of the developed negative; a resident host reprinting the same source can reuse its negative. The [standalone window check](ENGINE_STUDIES.md#source-generated-lab-references-and-standalone-window-acceptance) covers a color print and the silver-paper control boundary. FPW control wiring remains separate. [Model and photograph comparison](ENGINE_STUDIES.md#print-bleach-bypass)
 
 ### Cinema film and viewing illuminants
 

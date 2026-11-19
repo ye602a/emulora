@@ -185,6 +185,7 @@ struct ProfileEntry {
     hue_material: bool,
     graded_paper: bool,
     monochrome: bool,
+    color_paper: bool,
     stock: String,
     display: String,
 }
@@ -973,7 +974,7 @@ impl App {
                     self.params.print_render.development_time = None;
                     self.dirty = true;
                 }
-                if !self.params.io.scan_film && self.papers.iter().any(|p| p.stock == self.print_name && !p.monochrome) {
+                if !self.params.io.scan_film && self.papers.iter().any(|p| p.stock == self.print_name && p.color_paper) {
                     self.dirty |= ui.add(egui::Slider::new(&mut self.params.print_render.bleach_bypass, 0.0..=1.0)
                         .text("Print bleach bypass")).changed();
                 }
@@ -1750,7 +1751,7 @@ fn scan_profiles(data_dir: &Path) -> (Vec<ProfileEntry>, Vec<ProfileEntry>) {
         // Cheap probe: just deserialize the file's `info` field. We
         // could skip the rest of the profile but `Profile` already does
         // the right thing — and we pay this once at startup.
-        let (display, is_paper, monochrome, graded_paper, hue_material, hanatos_surface) =
+        let (display, is_paper, monochrome, color_paper, graded_paper, hue_material, hanatos_surface) =
             match profile::load_profile_by_name(data_dir, &stock) {
                 Ok(p) => {
                     let display = p.info.name.clone().unwrap_or_else(|| stock.clone());
@@ -1759,12 +1760,13 @@ fn scan_profiles(data_dir: &Path) -> (Vec<ProfileEntry>, Vec<ProfileEntry>) {
                         display,
                         is_paper,
                         p.is_bw(),
+                        is_paper && p.is_color(),
                         p.data.paper_grades.is_some(),
                         p.is_color() && if is_paper { !p.is_positive() } else { p.is_negative() },
                         p.has_hanatos_surface(),
                     )
                 }
-                Err(_) => (stock.clone(), false, false, false, false, false),
+                Err(_) => (stock.clone(), false, false, false, false, false, false),
             };
         let entry = ProfileEntry {
             hanatos_surface,
@@ -1773,6 +1775,7 @@ fn scan_profiles(data_dir: &Path) -> (Vec<ProfileEntry>, Vec<ProfileEntry>) {
             stock,
             display,
             monochrome,
+            color_paper,
         };
         if is_paper {
             papers.push(entry);
@@ -2348,14 +2351,15 @@ mod tests {
     fn print_controls_follow_preview_route() {
         let mut app = App::new(Arc::new(spektrafilm_gpu::cpu_backend::CpuBackend), None);
         let ctx = egui::Context::default();
-        app.print_name = "kodak_portra_endura".into();
-        for (scan_film, stock, filtered) in [
-            (true, "kodak_doublex", true),
-            (false, "kodak_doublex", false),
-            (true, "kodak_gold_200", false),
-            (false, "kodak_gold_200", false),
-            (false, "fujifilm_provia_100f", false),
+        for (scan_film, stock, filtered, paper) in [
+            (true, "kodak_doublex", true, "kodak_portra_endura"),
+            (false, "kodak_doublex", false, "kodak_portra_endura"),
+            (true, "kodak_gold_200", false, "kodak_portra_endura"),
+            (false, "kodak_gold_200", false, "kodak_portra_endura"),
+            (false, "fujifilm_provia_100f", false, "kodak_portra_endura"),
+            (false, "ilford_hp5_plus_400", false, "ilford_multigrade_iv_rc"),
         ] {
+            app.print_name = paper.into();
             app.film_name = stock.into();
             app.params.camera.photographic_filter = if filtered {
                 spektrafilm_core::params::CameraFilter::Wratten25
@@ -2373,8 +2377,9 @@ mod tests {
                     _ => None,
                 })
                 .collect();
+            assert_eq!(labels.contains(&"Print bleach bypass"), !scan_film && paper == "kodak_portra_endura");
             assert!(labels.contains(&"UV / IR cut"));
-            assert_eq!(labels.contains(&"Camera filter"), stock == "kodak_doublex");
+            assert_eq!(labels.contains(&"Camera filter"), matches!(stock, "kodak_doublex" | "ilford_hp5_plus_400"));
             assert_eq!(labels.contains(&"Compensate filter exposure"), filtered);
             assert_eq!(
                 labels.contains(&"Hue from negative"),

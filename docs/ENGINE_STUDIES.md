@@ -745,3 +745,28 @@ The resident test checks recalibration and a negative-cache miss when changing t
 python scripts/parity/ofx_portra_cut_recipe.py uv-ir <recipe.json>
 python scripts/parity/ofx_portra_clear_check.py <spektrafilm-executable> <private-data-dir> <input.png> <OFX-float-sRGB.tif> --recipe <recipe.json> --region 480 144
 ```
+
+## Source-generated LAB references and standalone window acceptance
+
+**Hanatos stock correction.** Built the Windows/Linux Vulkan pipeline and its public C-ABI `engine/tests/render_fixture.cpp` from Windows beta.3 tag `9ceca338`. In the private build, the single settings initializer for `apply_hanatos2025_adaptation_surface` reads the presence of `SPK_PROBE_SURFACE` instead of the fixed default `false`. One process per setting, same shaders, stock profiles and constants from the Windows beta.3 portable package. The reference ran with Mesa llvmpipe in Ubuntu 24.04. The Windows reference executable declined a Vulkan allocation under its system commit reserve, which was left intact.
+
+The input was the 480 × 144 linear ProPhoto montage, TIFF SHA-256 `9ff7f34c59dec3d5937359e321da96b72b4f4980656c909d10d9bee05b122f21`. Convert its RGB16 samples to little-endian f32 by dividing by 65535. Use the optical recipe from `scripts/parity/lab_windows_print.py` with manual EV 0 and Endura. Run `spk_render_fixture <resources> scene.f32 480 144 params.json out.rgba report.json` once with the variable unset and once set. Its repeat renders were bit-exact. The disabled control was within 0.502 display code of the retained 8-bit Windows release capture on both stocks. Use the **16-bit** fixture outputs for the RS comparison.
+
+| Hanatos stock / Endura | Source on/off effect P95 | RS vs source, off P95 / P99 | RS vs source, on P95 / P99 |
+| --- | ---: | ---: | ---: |
+| Portra 400 | 9.96 | 0.027 / 0.045 | 0.026 / 0.048 |
+| VISION3 500T | 28.14 | 0.027 / 0.033 | 0.027 / 0.043 |
+
+Columns take the worse of normal RS CPU and hardware Vulkan in 8-bit display units (rounded). The largest individual pixel error was 4.23 codes across the four comparisons. The existing P95 ≤ 2 and P99 ≤ 4 gate passed. This qualifies these two enabled full prints; the Windows release exposes only the disabled control.
+
+**Negative-derived print hue.** The [source replay](../scripts/parity/lab_hue_source.py) extracts the node and its helpers from LAB main `b51e672:engine/src/shaders/negative_hue.metal`. It adapts vector constructor syntax, buffer declarations and the invocation index to OpenCL. The GPU runs LAB's pixel arithmetic. Supply the earlier independent Batch 7 LAB C++ calibration tables, packed at neutral filtration according to `Pipeline::negative_hue_params` in LAB. Inputs are RS developed CMY and optical XYZ reconstructed from its printed dye densities under the paper viewing illuminant. This checks the hue stage at a **shared negative and optical print**. The pre-hue reconstruction agreed with the RS optical control to 0.000006 display code. The source-generated corrected XYZ was converted to display sRGB for comparison.
+
+| Portra 400 / Endura fixture | LAB hue effect P95 | RS vs source, on P95 / P99 |
+| --- | ---: | ---: |
+| Kodak 04 portrait | 5.82 | 0.018 / 0.029 |
+| Saturated textile | 18.72 | 0.011 / 0.035 |
+| Color chart | 30.98 | 0.019 / 0.049 |
+
+Both RS backends passed on all three frames, with a worst individual pixel of 1.19 codes. The replay ran on an RTX 3060 Ti. NumPy and PyOpenCL are offline reference tools only. Example: `python scripts/parity/lab_hue_source.py negative_hue.metal frame.npz xyz.npy`. The module documents the input arrays; `params[40]=0` selects a full picture without a border. The Mac application, fused Metal dispatch and Apple GPU were not run.
+
+**Standalone Windows window.** Opened the 256 × 400 backlit costume and wedge in the RS GUI, adjusted negative bleach to 0.72 and print bleach to 0.55 on Gold 200 / Endura, switched from center-weighted to balanced metering and observed the updated image after each change. Exported via the Windows file dialog and decoded the resulting full-size RGB PNG. On HP5 Plus, the paper switched to Multigrade IV RC grade 2; No. 12 deep yellow changed the preview and exposed the compensation control. Review caught a print-bleach slider on that three-emulsion silver paper. The GUI now uses the same positive check for color paper as the rendering stage. The GUI route regression covers both the silver paper and Endura.

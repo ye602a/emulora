@@ -6,7 +6,7 @@
 
 For an OFX or LAB alignment feature, the acceptance target is the selected upstream render. Name the product revision, backend, stock pair, recipe and output transform. Compare absolute final pixels on shared inputs, including neutral steps and relevant color/detail regions. Use a separate held-out photo. Comparing the change from each engine's baseline helps locate drift but can conceal a mismatch in both final images. Set tolerances for the particular comparison and retain previously accepted default renders.
 
-The [minimum release checks and outstanding evidence](ENGINE_STUDIES.md#minimum-release-checks-across-implemented-features) cover the remaining full paper grades, red glass, camera methods, paper chemistry, diffusion, DIR, halation and roll layouts. Known failures have a measured baseline. The unexposed Hanatos correction and Metal-only hue path still lack a released-product image comparison. One-photo checks qualify only the stated example.
+The [minimum release checks and outstanding evidence](ENGINE_STUDIES.md#minimum-release-checks-across-implemented-features) cover the remaining full paper grades, red glass, camera methods, paper chemistry, diffusion, DIR, halation and roll layouts. Known failures have a measured baseline. The two controls unavailable in the Windows release now have [source-generated LAB image comparisons](ENGINE_STUDIES.md#source-generated-lab-references-and-standalone-window-acceptance): complete Vulkan prints for Hanatos stock correction and the original hue node at shared print inputs. The Mac release itself was not run. One-photo checks qualify only the stated example.
 
 | Order | Reference and work | Completion evidence |
 | --- | --- | --- |
