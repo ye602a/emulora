@@ -12,7 +12,9 @@ struct Params {
     height: u32,
     n_wavelengths: u32,
     normalization: f32,
-    xyz_to_rgb: mat3x3<f32>,
+    col0: vec4<f32>, // w holds the print bleach bypass amount
+    col1: vec4<f32>,
+    col2: vec4<f32>,
     // B&W/slide scanner luminance remap: x=m, y=q, z=enable (0/1).
     // Mirrors ColorReference::xyz_scale — clip(m*Y+q, 0, 1)/(Y+1e-10) on the
     // pre-matrix scan XYZ. Identity (skipped) when z==0.
@@ -41,9 +43,15 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     }
 
     let base = pixel_idx * 3u;
-    let cmy_r = density_cmy[base];
-    let cmy_g = density_cmy[base + 1u];
-    let cmy_b = density_cmy[base + 2u];
+    var cmy = vec3<f32>(density_cmy[base], density_cmy[base + 1u], density_cmy[base + 2u]);
+    var silver = 0.0;
+    if params.col0.w > 0.0 {
+        let d = max(cmy, vec3<f32>(0.0));
+        let layers = d / (d + vec3<f32>(0.65));
+        let weight = params.col0.w * (layers.r + layers.g + layers.b) / 3.0;
+        cmy = mix(cmy, vec3<f32>(max(cmy.r, max(cmy.g, cmy.b))), weight);
+        silver = 0.36 * weight;
+    }
     let film_opacity = film_coverage(pixel_idx);
 
     var xyz = vec3<f32>(0.0, 0.0, 0.0);
@@ -58,7 +66,7 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
         if cd_r != cd_r || cd_g != cd_g || cd_b != cd_b || bd != bd {
             continue;
         }
-        let d = (cmy_r * cd_r + cmy_g * cd_g + cmy_b * cd_b + bd) * film_opacity;
+        let d = (cmy.r * cd_r + cmy.g * cd_g + cmy.b * cd_b + bd + silver) * film_opacity;
         let light = pow(10.0, -d) * illuminant[wl];
         xyz.x += light * cmf_x[wl];
         xyz.y += light * cmf_y[wl];
@@ -77,7 +85,7 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     }
 
     // XYZ → RGB via matrix multiply
-    let rgb = params.xyz_to_rgb * xyz;
+    let rgb = mat3x3<f32>(params.col0.xyz, params.col1.xyz, params.col2.xyz) * xyz;
 
     if params.bw.w != 0.0 {
         output_rgb[base] = rgb.x;

@@ -1392,7 +1392,7 @@ impl WgpuBackend {
             height,
             n_wavelengths: scan_cd_src.len() as u32,
             normalization: scan_normalization as f32,
-            col0: [s[0][0] as f32, s[1][0] as f32, s[2][0] as f32, 0.0],
+            col0: [s[0][0] as f32, s[1][0] as f32, s[2][0] as f32, p.print_bleach_bypass],
             col1: [s[0][1] as f32, s[1][1] as f32, s[2][1] as f32, 0.0],
             col2: [s[0][2] as f32, s[1][2] as f32, s[2][2] as f32, 0.0],
             bw,

@@ -28,6 +28,7 @@ fn image(width: u32, height: u32) -> ImageBuf {
 
 fn params(image: &ImageBuf) -> FilmChainParams<'_> {
     FilmChainParams {
+        print_bleach_bypass: 0.0,
         negative_hue: None,
         border_135: None,
         image,

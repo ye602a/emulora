@@ -175,3 +175,7 @@ FPW main at `e1d0759` builds both new and saved film recipes through [the FPW ad
 The released beta table has upstream Git blob `50689049562f59d8a71b8ff70b2d82965b3404ce`. At 480×144 on Portra 400 / Portra Endura and Ektar 100 / Endura Premier, CPU and Vulkan each reproduced their own pre-upgrade CLI control with this table byte-for-byte in the raw output. Comparing CPU to Vulkan gave maximum displayed differences of 5 and 12 sRGB codes respectively, also present in the controls.
 
 The OFX version label refers to a per-stock window already active in the FPW default. The Portra and Ektar checks are documented in [Hanatos version names and FPW](ENGINE_STUDIES.md#hanatos-version-names-and-fpw).
+
+## Print bleach bypass
+
+On a color print, **Print bleach bypass** sets the retained-silver look from 0 (the normal optical print) to 1 (full modeled strength). A CLI recipe can set `{"print_render":{"bleach_bypass":0.5}}`. Film scans and silver B&W paper ignore the print control. The parameter is downstream of the developed negative; a resident host reprinting the same source can reuse its negative. Standalone GUI interaction and FPW control wiring were not tested. [Model and photograph comparison](ENGINE_STUDIES.md#print-bleach-bypass)

@@ -952,6 +952,10 @@ impl App {
                     self.params.print_render.development_time = None;
                     self.dirty = true;
                 }
+                if !self.params.io.scan_film && self.papers.iter().any(|p| p.stock == self.print_name && !p.monochrome) {
+                    self.dirty |= ui.add(egui::Slider::new(&mut self.params.print_render.bleach_bypass, 0.0..=1.0)
+                        .text("Print bleach bypass")).changed();
+                }
                 if !self.params.io.scan_film
                     && self.films.iter().any(|f| f.stock == self.film_name && f.hue_material)
                     && self.papers.iter().any(|p| p.stock == self.print_name && p.hue_material)

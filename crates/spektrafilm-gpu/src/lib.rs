@@ -194,6 +194,7 @@ pub struct NegativeHue {
 /// trait method stays object-safe and adding more optional stages (halation,
 /// DIR couplers, …) doesn't churn every callsite.
 pub struct FilmChainParams<'a> {
+    pub print_bleach_bypass: f32,
     pub negative_hue: Option<&'a NegativeHue>,
     pub image: &'a ImageBuf,
     /// Resolved 135 layout. The image retains its compact content dimensions.

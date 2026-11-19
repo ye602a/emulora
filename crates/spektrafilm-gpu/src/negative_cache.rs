@@ -87,6 +87,7 @@ impl NegativeKey {
         // Do not use `..`: adding a chain parameter must force an explicit
         // decision here about which side of the cache boundary consumes it.
         let FilmChainParams {
+            print_bleach_bypass: _,
             negative_hue: _,
             image,
             border_135,
@@ -588,6 +589,7 @@ mod tests {
 
     fn fixture<'a>(image: &'a ImageBuf, lut: &'a TcLut) -> FilmChainParams<'a> {
         FilmChainParams {
+            print_bleach_bypass: 0.0,
             negative_hue: None,
             border_135: None,
             image,

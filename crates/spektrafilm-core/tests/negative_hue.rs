@@ -256,3 +256,52 @@ fn manual_filtration_reprints_the_same_negative_and_rejects_hue_reconstruction()
         assert_eq!((stats.misses, stats.hits, stats.stores), (1, i as u64, 1));
     }
 }
+
+#[test]
+fn print_bleach_reuses_negative_and_restores_optical_print() {
+    let Some(gpu) = WgpuBackend::new() else {
+        assert!(std::env::var_os("SPEKTRAFILM_REQUIRE_GPU").is_none());
+        return;
+    };
+    gpu.configure_negative_cache(true);
+    let input = patches();
+    let mut params = recipe();
+    let mut pipe = build("kodak_portra_400", "kodak_portra_endura", params.clone()).unwrap();
+    let mut baseline = Vec::new();
+    for (index, amount) in [0.0, 0.5, 1.0, 0.0].into_iter().enumerate() {
+        params.print_render.bleach_bypass = amount;
+        assert!(pipe.refresh_in_place(params.clone()));
+        let cpu = pipe.try_process(input.clone(), &CpuBackend).unwrap();
+        let resident = pipe.process_resident_with_options(
+            &input, &gpu, FilmRenderOptions { source: Some(SourceIdentity(922)), ..Default::default() },
+        ).unwrap().unwrap();
+        let stats = gpu.negative_cache_stats();
+        assert_eq!((stats.misses, stats.hits, stats.stores), (1, index as u64, 1));
+        for (a,b) in cpu.data.iter().zip(&resident.data) {
+            assert!((a-b).abs() < 0.002, "amount {amount}: {a} vs {b}");
+        }
+        if index == 0 {
+            baseline = resident.data;
+        } else if amount == 0.0 {
+            assert_eq!(baseline, resident.data);
+        } else {
+            assert!(resident.data[13] < baseline[13]);
+        }
+    }
+}
+
+#[test]
+fn print_bleach_is_inactive_for_film_scans_and_silver_paper() {
+    for (film, paper, scan) in [
+        ("kodak_portra_400", "kodak_portra_endura", true),
+        ("kodak_doublex", "kodak_2302", false),
+    ] {
+        let mut p = recipe();
+        p.io.scan_film = scan;
+        let mut pipe = build(film, paper, p.clone()).unwrap();
+        let baseline = pipe.try_process(patches(), &CpuBackend).unwrap();
+        p.print_render.bleach_bypass = 1.0;
+        assert!(pipe.refresh_in_place(p));
+        assert_eq!(pipe.try_process(patches(), &CpuBackend).unwrap().data, baseline.data);
+    }
+}

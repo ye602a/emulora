@@ -21,7 +21,7 @@ The goal is one independently maintained still-film engine with verifiable stand
 
 **Batch 14.** RS now selects beta04 for Arctic. Published FPW main uses Hanatos 2025. [Recipe migration and verification](USAGE.md#arctic-beta04).
 
-**Next development.** Trace OFX print and film bleach bypass separately. Start with print-only retained silver on the same negative, comparing gray, skin and saturated fabric and checking negative-cache reuse if the model merits an opt-in. Backing reflection and film markings remain candidates.
+**Print bleach bypass.** Optional color-print retained silver passed CPU/resident checks and reuses the developed negative. [Model and measurements](ENGINE_STUDIES.md#print-bleach-bypass). Next evaluate LAB's backing reflection against existing RS halation on bright edges with a matched film stock.
 
 **Final cross-engine comparison (pending).** For each implementation record the upstream revision, corresponding stage and effective settings during development. Once the selected implementations are complete, render the shared gray/color wedges and photographic crops with grain off for deterministic comparisons. Align stock, paper, exposure, print filters, source pitch, crop, transfer function and output stage. Compare diffusion separately on impulses and grain separately on flat fields at matched negative density (mean, aperture RMS, skew and cross-channel correlation across realizations). Keep print-only measurements separate from negative density. Record missing stages or unmatched resources and identify OFX public-source and packaged builds independently. Wider-gamut working-space migration remains a separate project.
 

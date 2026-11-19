@@ -58,6 +58,9 @@ use crate::stages;
 use crate::stock_setup::{AcceptedStockSetup, ResolvedStockSetup};
 
 fn validate_spectral_recipe(params: &RuntimeParams) -> Result<(), String> {
+    if !(0.0..=1.0).contains(&params.print_render.bleach_bypass) {
+        return Err("print_render.bleach_bypass must be in [0, 1]".into());
+    }
     for (direction, space) in [
         ("input", params.io.input_color_space.as_str()),
         ("output", params.io.output_color_space.as_str()),
@@ -1683,6 +1686,7 @@ impl Pipeline {
             };
 
         let params = spektrafilm_gpu::FilmChainParams {
+            print_bleach_bypass: if !self.params.io.scan_film && self.print.is_color() { self.params.print_render.bleach_bypass } else { 0.0 },
             negative_hue: self.active_negative_hue(),
             image,
             border_135,

@@ -553,6 +553,9 @@ pub struct PrintRenderingParams {
     /// Read hue from a colour negative when printing on colour paper.
     #[serde(default)]
     pub negative_hue: bool,
+    /// Fraction of retained silver in a processed color print (OFX print model).
+    #[serde(default)]
+    pub bleach_bypass: f32,
     #[serde(default)]
     pub paper_grade: Option<PaperGrade>,
     #[serde(default = "default_one")]
@@ -571,6 +574,7 @@ impl Default for PrintRenderingParams {
     fn default() -> Self {
         Self {
             negative_hue: false,
+            bleach_bypass: 0.0,
             paper_grade: None,
             density_curve_gamma: 1.0,
             development_time: None,
