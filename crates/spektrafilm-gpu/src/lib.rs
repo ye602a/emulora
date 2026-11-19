@@ -190,10 +190,33 @@ pub struct NegativeHue {
     pub gamut: Vec<f32>,
 }
 
+/// Public OFX colour-negative model, including its default leuco-cyan coupling.
+#[derive(Clone, Copy, Debug)]
+pub struct NegativeBleach {
+    pub amount: f32,
+    pub cyan_max: f32,
+}
+
+impl NegativeBleach {
+    pub fn density(self, cmy: [f64; 3]) -> ([f64; 3], f64) {
+        let layers = cmy.map(|v| {
+            let d = v.max(0.0);
+            d / (d + 0.85)
+        });
+        let weight = f64::from(self.amount) * layers.iter().sum::<f64>() / 3.0;
+        let black = cmy[0].max(cmy[1]).max(cmy[2]);
+        let mut dyes = cmy.map(|v| v + weight * (black - v));
+        let cyan_drive = (cmy[0] / f64::from(self.cyan_max)).clamp(0.0, 1.0);
+        dyes[0] = (dyes[0] - f64::from(self.amount) * 0.30 * cyan_drive).max(0.0);
+        (dyes, 0.22 * weight)
+    }
+}
+
 /// All inputs to the GPU-resident film chain. Bundled into a struct so the
 /// trait method stays object-safe and adding more optional stages (halation,
 /// DIR couplers, …) doesn't churn every callsite.
 pub struct FilmChainParams<'a> {
+    pub negative_bleach: Option<NegativeBleach>,
     pub print_bleach_bypass: f32,
     pub negative_hue: Option<&'a NegativeHue>,
     pub image: &'a ImageBuf,

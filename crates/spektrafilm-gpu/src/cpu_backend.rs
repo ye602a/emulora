@@ -447,6 +447,28 @@ pub fn print_spectral_cpu(
     normalization_factor: f64,
     preflash: [f64; 3],
 ) -> ImageBuf {
+    print_spectral_with_silver(
+        density_cmy,
+        channel_density,
+        base_density,
+        illuminant,
+        sensitivity,
+        normalization_factor,
+        preflash,
+        None,
+    )
+}
+
+pub fn print_spectral_with_silver(
+    density_cmy: &ImageBuf,
+    channel_density: &[[f64; 3]],
+    base_density: &[f64],
+    illuminant: &[f64],
+    sensitivity: &[[f64; 3]],
+    normalization_factor: f64,
+    preflash: [f64; 3],
+    bleach: Option<crate::NegativeBleach>,
+) -> ImageBuf {
     let n_wl = channel_density
         .len()
         .min(illuminant.len())
@@ -457,7 +479,18 @@ pub fn print_spectral_cpu(
     // density_cmy stored as Scalar (interleaved RGB). Promote to f64
     // directly — `to_f32(v) as f64` quietly round-trips through f32
     // even with Scalar=f64 and was the seed of ~1e-9 print drift.
-    let density_f64: Vec<f64> = density_cmy.data.par_iter().map(|&v| v as f64).collect();
+    let mut density_f64: Vec<f64> = density_cmy.data.par_iter().map(|&v| v as f64).collect();
+
+    let transmission = bleach.map(|b| {
+        density_f64
+            .par_chunks_exact_mut(3)
+            .map(|rgb| {
+                let (dyes, silver) = b.density([rgb[0], rgb[1], rgb[2]]);
+                rgb.copy_from_slice(&dyes);
+                10.0_f64.powf(-silver)
+            })
+            .collect::<Vec<_>>()
+    });
 
     // channel_density: Vec<[f64; 3]> is already row-major [n_wl × 3].
     // For the GEMM density_cmy @ channel_density.T we pass TransB so BLAS
@@ -495,9 +528,13 @@ pub fn print_spectral_cpu(
         .data
         .par_chunks_exact_mut(3)
         .zip(raw_flat.par_chunks_exact(3))
-        .for_each(|(dst, src)| {
+        .enumerate()
+        .for_each(|(i, (dst, src))| {
+            let gain = transmission
+                .as_ref()
+                .map_or(normalization_factor, |t| normalization_factor * t[i]);
             for c in 0..3 {
-                let v = src[c] * normalization_factor + preflash[c];
+                let v = src[c] * gain + preflash[c];
                 dst[c] = from_f64((v.max(0.0) + 1e-10).log10());
             }
         });

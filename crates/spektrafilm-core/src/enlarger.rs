@@ -419,6 +419,9 @@ pub fn midgray_density_spectral_from_raw(
     let density_cmy =
         interp_density_curve_at_log_raw(&log_raw, &log_exposure, &density_curves, &gamma);
 
+    let (density_cmy, silver) = film
+        .negative_bleach(params.film_render.bleach_bypass)
+        .map_or((density_cmy, 0.0), |b| b.density(density_cmy));
     // Python: compute_density_spectral — einsum + base_density. NaN propagates per wavelength.
     let n_wl = film.data.channel_density.len();
     let mut spectral = vec![0.0f64; n_wl];
@@ -430,7 +433,7 @@ pub fn midgray_density_spectral_from_raw(
         } else {
             0.0
         };
-        spectral[wl] = s + bd;
+        spectral[wl] = s + bd + silver;
     }
     spectral
 }

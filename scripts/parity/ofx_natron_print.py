@@ -2,7 +2,7 @@
 
 Set OFX_PLUGIN_PATH to the unpacked bundle directory. Set PRINT_STUDY_INPUT to
 the Batch 13 PNG, PRINT_STUDY_DIR to a scratch directory and run once for each
-OFX_CASE (transport, off, on, diffusion, uv, ir, uv-ir). OFX_PRINT_MODEL selects a release
+OFX_CASE (transport, off, on, negative, diffusion, uv, ir, uv-ir). OFX_PRINT_MODEL selects a release
 print-silver preset for the on case. NatronRenderer --no-settings SCRIPT.py 1 writes
 one full-resolution PNG. Compare transport to the source before using output.
 """
@@ -10,7 +10,7 @@ import os
 from pathlib import Path
 
 case = os.environ["OFX_CASE"]
-assert case in ("transport","off","on","diffusion","uv","ir","uv-ir")
+assert case in ("transport","off","on","negative","diffusion","uv","ir","uv-ir")
 model = os.environ.get("OFX_PRINT_MODEL", "Stock Character")
 reader = app1.createReader(os.environ["PRINT_STUDY_INPUT"])
 
@@ -42,6 +42,7 @@ if case != "transport":
         source.getParam("cameraDiffusionStrength").set(0.5)
     for name,value in {"dirAmount":0.0,"grainEnabled":False,"halationEnabled":False,
                        "scannerEnabled":False,"autoExposure":False,"glarePercent":0.0,
+                       "negativeBleachBypassAmount":float(case=="negative"),
                        "printBleachBypassAmount":float(case=="on")}.items():
         source.getParam(name).set(value)
 suffix = "" if model == "Stock Character" else "-" + model.lower().replace(" ", "-")

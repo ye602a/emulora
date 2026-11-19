@@ -47,27 +47,13 @@ fn build_lut_grid(steps: usize, data_min: [f64; 3], data_max: [f64; 3]) -> Image
 #[allow(clippy::too_many_arguments)]
 fn print_spectral_via_lut(
     cmy_film: &ImageBuf,
-    channel_density: &[[f64; 3]],
-    base_density: &[f64],
-    print_illuminant: &[f64],
-    print_sensitivity: &[[f64; 3]],
-    exposure_factor: f64,
-    preflash: [f64; 3],
-    backend: &dyn ComputeBackend,
+    expose: impl Fn(&ImageBuf) -> ImageBuf,
     data_min: [f64; 3],
     data_max: [f64; 3],
     steps: usize,
 ) -> ImageBuf {
     let grid = build_lut_grid(steps, data_min, data_max);
-    let lut_image = backend.print_spectral(
-        &grid,
-        channel_density,
-        base_density,
-        print_illuminant,
-        print_sensitivity,
-        exposure_factor,
-        preflash,
-    );
+    let lut_image = expose(&grid);
     // Convert Scalar storage to f64 — no-op cast in precision-f64 mode,
     // a widening in f32 mode. The PCHIP slopes are computed in f64
     // regardless to match Python's f64 LUT type.
@@ -197,31 +183,42 @@ pub fn expose_calibrated(
     // a `lut_resolution³` grid of cmy values (4913 nodes at the
     // default resolution=17) and PCHIP-interpolate per pixel.
     // Matches Python's `_lut_service.spectral_compute_enlarger`.
+    let bleach = film.negative_bleach(params.film_render.bleach_bypass);
+    let expose = |densities: &ImageBuf| {
+        if bleach.is_some() {
+            spektrafilm_gpu::cpu_backend::print_spectral_with_silver(
+                densities,
+                &channel_density,
+                &base_density,
+                print_illuminant,
+                &print_sensitivity,
+                exposure_factor,
+                preflash,
+                bleach,
+            )
+        } else {
+            backend.print_spectral(
+                densities,
+                &channel_density,
+                &base_density,
+                print_illuminant,
+                &print_sensitivity,
+                exposure_factor,
+                preflash,
+            )
+        }
+    };
     let mut log_raw_print = if params.settings.use_enlarger_lut {
-        let (data_min, data_max) = enlarger_lut_bounds(film, params);
+        let (min, max) = enlarger_lut_bounds(film, params);
         print_spectral_via_lut(
             cmy_film,
-            &channel_density,
-            &base_density,
-            print_illuminant,
-            &print_sensitivity,
-            exposure_factor,
-            preflash,
-            backend,
-            data_min,
-            data_max,
+            expose,
+            min,
+            max,
             params.settings.lut_resolution as usize,
         )
     } else {
-        backend.print_spectral(
-            cmy_film,
-            &channel_density,
-            &base_density,
-            print_illuminant,
-            &print_sensitivity,
-            exposure_factor,
-            preflash,
-        )
+        expose(cmy_film)
     };
 
     // Stage 2: 10^log_raw_print, scale by print_exposure × bw, then

@@ -305,3 +305,76 @@ fn print_bleach_is_inactive_for_film_scans_and_silver_paper() {
         assert_eq!(pipe.try_process(patches(), &CpuBackend).unwrap().data, baseline.data);
     }
 }
+
+#[test]
+fn retained_negative_silver_changes_print_and_scan_and_invalidates_only_the_negative_recipe() {
+    let Some(gpu) = WgpuBackend::new() else {
+        assert!(std::env::var_os("SPEKTRAFILM_REQUIRE_GPU").is_none());
+        return;
+    };
+    gpu.configure_negative_cache(true);
+    let input = patches();
+    let make = |p| build("kodak_portra_400", "kodak_portra_endura", p).unwrap();
+    let mut p = recipe();
+    let mut pipe = make(p.clone());
+    let mut baseline = Vec::new();
+    let mut retained = Vec::new();
+    for (i, (film, paper, scan, misses, hits)) in [
+        (0.0, 0.0, false, 1, 0),
+        (1.0, 0.0, false, 2, 0),
+        (1.0, 0.5, false, 2, 1),
+        (1.0, 0.0, true, 2, 2),
+        (0.0, 0.0, true, 3, 2),
+        (0.0, 0.0, false, 3, 3),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let film_changed = p.film_render.bleach_bypass != film;
+        p.film_render.bleach_bypass = film;
+        p.print_render.bleach_bypass = paper;
+        p.io.scan_film = scan;
+        let warm = pipe.refresh_in_place(p.clone());
+        if film_changed {
+            assert!(!warm);
+        }
+        if !warm {
+            pipe = make(p.clone());
+        }
+        let cpu = pipe.try_process(input.clone(), &CpuBackend).unwrap();
+        let resident = pipe
+            .process_resident_with_options(
+                &input,
+                &gpu,
+                FilmRenderOptions {
+                    source: Some(SourceIdentity(923)),
+                    ..Default::default()
+                },
+            )
+            .unwrap()
+            .unwrap();
+        for (a, b) in cpu.data.iter().zip(&resident.data) {
+            assert!((a - b).abs() < 0.002, "step {i}: {a} vs {b}");
+        }
+        let stats = gpu.negative_cache_stats();
+        assert_eq!(
+            (stats.misses, stats.hits, stats.stores),
+            (misses, hits, misses),
+            "step {i}"
+        );
+        match i {
+            0 => baseline = resident.data,
+            1 | 3 => {
+                assert_ne!(baseline, resident.data);
+                retained = resident.data;
+            }
+            2 | 4 => assert_ne!(retained, resident.data),
+            5 => assert_eq!(baseline, resident.data),
+            _ => unreachable!(),
+        }
+    }
+    p.film_render.bleach_bypass = 0.5;
+    for stock in ["ilford_hp5_plus_400", "fujifilm_provia_100f"] {
+        assert!(build(stock, "kodak_portra_endura", p.clone()).is_err());
+    }
+}

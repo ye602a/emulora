@@ -482,6 +482,9 @@ impl Default for GlareParams {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FilmRenderingParams {
+    /// Fraction of retained silver on a developed colour negative.
+    #[serde(default)]
+    pub bleach_bypass: f32,
     #[serde(default = "default_one")]
     pub density_curve_gamma: f32,
     /// Development time (minutes) for B&W development-time families —
@@ -503,6 +506,7 @@ pub struct FilmRenderingParams {
 impl Default for FilmRenderingParams {
     fn default() -> Self {
         Self {
+            bleach_bypass: 0.0,
             density_curve_gamma: 1.0,
             development_time: None,
             grain: GrainParams::default(),

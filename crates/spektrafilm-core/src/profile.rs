@@ -274,6 +274,22 @@ impl Profile {
     pub fn is_bw(&self) -> bool {
         self.info.channel_model == "bw"
     }
+    pub(crate) fn negative_bleach(&self, amount: f32) -> Option<spektrafilm_gpu::NegativeBleach> {
+        (amount > 0.0).then(|| {
+            let cyan_max = self
+                .data
+                .density_curves
+                .iter()
+                .filter_map(|row| row.first().copied())
+                .fold(1e-6, f64::max) as f32;
+            spektrafilm_gpu::NegativeBleach { amount, cyan_max }
+        })
+    }
+
+    pub fn supports_negative_bleach(&self) -> bool {
+        self.is_filming() && self.is_color() && self.is_negative()
+    }
+
     pub fn has_hanatos_surface(&self) -> bool {
         let rows = &self.data.hanatos2025_adaptation_surface_params;
         self.is_filming() && rows.len() == 3

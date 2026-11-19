@@ -21,6 +21,8 @@ pub struct DisplayRegion {
 /// happen after submitted work has run, but never returns a successful output.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum OutputError {
+    #[error("negative bleach bypass requires a calibrated colour negative on CPU or Vulkan")]
+    UnsupportedNegativeBleach,
     #[error("negative hue requires a prepared spectral colour print on CPU or Vulkan")]
     UnsupportedNegativeHue,
     #[error("Hanatos adaptation surface requires a prepared spectral pipeline")]

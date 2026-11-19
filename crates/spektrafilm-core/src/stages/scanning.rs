@@ -76,7 +76,14 @@ fn scanner_lut_bounds(profile: &Profile, params: &RuntimeParams) -> ([f64; 3], [
 }
 
 // OFX print-side retained silver: a neutral absorber plus dye desaturation.
-fn bypass_density(cmy: [f64; 3], amount: f32) -> ([f64; 3], f64) {
+fn bypass_density(
+    cmy: [f64; 3],
+    amount: f32,
+    negative: Option<spektrafilm_gpu::NegativeBleach>,
+) -> ([f64; 3], f64) {
+    if let Some(b) = negative {
+        return b.density(cmy);
+    }
     let layers = cmy.map(|v| {
         let d = v.max(0.0);
         d / (d + 0.65)
@@ -110,6 +117,7 @@ fn scan_spectral_via_lut(
     data_max: [f64; 3],
     steps: usize,
     bleach: f32,
+    negative_bleach: Option<spektrafilm_gpu::NegativeBleach>,
     color_ref: &crate::color_reference::ColorReference,
 ) -> ImageBuf {
     let grid = build_lut_grid(steps, data_min, data_max);
@@ -134,8 +142,8 @@ fn scan_spectral_via_lut(
         .zip(density_cmy.data.par_chunks_exact(3))
         .for_each(|(dst, src)| {
             let density = [src[0] as f64, src[1] as f64, src[2] as f64];
-            let (src, silver) = if bleach > 0.0 {
-                bypass_density(density, bleach)
+            let (src, silver) = if bleach > 0.0 || negative_bleach.is_some() {
+                bypass_density(density, bleach, negative_bleach)
             } else {
                 (density, 0.0)
             };
@@ -278,7 +286,16 @@ pub(crate) fn scan_with_negative(
     // through the LUT path when it's active (the LUT result matches the
     // direct spectral path to sub-LSB, and only this path exposes the
     // pre-CAT XYZ hook). Otherwise honour use_scanner_lut.
-    let bleach = if !params.io.scan_film && profile.is_color() { params.print_render.bleach_bypass } else { 0.0 };
+    let negative_bleach = if params.io.scan_film {
+        profile.negative_bleach(params.film_render.bleach_bypass)
+    } else {
+        None
+    };
+    let bleach = if !params.io.scan_film && profile.is_color() {
+        params.print_render.bleach_bypass
+    } else {
+        0.0
+    };
     let mut rgb = if color_ref.has_remap() || params.settings.use_scanner_lut {
         let (data_min, data_max) = scanner_lut_bounds(profile, params);
         scan_spectral_via_lut(
@@ -294,14 +311,19 @@ pub(crate) fn scan_with_negative(
             data_max,
             params.settings.lut_resolution as usize,
             bleach,
+            negative_bleach,
             color_ref,
         )
     } else {
         let mut dyes;
-        let scan_input = if bleach > 0.0 {
+        let scan_input = if bleach > 0.0 || negative_bleach.is_some() {
             dyes = density_cmy.clone();
             dyes.par_pixels_mut().for_each(|px| {
-                let (d, _) = bypass_density([px[0] as f64, px[1] as f64, px[2] as f64], bleach);
+                let (d, _) = bypass_density(
+                    [px[0] as f64, px[1] as f64, px[2] as f64],
+                    bleach,
+                    negative_bleach,
+                );
                 px.copy_from_slice(&d.map(from_f64));
             });
             &dyes
@@ -315,9 +337,9 @@ pub(crate) fn scan_with_negative(
             &adapt,
             &base_xyz_to_rgb,
         );
-        if bleach > 0.0 {
+        if bleach > 0.0 || negative_bleach.is_some() {
             scanned.data.par_chunks_exact_mut(3).zip(density_cmy.data.par_chunks_exact(3)).for_each(|(rgb, d)| {
-                let (_, silver) = bypass_density([d[0] as f64, d[1] as f64, d[2] as f64], bleach);
+                let (_, silver) = bypass_density([d[0] as f64, d[1] as f64, d[2] as f64], bleach, negative_bleach);
                 let transmittance = from_f64(10.0f64.powf(-silver));
                 for v in rgb { *v *= transmittance; }
             });

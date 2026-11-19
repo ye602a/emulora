@@ -202,6 +202,7 @@ struct App {
     /// Development-time family (minutes) of the selected film / paper —
     /// non-trivial only for B&W stocks. Drives the dev-time pickers.
     film_dev_times: Vec<f64>,
+    negative_bleach_available: bool,
     print_dev_times: Vec<f64>,
     params: RuntimeParams,
     image_path: Option<PathBuf>,
@@ -328,6 +329,9 @@ impl App {
             papers,
             film_name,
             print_name,
+            negative_bleach_available: film_profile
+                .as_ref()
+                .is_some_and(|p| p.supports_negative_bleach()),
             film_dev_times,
             print_dev_times,
             params,
@@ -888,6 +892,10 @@ impl App {
                     self.params.film_render.development_time = None;
                     if let Ok(film) = profile::load_profile_by_name(&self.data_dir, &self.film_name)
                     {
+                        self.negative_bleach_available = film.supports_negative_bleach();
+                        if !self.negative_bleach_available {
+                            self.params.film_render.bleach_bypass = 0.0;
+                        }
                         if !film.has_hanatos_surface() {
                             self.params.settings.apply_hanatos2025_adaptation_surface = false;
                         }
@@ -914,6 +922,10 @@ impl App {
                         }
                     }
                     self.dirty = true;
+                }
+                if self.negative_bleach_available {
+                    self.dirty |= ui.add(egui::Slider::new(&mut self.params.film_render.bleach_bypass, 0.0..=1.0)
+                        .text("Negative bleach bypass")).changed();
                 }
                 // B&W stocks are profiled at several development times —
                 // pick one (longer = more contrast). Hidden for the

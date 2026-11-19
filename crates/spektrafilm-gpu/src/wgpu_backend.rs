@@ -1330,7 +1330,9 @@ impl WgpuBackend {
             n_wavelengths: u32,
             normalization_factor: f32,
             preflash: [f32; 3],
-            _pad: f32,
+            negative_amount: f32,
+            cyan_max: f32,
+            _pad: [f32; 3],
         }
         let has_enlarger_diffusion = p.enlarger_diffusion.is_some();
         let print_exposure_scale = p.print_exposure_scale as f32;
@@ -1345,7 +1347,9 @@ impl WgpuBackend {
             n_wavelengths: film_channel_density.len() as u32,
             normalization_factor: print_norm_for_shader,
             preflash: [preflash[0] as f32, preflash[1] as f32, preflash[2] as f32],
-            _pad: 0.0,
+            negative_amount: p.negative_bleach.map_or(0.0, |b| b.amount),
+            cyan_max: p.negative_bleach.map_or(1.0, |b| b.cyan_max),
+            _pad: [0.0; 3],
         };
         let print_params_buf = mk_uniform("print_params", bytemuck::bytes_of(&print_params));
 
@@ -1392,9 +1396,28 @@ impl WgpuBackend {
             height,
             n_wavelengths: scan_cd_src.len() as u32,
             normalization: scan_normalization as f32,
-            col0: [s[0][0] as f32, s[1][0] as f32, s[2][0] as f32, p.print_bleach_bypass],
-            col1: [s[0][1] as f32, s[1][1] as f32, s[2][1] as f32, 0.0],
-            col2: [s[0][2] as f32, s[1][2] as f32, s[2][2] as f32, 0.0],
+            col0: [
+                s[0][0] as f32,
+                s[1][0] as f32,
+                s[2][0] as f32,
+                p.print_bleach_bypass,
+            ],
+            col1: [
+                s[0][1] as f32,
+                s[1][1] as f32,
+                s[2][1] as f32,
+                if p.scan_film {
+                    p.negative_bleach.map_or(0.0, |b| b.amount)
+                } else {
+                    0.0
+                },
+            ],
+            col2: [
+                s[0][2] as f32,
+                s[1][2] as f32,
+                s[2][2] as f32,
+                p.negative_bleach.map_or(1.0, |b| b.cyan_max),
+            ],
             bw,
         };
         let scan_params_buf = mk_uniform("scan_params", bytemuck::bytes_of(&scan_params));
@@ -2507,7 +2530,9 @@ impl ComputeBackend for WgpuBackend {
             n_wavelengths: u32,
             normalization_factor: f32,
             preflash: [f32; 3],
-            _pad: f32,
+            negative_amount: f32,
+            cyan_max: f32,
+            _pad: [f32; 3],
         }
 
         let params = Params {
@@ -2516,7 +2541,9 @@ impl ComputeBackend for WgpuBackend {
             n_wavelengths: n_wl as u32,
             normalization_factor: normalization_factor as f32,
             preflash: [preflash[0] as f32, preflash[1] as f32, preflash[2] as f32],
-            _pad: 0.0,
+            negative_amount: 0.0,
+            cyan_max: 1.0,
+            _pad: [0.0; 3],
         };
 
         // GPU shaders are f32-only — narrow f64 inputs at the shader boundary.

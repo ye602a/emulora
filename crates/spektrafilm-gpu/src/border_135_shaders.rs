@@ -35,20 +35,25 @@ pub(super) const MALLETT_BORDER: &str = bordered!(
 
 pub(super) const PRINT: &str = concat!(
     include_str!("../../spektrafilm-shaders/wgsl/print_spectral.wgsl"),
+    include_str!("../../spektrafilm-shaders/wgsl/negative_bleach.wgsl"),
     include_str!("../../spektrafilm-shaders/wgsl/full_film_coverage.wgsl"),
 );
 pub(super) const PRINT_BORDER: &str = bordered!(
     "../../spektrafilm-shaders/wgsl/print_spectral.wgsl",
     "7",
-    ""
+    include_str!("../../spektrafilm-shaders/wgsl/negative_bleach.wgsl")
 );
 
 pub(super) const SCAN: &str = concat!(
     include_str!("../../spektrafilm-shaders/wgsl/scan_spectral.wgsl"),
+    include_str!("../../spektrafilm-shaders/wgsl/negative_bleach.wgsl"),
     include_str!("../../spektrafilm-shaders/wgsl/full_film_coverage.wgsl"),
 );
-pub(super) const SCAN_BORDER: &str =
-    bordered!("../../spektrafilm-shaders/wgsl/scan_spectral.wgsl", "9", "");
+pub(super) const SCAN_BORDER: &str = bordered!(
+    "../../spektrafilm-shaders/wgsl/scan_spectral.wgsl",
+    "9",
+    include_str!("../../spektrafilm-shaders/wgsl/negative_bleach.wgsl")
+);
 
 // The last entry is sliced away when this shader uses the ordinary canvas.
 pub(super) fn uniform_entry<'a>(

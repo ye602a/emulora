@@ -59,6 +59,9 @@ use crate::stages::filming::select_illuminant;
 use crate::stock_setup::{AcceptedStockSetup, ResolvedStockSetup};
 
 fn validate_spectral_recipe(params: &RuntimeParams) -> Result<(), String> {
+    if !(0.0..=1.0).contains(&params.film_render.bleach_bypass) {
+        return Err("film_render.bleach_bypass must be in [0, 1]".into());
+    }
     if !(0.0..=1.0).contains(&params.print_render.bleach_bypass) {
         return Err("print_render.bleach_bypass must be in [0, 1]".into());
     }
@@ -152,6 +155,7 @@ struct CalibrationInputs {
     input_gamut: crate::params::InputGamutCompressParams,
     development: [Option<f64>; 2],
     paper_grade: Option<crate::params::PaperGrade>,
+    negative_bleach: f32,
     film_gamma: f32,
     filter: CameraFilter,
     spectral_cuts: [Option<[f32; 3]>; 2],
@@ -188,6 +192,7 @@ impl CalibrationInputs {
             } else {
                 p.print_render.paper_grade
             },
+            negative_bleach: p.film_render.bleach_bypass,
             film_gamma: p.film_render.density_curve_gamma,
             filter: p.camera.photographic_filter,
             filter_input_space: p
@@ -466,6 +471,9 @@ impl Pipeline {
         data_dir: &Path,
     ) -> Result<Self, String> {
         validate_spectral_recipe(&params)?;
+        if params.film_render.bleach_bypass > 0.0 && !film.supports_negative_bleach() {
+            return Err("negative bleach bypass requires a colour negative".into());
+        }
         // B&W profiles: collapse the development-time family to the selected
         // time and broadcast the single channel onto the 3-channel engine
         // layout. Must happen before anything reads the profile data.
@@ -1144,6 +1152,14 @@ impl Pipeline {
         image: &ImageBuf,
     ) -> Result<Option<spektrafilm_gpu::FilmBorderGpuParams>, spektrafilm_gpu::output::OutputError>
     {
+        if self.params.film_render.bleach_bypass
+            != self
+                .calibration
+                .as_ref()
+                .map_or(0.0, |key| key.negative_bleach)
+        {
+            return Err(spektrafilm_gpu::OutputError::UnsupportedNegativeBleach);
+        }
         if self.hue_requested()
             && (!self.supports_hue_output()
                 || self
@@ -1738,7 +1754,14 @@ impl Pipeline {
             };
 
         let params = spektrafilm_gpu::FilmChainParams {
-            print_bleach_bypass: if !self.params.io.scan_film && self.print.is_color() { self.params.print_render.bleach_bypass } else { 0.0 },
+            negative_bleach: self
+                .film
+                .negative_bleach(self.params.film_render.bleach_bypass),
+            print_bleach_bypass: if !self.params.io.scan_film && self.print.is_color() {
+                self.params.print_render.bleach_bypass
+            } else {
+                0.0
+            },
             negative_hue: self.active_negative_hue(),
             image,
             border_135,

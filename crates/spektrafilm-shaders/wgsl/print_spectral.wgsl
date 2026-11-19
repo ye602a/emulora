@@ -16,6 +16,8 @@ struct Params {
     // Zero unless the enlarger preflash is active. vec3 is 16-byte aligned,
     // so it lands at offset 16 right after the four leading scalars.
     preflash: vec3<f32>,
+    negative_amount: f32,
+    cyan_max: f32,
 }
 
 @group(0) @binding(0) var<uniform> params: Params;
@@ -35,9 +37,13 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     }
 
     let base = pixel_idx * 3u;
-    let cmy_r = density_cmy[base];
-    let cmy_g = density_cmy[base + 1u];
-    let cmy_b = density_cmy[base + 2u];
+    var cmy = vec3<f32>(density_cmy[base], density_cmy[base + 1u], density_cmy[base + 2u]);
+    var silver = 0.0;
+    if params.negative_amount > 0.0 {
+        let layer = negative_bleach_density(cmy, params.negative_amount, params.cyan_max);
+        cmy = layer.xyz;
+        silver = layer.w;
+    }
     let film_opacity = film_coverage(pixel_idx);
 
     var raw = vec3<f32>(0.0, 0.0, 0.0);
@@ -52,7 +58,7 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
         let cd_g = channel_density[cd_base + 1u];
         let cd_b = channel_density[cd_base + 2u];
         let bd = base_density[wl];
-        let d = cmy_r * cd_r + cmy_g * cd_g + cmy_b * cd_b + bd;
+        let d = cmy.r * cd_r + cmy.g * cd_g + cmy.b * cd_b + bd + silver;
         let light = pow(10.0, -d * film_opacity) * illuminant[wl];
         raw.x += light * sensitivity[cd_base];
         raw.y += light * sensitivity[cd_base + 1u];

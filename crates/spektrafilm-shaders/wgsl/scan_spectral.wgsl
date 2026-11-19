@@ -45,7 +45,11 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     let base = pixel_idx * 3u;
     var cmy = vec3<f32>(density_cmy[base], density_cmy[base + 1u], density_cmy[base + 2u]);
     var silver = 0.0;
-    if params.col0.w > 0.0 {
+    if params.col1.w > 0.0 {
+        let layer = negative_bleach_density(cmy, params.col1.w, params.col2.w);
+        cmy = layer.xyz;
+        silver = layer.w;
+    } else if params.col0.w > 0.0 {
         let d = max(cmy, vec3<f32>(0.0));
         let layers = d / (d + vec3<f32>(0.65));
         let weight = params.col0.w * (layers.r + layers.g + layers.b) / 3.0;

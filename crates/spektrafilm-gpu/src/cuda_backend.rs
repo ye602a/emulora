@@ -2295,7 +2295,7 @@ impl ComputeBackend for CudaBackend {
     }
 
     fn try_run_film_chain(&self, params: &FilmChainParams<'_>) -> Option<ImageBuf> {
-        if params.negative_hue.is_some() {
+        if params.negative_bleach.is_some() || params.negative_hue.is_some() {
             return None;
         }
         if params.border_135.is_some() {
@@ -2324,6 +2324,9 @@ impl ComputeBackend for CudaBackend {
             return Err(OutputError::UnsupportedFilmBorder);
         }
         crate::output::validate_rgb_image(params.image)?;
+        if params.negative_bleach.is_some() {
+            return Err(OutputError::UnsupportedNegativeBleach);
+        }
         if params.negative_hue.is_some() {
             return Err(OutputError::UnsupportedNegativeHue);
         }
