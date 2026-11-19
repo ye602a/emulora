@@ -2,6 +2,18 @@
 
 ## Current position and next work · 2026-11-19
 
+### Reference-output priorities
+
+For an OFX or LAB alignment feature, the acceptance target is the selected upstream render. Name the product revision, backend, stock pair, recipe and output transform. Compare absolute final pixels on shared inputs, including neutral steps and relevant color/detail regions. Use a separate held-out photo. Comparing the change from each engine's baseline helps locate drift but can conceal a mismatch in both final images. Set tolerances for the particular comparison and retain previously accepted default renders.
+
+| Order | Reference and work | Completion evidence |
+| --- | --- | --- |
+| 1 · delivered | LAB Windows 1.3.4-beta.3, Tri-X 400 / Multigrade IV RC grade 2, yellow No. 8 and No. 12. Use the supplied reference recipes for manual exposure and grain off. | Final LAB Vulkan outputs compared directly to production RS CPU and Vulkan on the costume/wedge and two held-out photos. [Results and repeatable check](ENGINE_STUDIES.md#lab-reference-prints-for-the-yellow-filters) |
+| 2 · next | Extend the same LAB comparison to the other already shipped B&W films (T-Max 100, Acros II and HP5 Plus) at grade 2 before extending to other full grades. Read LAB's actual film development selection and print pack for each case. | Verify the unfiltered print first, then the two yellow filters against the shipping host. Keep each untested or failed combination outside the qualified list. |
+| 3 · outstanding color path | OFX Windows 0.3.12 camera UV/IR cuts. The existing shared-input study still shows a materially different IR response. Match the release's filter edges, exposure normalization, stock/print pack and output controls. | Compare the unfiltered output and each enabled setting against the plugin on skin, blue/purple fabric, foliage and gray. [Previous controls and measured differences](ENGINE_STUDIES.md#camera-uv-and-ir-cut) |
+
+The closed direct-scan glare and silver studies remain recorded. RS silver controls implement the public shader model; shipping OFX preset equivalence remains unqualified. Existing LAB optical prints, print trims and preflash retain their recorded stock-specific coverage. Product adoption in FPW, resource redistribution and interactive acceptance remain separate work items below. Physical characterization and preference comparisons are outside the alignment queue.
+
 The goal is one independently maintained still-film engine with verifiable standalone entry points and a versioned FPW consumer. The published `codex/engine-evolution` branch includes batches 1–14, print bleach bypass and the cinema illuminant correction. Published RS main still points at `b47948e`; FPW main `e1d0759` pins RS `1947ee8` and keeps the persisted contract identity separate. The upstream source branch heads below were checked again on November 19. Publication, FPW adoption and model qualification are separate milestones.
 
 | Goal | Delivered on the RS branch | Remaining decision |

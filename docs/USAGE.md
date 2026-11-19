@@ -51,6 +51,14 @@ In the GUI, select a monochrome film and open **Exposure → Camera filter**. Fo
 - With `compensate_filter: false` (default) the glass costs exposure. With `true` RS restores the camera raw response to a linear 0.184 neutral in the selected input primaries. `Pipeline::filter_factor_ev()` reports the required extra exposure in stops in either case. The normal camera EV control remains available. Metering reads the source. Print normalization uses the bare measured stock, and modeled gate-external fog bypasses the lens. A host changing the filter or its compensation uses checked refresh as with any other calibration input.
 - Enabling measured response is an appearance change. These options require a spectral constructor and a B&W film. A cold build with glass prepares the bare reference and filtered camera front from the same loaded resource. The runtime uses one front on CPU and resident GPU.
 
+**To match SpektraLab Windows 1.3.4-beta.3** on Tri-X 400 and Multigrade IV RC grade 2, use the [No. 8 recipe](../recipes/spektralab/trix400-mg2-w8.json) or [No. 12 recipe](../recipes/spektralab/trix400-mg2-w12.json). Both set manual exposure, compensated glass, grain off and the reference print/output settings. From the repository root:
+
+```sh
+spektrafilm process photo.tif --film kodak_tri_x_400 --paper ilford_multigrade_iv_rc --params recipes/spektralab/trix400-mg2-w8.json -o print.png
+```
+
+The reference comparison used linear ProPhoto RGB TIFF input and encoded sRGB output. Selecting the yellow filter alone in an existing recipe preserves that recipe's own paper and scanner settings. [Verified scope](ENGINE_STUDIES.md#lab-reference-prints-for-the-yellow-filters)
+
 **Double-X / 2302 reference.** Fixed linear sRGB patches, manual exposure, unencoded output, grain and glare disabled. Kodak specifies daylight factors of 8 and 20 (3.00 and 4.32 stops). Our model follows the stock and upsampler's neutral; No. 29 yields about half a stop less loss than the published daylight guide. [Kodak technical data](https://www.kodak.com/content/products-brochures/Film/DOUBLEX-Technical-Data-EN.pdf)
 
 | Camera model | No. 25 EV | No. 29 EV |
