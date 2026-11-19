@@ -1,0 +1,25 @@
+diff --git a/crates/spektrafilm-core/src/pipeline.rs b/crates/spektrafilm-core/src/pipeline.rs
+index f679cf7..afc7523 100644
+--- a/crates/spektrafilm-core/src/pipeline.rs
++++ b/crates/spektrafilm-core/src/pipeline.rs
+@@ -593,12 +593,19 @@ impl Pipeline {
+             let mut lut = if method == "arctic2026beta04" {
+                 spectral_service::compute_reflectance_tc_lut(spectra, response, ref_illuminant_f64)
+             } else if params.settings.apply_hanatos2025_adaptation_window && window.len() >= 4 {
++                let (x, y) = spektrafilm_math::spectral::illuminant_to_xy(select_illuminant(&front_illuminant));
++                let (u, v) = spektrafilm_math::spectral::xy_to_tc(x, y);
++                let scale = (spectra.size - 1) as f64;
++                let neutral = spektrafilm_math::lut::bicubic_2d_f64(
++                    &spectra.data.iter().map(|&v| f64::from(v)).collect::<Vec<_>>(),
++                    spectra.size, spectra.size, spectra.n_wavelengths, u * scale, v * scale,
++                );
+                 spectral_service::compute_camera_lut_with_window(
+                     spectra,
+                     response,
+                     &sensitivity,
+                     window,
+-                    ref_illuminant_f64,
++                    &neutral,
+                 )
+             } else {
+                 spectral_service::compute_tc_lut(spectra, response)
