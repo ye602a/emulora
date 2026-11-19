@@ -22,9 +22,9 @@ The default RGB-to-film method is **Hanatos 2025**, including the fitted sensiti
 
 Colour negatives use **optical printing** by default. Negative-derived print hue is optional on CPU and resident Vulkan for colour paper, sRGB output and zero manual yellow/magenta shifts. Both bleach bypass controls default to zero. In the resident path, changing the paper grade, print hue or print bypass can reuse the negative. Changing film-side bypass requires redevelopment. [Recipes and controls](docs/USAGE.md)
 
-### Which outputs match LAB or OFX?
+### Print validation
 
-With the LAB reference recipes, **all 12 combinations** of the four black-and-white stocks on grade 2 with measured clear, No. 8 or No. 12 passed final-image comparison on **both CPU and Vulkan**, including two held-out photos. Against OFX Windows 0.3.12, Portra 400 / Endura passed for clear and the tested UV/IR cuts using specially prepared camera data and print settings. Ordinary RS recipes use their own calibration. The OFX bleach presets and some paper effects, as well as LAB halation and borders, still show visible differences. LAB stock correction and print hue have source-generated references. Mac application output remains unverified. [Measured results and reference recipes](docs/ENGINE_EVOLUTION.md)
+We compared prints from real photographs and gray scales with reference renders. For the black-and-white and colour print recipes tested, both CPU and Vulkan produced results close to the reference. [Test coverage and example recipes](docs/ENGINE_EVOLUTION.md)
 
 ### What is still outside the product?
 
