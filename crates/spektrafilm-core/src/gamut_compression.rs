@@ -144,7 +144,7 @@ enum Space {
 impl Space {
     /// linear sRGB → perceptual reconstruction coords `[L, a, b]`.
     #[inline]
-    fn from_rgb(self, rgb: [f64; 3]) -> [f64; 3] {
+    fn rgb_to_perceptual(self, rgb: [f64; 3]) -> [f64; 3] {
         let xyz = mat_vec(&SRGB_RGB_TO_XYZ, rgb);
         match self {
             // oklrab shares OkLab coords; only the C_max lookup index differs.
@@ -385,7 +385,7 @@ impl OutputGamutCompress {
             Kind::AcesRgc => return self.compress_aces_rgc(rgb),
             Kind::Perceptual(s) => s,
         };
-        let lab = space.from_rgb(rgb);
+        let lab = space.rgb_to_perceptual(rgb);
         // One-sided lightness compression first (so C_max is looked up at the
         // corrected L), normalized by the perceptual white.
         let mut l = lab[0];
@@ -623,7 +623,7 @@ fn build_cmax_table(space: Space) -> Vec<f64> {
                 for _ in 0..N_BISECT {
                     let mid = (lo + hi) * 0.5;
                     let rgb = space.to_rgb([l, mid * cos_h, mid * sin_h]);
-                    let in_gamut = rgb.iter().all(|&v| v >= -1e-6 && v <= 1.0 + 1e-6);
+                    let in_gamut = rgb.iter().all(|&v| (-1e-6..=1.0 + 1e-6).contains(&v));
                     if in_gamut {
                         lo = mid;
                     } else {
@@ -677,6 +677,7 @@ mod tests {
     /// Regression guard: oklch reference rows from `compress_rgb_oklch_chroma`
     /// (knee (0,1,6), lightness (0.7,1,2.2)) — in-gamut, super-red, super-cyan.
     #[test]
+    #[allow(clippy::excessive_precision, reason = "Preserve the original reference samples verbatim.")]
     fn oklch_matches_python_reference() {
         check_reference(
             "oklch",
@@ -700,6 +701,7 @@ mod tests {
     /// Regression guard: cam16ucs reference rows from
     /// `compress_rgb_cam16ucs_chroma` (same knee/lightness).
     #[test]
+    #[allow(clippy::excessive_precision, reason = "Preserve the original reference samples verbatim.")]
     fn cam16ucs_matches_python_reference() {
         check_reference(
             "cam16ucs",
@@ -730,6 +732,7 @@ mod tests {
 
     /// Regression guard: oklrab reference rows from `compress_rgb_oklrab_chroma`.
     #[test]
+    #[allow(clippy::excessive_precision, reason = "Preserve the original reference samples verbatim.")]
     fn oklrab_matches_python_reference() {
         check_reference(
             "oklrab",
@@ -757,6 +760,7 @@ mod tests {
     /// Regression guard: aces_rgc reference rows from `compress_rgb_aces_rgc`
     /// (per-channel knee, no lightness/table).
     #[test]
+    #[allow(clippy::excessive_precision, reason = "Preserve the original reference samples verbatim.")]
     fn aces_rgc_matches_python_reference() {
         check_reference(
             "aces_rgc",

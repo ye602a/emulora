@@ -9,11 +9,9 @@ cargo test --locked -p spektrafilm-cli --test spectral_lut -p spektrafilm-core -
 cargo test --locked -p spektrafilm-cli --features precision-f64 --test spectral_lut cube_matches_independent_cpu_photo_pixels
 cargo check --locked -p spektrafilm-gui
 cargo build --locked -p spektrafilm-cli --bin spektrafilm
-python tools/validation/check_fpw_resource_contract.py
-python scripts/verify_calibrated_output_sources.py
 ```
 
-The resource checks verified 55 shared resources, three calibration artifacts and seven frozen source/fixture hashes. The [photo and ramp measurements](../ENGINE_STUDIES.md#spectral-cube-export) include the recipe and reproduction commands. No host release or new calibrated look was qualified.
+At that revision, the resource checks verified 55 shared resources, three calibration artifacts and seven frozen source/fixture hashes. The [photo and ramp measurements](../ENGINE_STUDIES.md#spectral-cube-export) include the recipe and reproduction commands. No host release or new calibrated look was qualified.
 
 ## Runtime-cost review (2026-11-13)
 
@@ -57,8 +55,7 @@ No performance threshold or per-frame benchmark is added to the runtime or CI.
 ## Boundary review (2026-11-13)
 
 The follow-up review adds checks for malformed resident input, nonempty metering
-grids for thin images, missing Vulkan IIR capability, unsupported CUDA multilayer
-selection, cancellation raised after GPU completion, and failed Windows builds
+grids for thin images, missing Vulkan IIR capability, cancellation raised after GPU completion, and failed Windows builds
 leaving old executables available. These are input, capability and publication
 boundaries; the accepted shader kernels, profiles and calibration tables are
 unchanged.
@@ -69,8 +66,7 @@ llvmpipe Vulkan (LLVM 19.1.7), with `SPEKTRAFILM_REQUIRE_GPU=1`:
 - All 121 math/model/core/GPU library and integration tests passed. The one
   ignored IIR test was run explicitly: all 1,215 cases passed with maximum
   absolute error `1.1920928955078125e-7` and the original tolerance.
-- The CUDA selection check passed without initializing CUDA, and both resident
-  input tests passed again with `precision-f64`.
+- Both resident input tests passed again with `precision-f64`.
 - The public host example completed all five routes, including full and regional
   output on the injected device. The 55-resource, 3-calibration and 7-source-hash
   checks passed with unchanged content identities.
@@ -110,8 +106,8 @@ Linux CI used Mesa llvmpipe Vulkan (LLVM 20.1.2), with
 Rust 1.100.0, wgpu 30.0.1 and Mesa 25.0.7 llvmpipe (LLVM 19) on Debian 13.
 Local f64 core/GPU and CPU-only GPU-crate checks also passed.
 
-The calibrated-output tests compile the original scalar and GPU references
-independently. Original/new GPU RGB16 and RGBA8 codes match across stock,
+At that revision, the calibrated-output tests compiled the original scalar and GPU references
+independently. Original/new GPU RGB16 and RGBA8 codes matched across stock,
 finish and region cases. The Python-heldout tolerance remains `2e-6`, and the
 negative CPU/GPU comparison retains its original maximum of 3 RGB16 codes.
 See [output validation details](CALIBRATED_OUTPUT_V1.md).
@@ -133,11 +129,17 @@ validation of a deployed application binary.
 
 ## Reproduce
 
+From the repository root:
+
+```sh
+python tools/verify_data_manifest.py
+cargo fmt --all -- --check
+cargo clippy --locked --workspace --all-targets -- -D warnings
+```
+
 For Linux with system OpenBLAS:
 
 ```sh
-python tools/validation/check_fpw_resource_contract.py
-python scripts/verify_calibrated_output_sources.py
 
 SPEKTRAFILM_REQUIRE_GPU=1 cargo test --locked \
   -p spektrafilm-math -p spektrafilm-model -p spektrafilm-core -p spektrafilm-gpu \
@@ -147,26 +149,13 @@ SPEKTRAFILM_REQUIRE_GPU=1 cargo test --locked \
   -p spektrafilm-gpu --features openblas-src/system --lib \
   actual_gpu_iir_matches_f64_reference -- --ignored --nocapture
 
-cargo test --locked -p spektrafilm-gpu \
-  --features openblas-src/system,cuda-backend --lib \
-  multilayer_grain_selection_is_rejected_without_initializing_cuda
-
 cargo build --locked \
   -p spektrafilm-core -p spektrafilm-gpu --features openblas-src/system \
-  --example fpw_host_contract
-SPEKTRAFILM_REQUIRE_GPU=1 target/debug/examples/fpw_host_contract
+  --example host_gpu_contract
+SPEKTRAFILM_REQUIRE_GPU=1 target/debug/examples/host_gpu_contract
 ```
 
-Other supported platforms use their normal BLAS configuration. For cross-version
-pixel checks, run the same
-[migration probe](../../crates/spektrafilm-core/examples/migration_probe.rs)
-in separate baseline/candidate worktrees and compare the resulting directories:
-
-```sh
-python tools/validation/compare_migration_probe.py /path/to/baseline /path/to/candidate
-```
-
-The comparator rejects changed inputs or parameters before reporting parity.
+Other supported platforms use their normal BLAS configuration.
 
 ## Scope
 
@@ -181,5 +170,5 @@ not establish interruption of GPU execution or device-loss recovery.
 `CooperativeStages` separately verifies that a completed immutable negative can
 be retained after cancellation or output failure, while an incomplete negative
 cannot. Cache clear/disable and superseding publication tickets still apply.
-Destinations may be published only after the whole render succeeds. Host adoption
-follows the [compatibility checks](FPW_PARITY_MIGRATION_PLAN.md).
+Destinations may be published only after the whole render succeeds. See the
+[host integration contract](HOST_GPU_INTEGRATION_CONTRACT.md).

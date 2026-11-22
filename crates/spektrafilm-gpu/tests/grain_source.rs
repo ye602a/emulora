@@ -1,4 +1,4 @@
-//! Regression for FPW-derived source-anchored stochastic grain.
+//! Regression for source-anchored stochastic grain.
 #![cfg(feature = "wgpu-backend")]
 
 use spektrafilm_gpu::wgpu_backend::{GrainReference, WgpuBackend};

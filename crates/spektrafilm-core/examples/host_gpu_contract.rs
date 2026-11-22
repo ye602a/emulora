@@ -1,10 +1,7 @@
-//! Runnable, public-API-only consumer for FPW's accepted physical routes.
+//! Public GPU integration example for paper prints, slides and calibrated negatives.
 //!
-//! This is a synthetic integration smoke, not the FPW application or its photo
-//! acceptance suite. A real host passes its existing device/queue and maps its
-//! persisted recipe into RuntimeParams. No FPW checkout or private assets are
-//! required. Run `cargo run -p spektrafilm-core --example fpw_host_contract -- <data-dir>`
-//! to exercise a host resource directory, or omit the argument for the bundled data.
+//! Run with the bundled data or supply a data directory as the first argument.
+//! The example creates a headless device and renders synthetic linear input.
 
 use std::{
     error::Error,
@@ -20,7 +17,7 @@ use spektrafilm_core::{
     params::RuntimeParams,
     pipeline::Pipeline,
     profile,
-    stock_setup::{AcceptedStockSetup, StockRoute},
+    stock_setup::{StockDefaults, StockRoute},
 };
 use spektrafilm_gpu::{
     DisplayRegion, FilmRenderOptions, FilmSubmissionPolicy, SourceIdentity, wgpu,
@@ -29,7 +26,7 @@ use spektrafilm_gpu::{
 use spektrafilm_math::{image::ImageBuf, precision::from_f32};
 
 /// Example recipe mapping, kept separate from the engine's versioned stock
-/// constants. These are the existing FPW transport/control choices; AP0 is
+/// constants. These are the v1 transport and output settings; AP0 is
 /// limited to the frozen negative inversion route.
 fn recipe_params(route: StockRoute) -> RuntimeParams {
     let mut params = RuntimeParams::default();
@@ -46,7 +43,7 @@ fn recipe_params(route: StockRoute) -> RuntimeParams {
     params.io.output_cctf_encoding = true;
     params.film_render.grain.active = true;
     params.film_render.grain.sublayers_active = true;
-    // FPW uses this existing physical route; standalone RS defaults stay intact.
+    // Select the calibrated v1 transport explicitly.
     params.film_render.grain.gpu_multilayer = true;
     params.film_render.dir_couplers.active = true;
     params.camera.diffusion_filter.active = false;
@@ -81,7 +78,7 @@ fn render_frame(
         .try_with_resident_params(image, |params| {
             output.render(backend, params, render, finish)
         })?
-        .ok_or("accepted physical route unavailable; do not silently select a different look")?;
+        .ok_or("requested physical route is unavailable")?;
     // Success here is the publication boundary. The caller can now retain the
     // textures or hand them to its display/post-processing code on this device.
     Ok(result?)
@@ -137,14 +134,14 @@ fn run_on_host_device(
     ];
     let mut published = Vec::new();
     for (index, (route, stock, mapping)) in cases.into_iter().enumerate() {
-        let pipeline = Pipeline::new_with_spectral_and_stock_setup(
+        let pipeline = Pipeline::new_with_spectral_and_stock_defaults(
             profile::load_profile_by_name(data, stock)?,
             profile::load_profile_by_name(data, "kodak_portra_endura")?,
             recipe_params(route),
             data,
-            AcceptedStockSetup::FpwV1(route),
+            StockDefaults::Physical(route),
         )?;
-        // Match FPW's initial paper-only density reuse policy. The source token
+        // Opt in to density reuse for paper prints. The source token
         // binds prepared pixels only; RS supplies the film-stage dependencies.
         backend.configure_negative_cache(route == StockRoute::Paper);
         // The host owns this request signal. Cooperative stages retain useful
@@ -207,7 +204,7 @@ fn run_on_host_device(
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    // Headless bootstrap for this standalone example only. FPW supplies its
+    // Headless bootstrap for this example only. An application can supply its
     // already-created display device using WgpuBackend::device_descriptor.
     // Rewrapping the cloned handles below creates no second GPU device.
     let bootstrap = WgpuBackend::new().ok_or("a Vulkan device is required for this example")?;

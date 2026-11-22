@@ -28,7 +28,7 @@ pub(crate) fn sheet() -> (ImageBuf, Vec<[f64; 2]>, Vec<bool>) {
     let mut image = ImageBuf::new((1 + SHEET_HUES * CHROMA_STEPS) as u32, 1);
     let mut ab = Vec::with_capacity(1 + SHEET_HUES * CHROMA_STEPS);
     let mut valid = Vec::with_capacity(1 + SHEET_HUES * CHROMA_STEPS);
-    for (i, p) in image.data.chunks_exact_mut(3).enumerate() {
+    for (i, p) in image.data.as_chunks_mut::<3>().0.iter_mut().enumerate() {
         let j = i.saturating_sub(1);
         let angle = (j % SHEET_HUES) as f64 * std::f64::consts::TAU / SHEET_HUES as f64;
         let c = if i == 0 {
@@ -141,7 +141,7 @@ pub(crate) fn prepare(
     // Calibrate the inverse in normalized layer-exposure ratios. Where the
     // film maps two hues to the same ratio, keep the less saturated reading.
     let mut coord = Vec::with_capacity(ab.len());
-    for (i, px) in developed.data.chunks_exact(3).enumerate() {
+    for (i, px) in developed.data.as_chunks::<3>().0.iter().enumerate() {
         let e: [f64; 3] = std::array::from_fn(|c| 10.0_f64.powf(layer(&k, c, px[c] as f64)[0]));
         if i == 0 {
             k.neutral = e.map(|v| v as f32);
@@ -241,7 +241,7 @@ pub(crate) fn faces(curves: &[[f64; 3]]) -> Result<ImageBuf, String> {
 fn build_gamut(k: &mut NegativeHue, faces: &ImageBuf) -> Result<(), String> {
     let lab: Vec<_> = faces
         .data
-        .chunks_exact(3)
+        .as_chunks::<3>().0.iter()
         .map(|p| {
             xyz_to_oklab(mat_vec(
                 &SRGB_TO_XYZ_F64,
@@ -266,7 +266,7 @@ fn build_gamut(k: &mut NegativeHue, faces: &ImageBuf) -> Result<(), String> {
         })
         .collect();
     k.gamut = vec![-1.0; GAMUT_LEVELS * GAMUT_HUES];
-    for face in points.chunks_exact(41 * 41) {
+    for face in points.as_chunks::<{ 41 * 41 }>().0 {
         for i in 0..40 {
             for j in 0..40 {
                 let a = i * 41 + j;

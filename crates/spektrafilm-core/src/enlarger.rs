@@ -94,6 +94,7 @@ pub(crate) const ILLUMINANT_TH_KG3_F64: [f64; N_WAVELENGTHS] = [
 
 /// TH-KG3 illuminant SPD (tungsten-halogen + Schott KG3 heat filter).
 /// Baked from Python's `standard_illuminant('TH-KG3')`.
+#[allow(clippy::excessive_precision, reason = "Preserve the reference enlarger spectra verbatim.")]
 pub(crate) const ILLUMINANT_TH_KG3: [f32; N_WAVELENGTHS] = [
     0.271155, 0.293363, 0.315409, 0.336981, 0.358678, 0.380520, 0.403013, 0.426787, 0.451652,
     0.478065, 0.506671, 0.536658, 0.568077, 0.599922, 0.630515, 0.661222, 0.692091, 0.723665,
@@ -108,6 +109,7 @@ pub(crate) const ILLUMINANT_TH_KG3: [f32; N_WAVELENGTHS] = [
 
 /// TH-KG3 + default CMY dichroic filters (C=0, M=65, Y=55) at full f64 precision.
 /// Baked from Python's `color_enlarger(standard_illuminant('TH-KG3'), (0, 65, 55))`.
+#[allow(clippy::excessive_precision, reason = "Preserve the reference enlarger spectra verbatim.")]
 pub const ILLUMINANT_TH_KG3_DEFAULT_FILTERS_F64: [f64; N_WAVELENGTHS] = [
     0.076421827812783602,
     0.082680934006473347,
@@ -194,6 +196,7 @@ pub const ILLUMINANT_TH_KG3_DEFAULT_FILTERS_F64: [f64; N_WAVELENGTHS] = [
 
 /// TH-KG3 + default CMY dichroic filters (C=0, M=65, Y=55) — f32 fallback.
 /// Baked from Python's `color_enlarger(standard_illuminant('TH-KG3'), (0, 65, 55))`.
+#[allow(clippy::excessive_precision, reason = "Preserve the reference enlarger spectra verbatim.")]
 pub const ILLUMINANT_TH_KG3_DEFAULT_FILTERS: [f32; N_WAVELENGTHS] = [
     0.076422, 0.082681, 0.088894, 0.094974, 0.101089, 0.107245, 0.113585, 0.120285, 0.127293,
     0.134737, 0.142799, 0.151251, 0.160106, 0.169081, 0.177703, 0.186358, 0.195058, 0.203956,
@@ -334,15 +337,15 @@ fn dichroic_filters_f64() -> [[f64; 3]; N_WAVELENGTHS] {
     let transitions = [12.0f64, 8.0, 8.0, 8.0];
 
     let mut filters = [[0.0f64; 3]; N_WAVELENGTHS];
-    for i in 0..N_WAVELENGTHS {
+    for (i, filter) in filters.iter_mut().enumerate() {
         let wl = spectral::WAVELENGTH_MIN as f64 + (i as f64) * spectral::WAVELENGTH_STEP as f64;
-        filters[i][2] = erf((wl - edges[0]) / transitions[0]) / 2.0 + 0.5;
+        filter[2] = erf((wl - edges[0]) / transitions[0]) / 2.0 + 0.5;
         if wl <= 550.0 {
-            filters[i][1] = -erf((wl - edges[1]) / transitions[1]) / 2.0 + 0.5;
+            filter[1] = -erf((wl - edges[1]) / transitions[1]) / 2.0 + 0.5;
         } else {
-            filters[i][1] = erf((wl - edges[2]) / transitions[2]) / 2.0 + 0.5;
+            filter[1] = erf((wl - edges[2]) / transitions[2]) / 2.0 + 0.5;
         }
-        filters[i][0] = -erf((wl - edges[3]) / transitions[3]) / 2.0 + 0.5;
+        filter[0] = -erf((wl - edges[3]) / transitions[3]) / 2.0 + 0.5;
     }
     filters
 }

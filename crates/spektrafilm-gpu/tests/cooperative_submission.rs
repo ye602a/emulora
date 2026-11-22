@@ -78,7 +78,7 @@ fn detailed_halation_and_dir_checkpoints_preserve_complete_output_bits() {
     // software Vulkan practical while exercising both scatter blurs, two
     // halation bounces and both DIR diffusion blurs across actual submissions.
     let mut input = image(2049, 2048);
-    for (index, pixel) in input.data.chunks_exact_mut(3).enumerate() {
+    for (index, pixel) in input.data.as_chunks_mut::<3>().0.iter_mut().enumerate() {
         let x = index % input.width as usize;
         let y = index / input.width as usize;
         pixel[0] = from_f32(0.02 + ((x * 17 + y * 13) % 251) as f32 / 300.0);
@@ -117,7 +117,7 @@ fn detailed_halation_and_dir_checkpoints_preserve_complete_output_bits() {
     };
     let expected = backend.run_film_chain_with_options(&p, options).unwrap();
     assert!(expected.data.iter().all(|value| value.is_finite()));
-    assert!(expected.data.chunks_exact(3).any(|pixel| {
+    assert!(expected.data.as_chunks::<3>().0.iter().any(|pixel| {
         pixel[0].to_bits() != expected.data[0].to_bits()
     }), "fixture must retain spatial detail rather than saturating to one value");
 

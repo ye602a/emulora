@@ -5,6 +5,9 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 
+[lints]
+workspace = true
+
 [features]
 precision-f64 = [
     "spektrafilm-math/precision-f64",

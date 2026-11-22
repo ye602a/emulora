@@ -7,7 +7,7 @@
 ///
 /// `crop` is `[x, y, width, height]` in full-resolution output pixels. Output
 /// dimensions must be positive and at most the crop dimensions: this interface
-/// preserves the established FPW area-reduction rule and does not interpolate
+/// preserves the established area-reduction rule and does not interpolate
 /// an enlargement. At 1:1 the original f32 samples are copied exactly.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct DisplayRegion {
@@ -45,8 +45,6 @@ pub enum OutputError {
     GpuFailure,
     #[error("wide multilayer grain requires a device with the validated Vulkan IIR shader capability")]
     UnsupportedGrainIir,
-    #[error("this GPU backend does not support the selected multilayer grain model; use the Vulkan backend")]
-    UnsupportedMultilayerGrain,
     #[error("source, crop and output dimensions must all be positive")]
     EmptyDimensions,
     #[error("the display crop lies outside the full-resolution output")]

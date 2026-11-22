@@ -1,7 +1,7 @@
 param(
     [string]$IconSource = "assets\spektrafilm-icon.jpg",
     [string]$BuildTargetDir = "target\windows-app",
-    [string]$DistDir = "dist\spektrafilm-windows-cuda",
+    [string]$DistDir = "dist\spektrafilm-windows",
     [switch]$Aio
 )
 
@@ -296,7 +296,7 @@ try {
         $oldEmbed = $env:SPEKTRAFILM_EMBED_MANIFEST
         try {
             $env:SPEKTRAFILM_EMBED_MANIFEST = (Resolve-Path -LiteralPath $manifestPath).Path
-            cargo build --release -p spektrafilm-gui --features spektrafilm-gpu/cuda-backend --target-dir $BuildTargetDir
+            cargo build --release -p spektrafilm-gui --target-dir $BuildTargetDir
             if ($LASTEXITCODE -ne 0) {
                 throw "GUI build failed (cargo exit code $LASTEXITCODE)."
             }
@@ -334,13 +334,12 @@ On first launch it extracts the embedded payload to:
 Backends:
 - Default launch uses WGSL/wgpu when available, then CPU.
 - Current engine qualification covers Vulkan; other GPU backends are not part of that validation.
-- Set SPEKTRAFILM_BACKEND=cuda to request native CUDA on NVIDIA systems.
 "@ | Set-Content -Encoding UTF8 (Join-Path $DistDir "README.txt")
 
         Write-Host "Packaged AIO: $(Resolve-Path -LiteralPath $aioExe)"
         Write-Host "Icon:         $(Resolve-Path -LiteralPath $iconPath)"
     } else {
-        cargo build --release -p spektrafilm-gui --features spektrafilm-gpu/cuda-backend --target-dir $BuildTargetDir
+        cargo build --release -p spektrafilm-gui --target-dir $BuildTargetDir
         if ($LASTEXITCODE -ne 0) {
             throw "GUI build failed (cargo exit code $LASTEXITCODE)."
         }
@@ -367,7 +366,7 @@ Backends:
         Write-Host "Icon:     $(Resolve-Path -LiteralPath $iconPath)"
     }
 
-    Copy-Item -LiteralPath "LICENSE", "SPEKTRAFILM_DATA_LICENSE.txt", "COLOUR_LICENSE.txt" -Destination $DistDir
+    Copy-Item -LiteralPath "LICENSE", "SPEKTRAFILM_DATA_LICENSE.txt", "COLOUR_LICENSE.txt", "THIRD_PARTY_NOTICES.md" -Destination $DistDir
 } finally {
     Pop-Location
 }

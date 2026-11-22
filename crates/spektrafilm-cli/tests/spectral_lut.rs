@@ -100,8 +100,9 @@ fn check_nodes(backend: &str) {
             "DOMAIN_MIN 0 0 0",
             "DOMAIN_MAX 1 1 1",
             "LUT_3D_SIZE 3",
-            "CC BY-SA",
+            "CC BY-SA 4.0",
             "Andrea Volpato",
+            "https://github.com/andreavolpato/spektrafilm",
             if scan {
                 "# Route: direct film scan"
             } else {
@@ -143,11 +144,11 @@ fn check_nodes(backend: &str) {
         ));
         let raw = fs::read(dir.join("photo.bin")).unwrap();
         assert_eq!(raw.len(), 27 * 3 * 8);
-        for (i, pixel) in raw.chunks_exact(24).enumerate() {
+        for (i, pixel) in raw.as_chunks::<24>().0.iter().enumerate() {
             let index = (7 * i + 11) % 27;
             assert_eq!(rows[index].len(), 3);
-            for (channel, bytes) in pixel.chunks_exact(8).enumerate() {
-                let expected = f64::from_ne_bytes(bytes.try_into().unwrap());
+            for (channel, bytes) in pixel.as_chunks::<8>().0.iter().enumerate() {
+                let expected = f64::from_ne_bytes(*bytes);
                 assert!(
                     (rows[index][channel] - expected).abs() <= 2e-6,
                     "{backend} {film} node {index}, channel {channel}: {} vs {expected}",

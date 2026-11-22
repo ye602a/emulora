@@ -42,11 +42,10 @@ mod integration_tests {
         assert_eq!(result.width, 8);
         assert_eq!(result.height, 8);
         let px = result.get(4, 4);
-        for c in 0..3 {
+        for (c, &value) in px.iter().enumerate() {
             assert!(
-                px[c] >= from_f64(0.0) && px[c] <= from_f64(1.0),
-                "channel {c} out of range: {}",
-                px[c]
+                value >= from_f64(0.0) && value <= from_f64(1.0),
+                "channel {c} out of range: {value}"
             );
         }
         let mean: Scalar =
@@ -101,6 +100,7 @@ mod integration_tests {
     /// dumped from upstream `origin/main` (= 0.3.4) with the stochastic /
     /// spatial effects off and linear sRGB in/out.
     #[test]
+    #[allow(clippy::excessive_precision, reason = "Preserve the original reference samples verbatim.")]
     fn full_chain_matches_python_0_3_4_defaults() {
         let dir = data_dir();
         let film = profile::load_profile_by_name(&dir, "kodak_portra_400").unwrap();
@@ -136,13 +136,12 @@ mod integration_tests {
             0.17883059767931708,
             0.18934288118407094,
         ];
-        for c in 0..3 {
+        for (c, expected) in want.into_iter().enumerate() {
             let got = out.get(0, 0)[c] as f64;
             assert!(
-                (got - want[c]).abs() < TOL,
-                "midgray ch {c}: {got} vs {} (diff {:.3e})",
-                want[c],
-                (got - want[c]).abs()
+                (got - expected).abs() < TOL,
+                "midgray ch {c}: {got} vs {expected} (diff {:.3e})",
+                (got - expected).abs()
             );
         }
 

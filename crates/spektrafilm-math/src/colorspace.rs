@@ -1,7 +1,7 @@
-/// Color space conversion matrices and utilities.
-///
-/// All matrices are row-major: output[i] = dot(matrix[i], input).
-/// Source: IEC 61966-2-1 (sRGB), ICC profiles, CIE standards.
+//! Color space conversion matrices and utilities.
+//!
+//! All matrices are row-major: output[i] = dot(matrix[i], input).
+//! Source: IEC 61966-2-1 (sRGB), ICC profiles, CIE standards.
 
 /// sRGB → CIE XYZ (D65), assuming linear input.
 /// Matches Python colour-science 4-digit precision for exact parity.
@@ -22,6 +22,7 @@ pub const PROPHOTO_TO_XYZ_F64: [[f64; 3]; 3] = [
     [0.2880402, 0.7118741, 0.0000857],
     [0.0000000, 0.0000000, 0.8252100],
 ];
+#[allow(clippy::excessive_precision, reason = "Preserve the published colour matrix coefficients verbatim.")]
 pub const REC2020_TO_XYZ_F64: [[f64; 3]; 3] = [
     [
         0.63695804830129099,
@@ -58,6 +59,7 @@ pub const XYZ_TO_PROPHOTO_F64: [[f64; 3]; 3] = [
     [-0.5446, 1.5082, 0.0205],
     [0.0, 0.0, 1.2123],
 ];
+#[allow(clippy::excessive_precision, reason = "Preserve the published colour matrix coefficients verbatim.")]
 pub const XYZ_TO_REC2020_F64: [[f64; 3]; 3] = [
     [
         1.7166511879712687,
@@ -83,6 +85,7 @@ pub const XYZ_TO_ACES_F64: [[f64; 3]; 3] = [
 
 /// CIE XYZ (D65) → sRGB linear.
 /// Exact inverse of the 4-digit SRGB_TO_XYZ above.
+#[allow(clippy::excessive_precision, reason = "Preserve the published colour matrix coefficients verbatim.")]
 pub const XYZ_TO_SRGB: [[f32; 3]; 3] = [
     [3.2406255, -1.5372080, -0.4986286],
     [-0.9689307, 1.8757561, 0.0415175],
@@ -90,6 +93,7 @@ pub const XYZ_TO_SRGB: [[f32; 3]; 3] = [
 ];
 
 /// ProPhoto RGB → CIE XYZ (D50).
+#[allow(clippy::excessive_precision, reason = "Preserve the published colour matrix coefficients verbatim.")]
 pub const PROPHOTO_TO_XYZ: [[f32; 3]; 3] = [
     [0.7976749, 0.1351917, 0.0313534],
     [0.2880402, 0.7118741, 0.0000857],
@@ -104,6 +108,7 @@ pub const XYZ_TO_PROPHOTO: [[f32; 3]; 3] = [
 ];
 
 /// Rec. 2020 → CIE XYZ (D65).
+#[allow(clippy::excessive_precision, reason = "Preserve the published colour matrix coefficients verbatim.")]
 pub const REC2020_TO_XYZ: [[f32; 3]; 3] = [
     [0.6369580, 0.1446169, 0.1688810],
     [0.2627002, 0.6779981, 0.0593017],
@@ -125,6 +130,7 @@ pub const ACES_TO_XYZ: [[f32; 3]; 3] = [
 ];
 
 /// CIE XYZ → ACES AP0.
+#[allow(clippy::excessive_precision, reason = "Preserve the published colour matrix coefficients verbatim.")]
 pub const XYZ_TO_ACES: [[f32; 3]; 3] = [
     [1.0498110, 0.0000000, -0.0000974],
     [-0.4959030, 1.3733131, 0.0982400],
@@ -396,13 +402,12 @@ mod tests {
     #[test]
     fn test_identity_adaptation() {
         let m = chromatic_adaptation_matrix(D65_XYZ, D65_XYZ);
-        for i in 0..3 {
-            for j in 0..3 {
+        for (i, row) in m.iter().enumerate() {
+            for (j, &value) in row.iter().enumerate() {
                 let expected = if i == j { 1.0 } else { 0.0 };
                 assert!(
-                    (m[i][j] - expected).abs() < 1e-4,
-                    "identity adaptation [{i}][{j}]: expected {expected}, got {}",
-                    m[i][j]
+                    (value - expected).abs() < 1e-4,
+                    "identity adaptation [{i}][{j}]: expected {expected}, got {value}"
                 );
             }
         }

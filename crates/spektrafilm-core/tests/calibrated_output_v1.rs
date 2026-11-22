@@ -1,42 +1,17 @@
-//! The references are extracted from frozen FPW, independently compiled here.
-//! Original Python-heldout values provide an additional independent oracle.
-//! GPU references compile the original shader fixture, not the production path.
-
-extern crate self as anyhow;
-
-// The original scalar source only uses this narrow anyhow surface. Keep the
-// mathematical source unchanged without adding a runtime dependency to RS.
-pub type Result<T> = std::result::Result<T, String>;
-#[macro_export]
-macro_rules! bail {
-    ($($arg:tt)*) => { return Err(format!($($arg)*)) };
-}
-#[macro_export]
-macro_rules! ensure {
-    ($condition:expr, $($arg:tt)*) => {
-        if !$condition { $crate::bail!($($arg)*); }
-    };
-}
-
-#[rustfmt::skip]
-#[path = "fixtures/fpw_finish_v1.rs"]
-mod images;
-#[rustfmt::skip]
-#[allow(unused_imports)]
-#[path = "fixtures/fpw_negative_scan_v1.rs"]
-mod original_negative;
+//! Calibrated output is checked against the scalar CPU implementation and
+//! independently evaluated Python samples bundled with the calibration.
 
 use serde::Deserialize;
 use spektrafilm_core::calibrated_output_v1::{
     finish_exposure_table_v1, positive_rgb16_v1, positive_scan_v1, CalibratedOutputError,
-    NegativeStockV1, PhysicalOutputMappingV1, PhysicalOutputOptionsV1, PhysicalOutputTexturesV1,
+    NegativeStockV1, PhysicalOutputMappingV1, PhysicalOutputOptionsV1,
     PhysicalOutputV1,
 };
 use spektrafilm_core::{
     params::RuntimeParams,
     pipeline::Pipeline,
     profile,
-    stock_setup::{AcceptedStockSetup, StockRoute},
+    stock_setup::{StockDefaults, StockRoute},
 };
 use spektrafilm_gpu::{
     output::{DisplayRegion, FilmOutput, OutputError},
@@ -83,34 +58,41 @@ fn options(
     }
 }
 
-// This is the original FPW physical_output.rs 257x17 acceptance fixture,
-// including the exact node and adjacent representable scan samples.
-fn scans(stock: Option<&str>) -> Vec<f32> {
+// Exercise the calibration knots and the adjacent representable inputs.
+#[derive(Deserialize)]
+struct ScanSamples {
+    base: [f64; 3],
+    curves: Vec<ScanCurve>,
+}
+
+#[derive(Deserialize)]
+struct ScanCurve {
+    absorption: Vec<f64>,
+}
+
+fn scans(stock: Option<NegativeStockV1>) -> Vec<f32> {
+    let calibration: Option<ScanSamples> = stock.map(|stock| {
+        let json = match stock {
+            NegativeStockV1::Pro400H => include_str!("../../../data/negative_scan_ap0_v1/pro400h.json"),
+            NegativeStockV1::XTra400 => include_str!("../../../data/negative_scan_ap0_v1/xtra.json"),
+        };
+        serde_json::from_str(json).unwrap()
+    });
     let mut values: Vec<f32> = (0..257 * 17 * 3)
         .map(|i| {
             let fraction = ((i * 7919) % 65536) as f64 / 65535.;
-            stock.map_or(fraction as f32, |s| {
-                (original_negative::calibration(s).unwrap().base[i % 3] * (1. - fraction * 1.05))
-                    as f32
+            calibration.as_ref().map_or(fraction as f32, |cal| {
+                (cal.base[i % 3] * (1. - fraction * 1.05)) as f32
             })
         })
         .collect();
-    if let Some(stock) = stock {
-        let cal = original_negative::calibration(stock).unwrap();
-        for (i, pixel) in values
-            .chunks_exact_mut(3)
-            .take(3 * cal.curves.iter().map(|c| c.absorption.len()).max().unwrap())
-            .enumerate()
-        {
-            for c in 0..3 {
-                let curve = &cal.curves[c];
-                let index = (i / 3).min(curve.absorption.len() - 1);
-                let scan = (cal.base[c] * (1. - curve.absorption[index])) as f32;
-                pixel[c] = match i % 3 {
-                    0 => scan.next_down(),
-                    1 => scan,
-                    _ => scan.next_up(),
-                };
+    if let Some(cal) = calibration {
+        for (channel, curve) in cal.curves.iter().enumerate() {
+            for (i, &absorption) in curve.absorption.iter().enumerate() {
+                let scan = (cal.base[channel] * (1. - absorption)) as f32;
+                for (j, sample) in [scan.next_down(), scan, scan.next_up()].into_iter().enumerate() {
+                    values[(3 * i + j) * 3 + channel] = sample;
+                }
             }
         }
     }
@@ -118,48 +100,32 @@ fn scans(stock: Option<&str>) -> Vec<f32> {
 }
 
 #[test]
-fn cpu_inversion_matches_original_fpw_and_independent_python_heldout() {
+fn cpu_inversion_matches_independent_python_heldout() {
     for fixture in heldout() {
         let actual = positive_scan_v1(&fixture.scan, &fixture.stock, None).unwrap();
-        let original = original_negative::positive(&fixture.scan, &fixture.stock).unwrap();
-        assert_eq!(actual, original, "{} scalar parity", fixture.stock);
-        let max = actual
-            .iter()
-            .zip(&fixture.expected)
-            .map(|(a, b)| (*a as f64 - b).abs())
-            .fold(0_f64, f64::max);
-        assert!(max <= 2e-6, "{} heldout maximum error {max}", fixture.stock);
-    }
-    for stock in [NegativeStockV1::Pro400H, NegativeStockV1::XTra400] {
-        let scan = scans(Some(stock.stock_id()));
-        let original = original_negative::positive(&scan, stock.stock_id()).unwrap();
-        let actual = positive_scan_v1(&scan, stock.stock_id(), None).unwrap();
-        assert_eq!(actual, original);
-        for finish in [-125, 0, 125] {
-            let table = images::finish_exposure_table(finish);
-            let expected: Vec<u16> = original
-                .iter()
-                .map(|v| {
-                    let code = (*v as f64 * 65535. + 0.5) as u16;
-                    if finish == 0 {
-                        code
-                    } else {
-                        table[code as usize]
-                    }
-                })
-                .collect();
-            assert_eq!(
-                positive_rgb16_v1(&scan, stock.stock_id(), finish, None).unwrap(),
-                expected
+        assert_eq!(actual.len(), fixture.expected.len());
+        for (actual, expected) in actual.into_iter().zip(fixture.expected) {
+            assert!(
+                (f64::from(actual) - expected).abs() <= 2e-6,
+                "{}: {actual} vs {expected}", fixture.stock
             );
         }
     }
-    for ev in [-400, -75, 0, 125, 400] {
-        assert_eq!(
-            finish_exposure_table_v1(ev),
-            images::finish_exposure_table(ev)
-        );
+}
+
+#[test]
+fn cpu_finish_table_matches_v1_reference_codes() {
+    let sample_codes = [0, 128, 2650, 32768, 49152, 65535];
+    for (ev, expected) in [
+        (-125, [0, 54, 1114, 21746, 33165, 44584]),
+        (0, [0, 128, 2650, 32768, 49152, 65535]),
+        (125, [0, 304, 5369, 48582, 65535, 65535]),
+    ] {
+        let table = finish_exposure_table_v1(ev);
+        assert_eq!(sample_codes.map(|code| table[code]), expected, "{ev} centi-EV");
+        assert!(table.is_sorted());
     }
+    assert!(finish_exposure_table_v1(0).into_iter().eq(0..=u16::MAX));
 }
 
 #[test]
@@ -201,7 +167,7 @@ fn backend() -> Option<WgpuBackend> {
 
 fn storage(device: &wgpu::Device, bytes: &[u8]) -> wgpu::Buffer {
     device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("independent FPW fixture input"),
+        label: Some("calibrated output test input"),
         contents: bytes,
         usage: wgpu::BufferUsages::STORAGE,
     })
@@ -215,167 +181,6 @@ fn input(device: &wgpu::Device, values: &[f32]) -> wgpu::Buffer {
             .flat_map(|v| v.to_ne_bytes())
             .collect::<Vec<_>>(),
     )
-}
-
-/// Independent driver for the byte-preserved original FPW shader. Node
-/// preparation and uniform order are extracted from original Output::render.
-/// It never invokes the new output implementation or its calibration parser.
-fn original_gpu(
-    device: &wgpu::Device,
-    encoder: &mut wgpu::CommandEncoder,
-    input: &wgpu::Buffer,
-    width: u32,
-    height: u32,
-    stock: Option<&str>,
-    finish: i32,
-    region: Option<DisplayRegion>,
-) -> PhysicalOutputTexturesV1 {
-    let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-        label: Some("independent original FPW output shader"),
-        source: wgpu::ShaderSource::Wgsl(
-            include_str!("fixtures/fpw_physical_output_v1.wgsl").into(),
-        ),
-    });
-    let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-        label: Some("independent original FPW output"),
-        layout: None,
-        module: &shader,
-        entry_point: Some("main"),
-        compilation_options: Default::default(),
-        cache: None,
-    });
-    let mut offsets = [0; 4];
-    let mut lengths = [0; 4];
-    let mut nodes: Vec<[f32; 4]> = vec![];
-    if let Some(stock) = stock {
-        let cal = original_negative::calibration(stock).unwrap();
-        for (c, curve) in cal.curves.iter().enumerate() {
-            offsets[c] = nodes.len() as u32;
-            lengths[c] = curve.absorption.len() as u32;
-            for (i, &a) in curve.absorption.iter().enumerate() {
-                let scan = cal.base[c] * (1. - a);
-                let high = scan as f32;
-                let inverse = curve
-                    .absorption
-                    .get(i + 1)
-                    .map_or(0., |b| 1. / (cal.base[c] * (b - a)));
-                nodes.push([
-                    high,
-                    (scan - high as f64) as f32,
-                    curve.asinh_exposure[i] as f32,
-                    inverse as f32,
-                ]);
-            }
-        }
-    }
-    if nodes.is_empty() {
-        nodes.push([0.; 4]);
-    }
-    let curves = storage(
-        device,
-        &nodes
-            .iter()
-            .flatten()
-            .flat_map(|v| v.to_ne_bytes())
-            .collect::<Vec<_>>(),
-    );
-    let finish_words: Vec<u32> = if finish == 0 {
-        vec![0]
-    } else {
-        images::finish_exposure_table(finish)
-            .into_iter()
-            .map(u32::from)
-            .collect()
-    };
-    let finish_table = storage(
-        device,
-        &finish_words
-            .iter()
-            .flat_map(|v| v.to_ne_bytes())
-            .collect::<Vec<_>>(),
-    );
-    let view = region.unwrap_or(DisplayRegion {
-        crop: [0, 0, width, height],
-        width,
-        height,
-    });
-    let mut words = vec![width, height, stock.is_some() as u32, (finish != 0) as u32];
-    words.extend(view.crop);
-    words.extend([view.width, view.height, 0, 0]);
-    words.extend(offsets);
-    words.extend(lengths);
-    let params = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("original FPW uniform"),
-        contents: &words
-            .iter()
-            .flat_map(|v| v.to_ne_bytes())
-            .collect::<Vec<_>>(),
-        usage: wgpu::BufferUsages::UNIFORM,
-    });
-    let texture = |format| {
-        device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("original FPW immutable output"),
-            size: wgpu::Extent3d {
-                width: view.width,
-                height: view.height,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format,
-            usage: wgpu::TextureUsages::STORAGE_BINDING
-                | wgpu::TextureUsages::TEXTURE_BINDING
-                | wgpu::TextureUsages::COPY_SRC,
-            view_formats: &[],
-        })
-    };
-    let display = texture(wgpu::TextureFormat::Rgba8Unorm);
-    let precision = texture(wgpu::TextureFormat::Rgba16Uint);
-    let v8 = display.create_view(&Default::default());
-    let v16 = precision.create_view(&Default::default());
-    let group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-        label: None,
-        layout: &pipeline.get_bind_group_layout(0),
-        entries: &[
-            wgpu::BindGroupEntry {
-                binding: 0,
-                resource: input.as_entire_binding(),
-            },
-            wgpu::BindGroupEntry {
-                binding: 1,
-                resource: curves.as_entire_binding(),
-            },
-            wgpu::BindGroupEntry {
-                binding: 2,
-                resource: params.as_entire_binding(),
-            },
-            wgpu::BindGroupEntry {
-                binding: 3,
-                resource: wgpu::BindingResource::TextureView(&v8),
-            },
-            wgpu::BindGroupEntry {
-                binding: 4,
-                resource: wgpu::BindingResource::TextureView(&v16),
-            },
-            wgpu::BindGroupEntry {
-                binding: 5,
-                resource: finish_table.as_entire_binding(),
-            },
-        ],
-    });
-    {
-        let mut pass = encoder.begin_compute_pass(&Default::default());
-        pass.set_pipeline(&pipeline);
-        pass.set_bind_group(0, &group, &[]);
-        pass.dispatch_workgroups(view.width.div_ceil(16), view.height.div_ceil(16), 1);
-    }
-    PhysicalOutputTexturesV1 {
-        display,
-        precision,
-        width: view.width,
-        height: view.height,
-    }
 }
 
 fn complete(device: &wgpu::Device, queue: &wgpu::Queue, encoder: wgpu::CommandEncoder) {
@@ -440,7 +245,7 @@ fn read_texture(device: &wgpu::Device, queue: &wgpu::Queue, texture: &wgpu::Text
 
 fn rgb_codes(bytes: &[u8]) -> Vec<u16> {
     bytes
-        .chunks_exact(8)
+        .as_chunks::<8>().0.iter()
         .flat_map(|rgba| {
             assert_eq!(u16::from_le_bytes([rgba[6], rgba[7]]), 65535);
             [
@@ -453,7 +258,7 @@ fn rgb_codes(bytes: &[u8]) -> Vec<u16> {
 }
 
 #[test]
-fn gpu_matches_independently_compiled_fpw_for_inversion_finish_region_and_texture_ownership() {
+fn gpu_matches_cpu_codes_and_retains_owned_output_textures() {
     let Some(backend) = backend() else { return };
     let (device, queue) = backend.compute_device();
     let output = PhysicalOutputV1::new(device);
@@ -465,103 +270,70 @@ fn gpu_matches_independently_compiled_fpw_for_inversion_finish_region_and_textur
             height: 11,
         }),
         Some(DisplayRegion {
-            crop: [0, 0, 257, 17],
+            crop: [5, 1, 248, 16],
             width: 31,
             height: 2,
         }),
     ];
     let mut retained = None;
-    for stock in [
-        None,
-        Some(NegativeStockV1::Pro400H),
-        Some(NegativeStockV1::XTra400),
-    ] {
-        let scan = scans(stock_name(stock));
+    for stock in [None, Some(NegativeStockV1::Pro400H), Some(NegativeStockV1::XTra400)] {
+        let scan = scans(stock);
         let buffer = input(device, &scan);
-        let reference = stock_name(stock).map_or_else(
-            || scan.clone(),
-            |stock| original_negative::positive(&scan, stock).unwrap(),
+        let cpu = stock_name(stock).map_or_else(
+            || scan.iter().map(|&v| (f64::from(v) * 65535. + 0.5) as u16).collect(),
+            |stock| positive_rgb16_v1(&scan, stock, 0, None).unwrap(),
         );
-        let rgb: Vec<u16> = reference
-            .iter()
-            .map(|v| (*v as f64 * 65535. + 0.5) as u16)
-            .collect();
-        let cpu = image::ImageBuffer::<image::Rgb<u16>, Vec<u16>>::from_raw(257, 17, rgb).unwrap();
-        for finish in [-125, 0, 125, 0] {
+        let allowed = if stock.is_some() { 3 } else { 0 };
+        let mut base_codes = Vec::new();
+        for finish in [0, -125, 125, 0] {
+            let table = finish_exposure_table_v1(finish);
+            let mut full = None;
             for region in views {
                 let mut encoder = device.create_command_encoder(&Default::default());
-                let current = output
-                    .encode(
-                        device,
-                        &mut encoder,
-                        FilmOutput {
-                            buffer: &buffer,
-                            width: 257,
-                            height: 17,
-                            cctf_encoding: stock.is_none(),
-                        },
-                        options(stock, finish, region),
-                    )
-                    .unwrap();
-                let original = original_gpu(
-                    device,
-                    &mut encoder,
-                    &buffer,
-                    257,
-                    17,
-                    stock_name(stock),
-                    finish,
-                    region,
-                );
+                let current = output.encode(
+                    device, &mut encoder,
+                    FilmOutput { buffer: &buffer, width: 257, height: 17, cctf_encoding: stock.is_none() },
+                    options(stock, finish, region),
+                ).unwrap();
                 complete(device, queue, encoder);
                 let precision = read_texture(device, queue, &current.precision);
                 let display = read_texture(device, queue, &current.display);
-                assert_eq!(
-                    precision,
-                    read_texture(device, queue, &original.precision),
-                    "{stock:?} finish {finish} view {region:?}"
-                );
-                assert_eq!(display, read_texture(device, queue, &original.display));
                 let codes = rgb_codes(&precision);
-                for (rgb, rgba) in codes.chunks_exact(3).zip(display.chunks_exact(4)) {
+                assert_eq!(display.len(), codes.len() / 3 * 4);
+                for (rgb, rgba) in codes.as_chunks::<3>().0.iter().zip(display.as_chunks::<4>().0) {
                     assert_eq!(
                         rgba,
                         &[
-                            ((rgb[0] as u32 + 128) / 257) as u8,
-                            ((rgb[1] as u32 + 128) / 257) as u8,
-                            ((rgb[2] as u32 + 128) / 257) as u8,
-                            255
+                            ((u32::from(rgb[0]) + 128) / 257) as u8,
+                            ((u32::from(rgb[1]) + 128) / 257) as u8,
+                            ((u32::from(rgb[2]) + 128) / 257) as u8,
+                            255,
                         ]
                     );
                 }
-                if finish == 0 {
-                    let reference = region.map_or_else(
-                        || cpu.clone(),
-                        |v| {
-                            image::imageops::thumbnail(
-                                &image::imageops::crop_imm(
-                                    &cpu, v.crop[0], v.crop[1], v.crop[2], v.crop[3],
-                                )
-                                .to_image(),
-                                v.width,
-                                v.height,
-                            )
-                        },
-                    );
-                    let max = codes
-                        .iter()
-                        .zip(reference.as_raw())
-                        .map(|(a, b)| a.abs_diff(*b))
-                        .max()
-                        .unwrap();
-                    let allowed = if stock.is_some() {
-                        3
-                    } else if region.is_some() {
-                        1
+                if let Some(view) = region {
+                    let full = full.as_ref().unwrap();
+                    let cropped = image::imageops::crop_imm(
+                        full, view.crop[0], view.crop[1], view.crop[2], view.crop[3],
+                    ).to_image();
+                    let expected = image::imageops::thumbnail(&cropped, view.width, view.height);
+                    assert_eq!(&codes, expected.as_raw(), "{stock:?} finish {finish} {view:?}");
+                } else {
+                    assert_eq!(codes.len(), cpu.len());
+                    if finish == 0 {
+                        for (index, (&gpu, &cpu)) in codes.iter().zip(&cpu).enumerate() {
+                            assert!(
+                                gpu.abs_diff(cpu) <= allowed,
+                                "{stock:?} channel {index}: GPU {gpu}, CPU {cpu}"
+                            );
+                        }
+                        base_codes.clone_from(&codes);
                     } else {
-                        0
-                    };
-                    assert!(max <= allowed, "{stock:?} {region:?} FPW CPU/GPU maximum code delta {max} exceeds {allowed}");
+                        for (&gpu, &base) in codes.iter().zip(&base_codes) {
+                            assert_eq!(gpu, table[usize::from(base)], "{stock:?} finish {finish} base code {base}");
+                        }
+                    }
+                    full = Some(image::ImageBuffer::<image::Rgb<u16>, Vec<u16>>::from_raw(257, 17, codes).unwrap());
                 }
                 if retained.is_none() {
                     retained = Some((current, precision, display));
@@ -695,7 +467,7 @@ fn gpu_heldout_tiny_outputs_and_invalid_source_contracts_are_explicit() {
     ));
 }
 
-fn accepted_pipeline(stock: &str, route: StockRoute) -> Pipeline {
+fn physical_pipeline(stock: &str, route: StockRoute) -> Pipeline {
     let data = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../data");
     let mut params = RuntimeParams::default();
     params.camera.auto_exposure = false;
@@ -722,12 +494,12 @@ fn accepted_pipeline(stock: &str, route: StockRoute) -> Pipeline {
         params.io.output_gamut_compress.algorithm = "off".into();
         params.scanner.unsharp_mask = [0.0, 0.0];
     }
-    Pipeline::new_with_spectral_and_stock_setup(
+    Pipeline::new_with_spectral_and_stock_defaults(
         profile::load_profile_by_name(&data, stock).unwrap(),
         profile::load_profile_by_name(&data, "kodak_portra_endura").unwrap(),
         params,
         &data,
-        AcceptedStockSetup::FpwV1(route),
+        StockDefaults::Physical(route),
     )
     .unwrap()
 }
@@ -746,7 +518,7 @@ fn complete_render_propagates_failures_before_cache_commit_and_matches_negative_
             image.set(x, y, [value, value * 0.81, value * 0.63].map(from_f32));
         }
     }
-    let pipeline = accepted_pipeline("kodak_portra_400", StockRoute::Paper);
+    let pipeline = physical_pipeline("kodak_portra_400", StockRoute::Paper);
     pipeline
         .with_resident_params(&image, |params| {
             let render = FilmRenderOptions {
@@ -826,7 +598,7 @@ fn complete_render_propagates_failures_before_cache_commit_and_matches_negative_
         .unwrap();
 
     backend.configure_negative_cache(false);
-    let negative = accepted_pipeline("fujifilm_pro_400h", StockRoute::NegativeScan);
+    let negative = physical_pipeline("fujifilm_pro_400h", StockRoute::NegativeScan);
     negative
         .with_resident_params(&image, |params| {
             assert!(params.scan_film);
@@ -836,7 +608,7 @@ fn complete_render_propagates_failures_before_cache_commit_and_matches_negative_
                 .run_film_chain_region(params, FilmRenderOptions::default(), None)
                 .unwrap();
             let scan: Vec<f32> = scan.data.into_iter().map(to_f32).collect();
-            let expected = original_negative::positive(&scan, "fujifilm_pro_400h").unwrap();
+            let expected = positive_scan_v1(&scan, "fujifilm_pro_400h", None).unwrap();
             let expected: Vec<u16> = expected
                 .iter()
                 .map(|v| (*v as f64 * 65535. + 0.5) as u16)

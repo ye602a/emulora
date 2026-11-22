@@ -98,11 +98,11 @@ pub fn bicubic_2d_f64(
     ];
     let mut result = vec![0.0f64; channels];
     let mut weight_sum = 0.0f64;
-    for i in 0..4usize {
+    for (i, &weight_x) in wx.iter().enumerate() {
         let xi_idx = reflect_index(xi as isize + i as isize - 1, first_dim);
-        for j in 0..4usize {
+        for (j, &weight_y) in wy.iter().enumerate() {
             let yj_idx = reflect_index(yi as isize + j as isize - 1, second_dim);
-            let weight = wx[i] * wy[j];
+            let weight = weight_x * weight_y;
             weight_sum += weight;
             let base = (xi_idx * second_dim + yj_idx) * channels;
             for c in 0..channels {
@@ -111,8 +111,8 @@ pub fn bicubic_2d_f64(
         }
     }
     if weight_sum != 0.0 {
-        for c in 0..channels {
-            result[c] /= weight_sum;
+        for value in &mut result {
+            *value /= weight_sum;
         }
     }
     result
@@ -162,11 +162,11 @@ pub fn bicubic_2d(
     for c in 0..channels {
         let mut sum = 0.0f64;
         let mut weight_sum = 0.0f64;
-        for dy in 0..4usize {
+        for (dy, &weight_y) in wy.iter().enumerate() {
             let sy = reflect_index(yi as isize + dy as isize - 1, height);
-            for dx in 0..4usize {
+            for (dx, &weight_x) in wx.iter().enumerate() {
                 let sx = reflect_index(xi as isize + dx as isize - 1, width);
-                let w = wx[dx] * wy[dy];
+                let w = weight_x * weight_y;
                 weight_sum += w;
                 sum += w * data[(sy * width + sx) * channels + c] as f64;
             }

@@ -1,5 +1,3 @@
-![spektrafilm-rs](docs/card.jpg)
-
 # spektrafilm-rs
 
 [English](README.md) | **简体中文**
@@ -32,13 +30,13 @@ RGB 转胶片曝光默认用 **Hanatos 2025**，有拟合数据的胶片会使�
 | --- | --- |
 | 做过研究，决定暂不接入 | 去除背涂层后的背面反射原型会在高反差边缘留下过强的红色拖尾。光谱波长平滑、重建白点归一化和 Langmuir DIR 也保留为研究。正式渲染沿用现有光晕、归一化和 DIR 模型。 |
 | 等待测量或授权 | Multigrade 暂无半号，现有灰阶不足以支持可靠的 4½ 号。Portra 160NC、160VC、400NC、400VC 及配套中性印相数据仍待明确再分发条款。 |
-| 尚未开发 | 独立工具尚未接通内嵌 ICC 转换，更广色域的全流程改造仍是独立课题。CPU 和 CUDA 也没有物理片边渲染路径，CUDA 后端目前为实验性支持。 |
+| 尚未开发 | 独立工具尚未接通内嵌 ICC 转换，更广色域的全流程改造仍是独立课题。物理片边渲染需要 Vulkan。 |
 
 ## 快速开始
 
 需要 Rust **1.99+** 及所在平台的原生构建工具。Vulkan 是目前经过验证的物理引擎 GPU 后端。
 CI 覆盖 Windows 构建和 Linux 软件 Vulkan 计算；其他平台与后端组合需要单独验证。
-原生依赖、图形界面与导出配置，以及实验性 CUDA 选项，见[构建与使用](docs/USAGE.md)。
+原生依赖、图形界面与导出配置见[构建与使用](docs/USAGE.md)。
 
 ```sh
 git clone https://github.com/ye602a/spektrafilm-rs.git
@@ -56,8 +54,8 @@ Windows 下请使用 `target\release\spektrafilm.exe`，并将处理命令写在
 - [引擎批次、上游对照与实测依据](docs/ENGINE_EVOLUTION.md)
 - [构建与使用](docs/USAGE.md)
 - [宿主 GPU 接入](docs/maintenance/HOST_GPU_INTEGRATION_CONTRACT.md)
-- [公开接入示例](crates/spektrafilm-core/examples/fpw_host_contract.rs)
-- [兼容性与开发计划](docs/maintenance/FPW_PARITY_MIGRATION_PLAN.md)
+- [公开接入示例](crates/spektrafilm-core/examples/host_gpu_contract.rs)
+- [兼容性与开发计划](docs/ENGINE_EVOLUTION.md)
 - [胶片引擎实测记录](docs/ENGINE_STUDIES.md)
 - [验证范围与依据](docs/maintenance/VALIDATION.md)
 
@@ -75,3 +73,5 @@ Windows 下请使用 `target\release\spektrafilm.exe`，并将处理命令写在
 [上游署名与 CC BY-SA 4.0 条款](SPEKTRAFILM_DATA_LICENSE.txt)。
 四款黑白负片和 Multigrade IV RC 的授权来源与 RS 相纸校准另有[署名与校准记录](data/SPEKTRALAB_BW_NOTICE.md)。
 [版本化校准数据的来源记录](data/negative_scan_ap0_v1/PROVENANCE.md)与数据一同保留。
+
+另见[第三方署名与许可](THIRD_PARTY_NOTICES.md)及[随附数据清单](data/MANIFEST.json)。

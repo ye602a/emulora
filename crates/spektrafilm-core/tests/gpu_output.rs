@@ -114,7 +114,7 @@ fn reduction_reference(full: &ImageBuf, view: DisplayRegion) -> ImageBuf {
             let x1 = ((ox as f32 * rx + rx).ceil() as u32).min(view.crop[2]);
             let y1 = ((oy as f32 * ry + ry).ceil() as u32).min(view.crop[3]);
             let mut pixel = [from_f32(0.); 3];
-            for c in 0..3 {
+            for (c, channel) in pixel.iter_mut().enumerate() {
                 let mut total = 0.0_f32;
                 for y in y0..y1 {
                     let mut row = 0_u32;
@@ -124,7 +124,7 @@ fn reduction_reference(full: &ImageBuf, view: DisplayRegion) -> ImageBuf {
                     }
                     total += row as f32;
                 }
-                pixel[c] =
+                *channel =
                     from_f32((total / ((x1 - x0) * (y1 - y0)) as f32 + 0.5).floor() / 65535.);
             }
             out.set(ox, oy, pixel);
@@ -375,7 +375,7 @@ fn read_texture(
     let mapped = slice.get_mapped_range().unwrap();
     let mut output = Vec::new();
     for row in mapped.chunks_exact(bytes_per_row as usize) {
-        for rgba in row[..width as usize * 16].chunks_exact(16) {
+        for rgba in row[..width as usize * 16].as_chunks::<16>().0 {
             let mut pixel = [0.; 4];
             for c in 0..4 {
                 pixel[c] = f32::from_le_bytes(rgba[c * 4..c * 4 + 4].try_into().unwrap());
@@ -482,7 +482,7 @@ fn scoped_same_device_texture_survives_the_next_render_and_work_buffer_reuse() {
     let (device, queue) = backend.compute_device();
     let captured = read_texture(device, queue, &texture);
     let expected_rgba: Vec<[f32; 4]> = f32_values(&expected)
-        .chunks_exact(3)
+        .as_chunks::<3>().0.iter()
         .map(|rgb| [rgb[0], rgb[1], rgb[2], 1.])
         .collect();
     assert_eq!(captured, expected_rgba);

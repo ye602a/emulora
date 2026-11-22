@@ -5,18 +5,17 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 
+[lints]
+workspace = true
+
 [[bin]]
 name = "spektrafilm"
 path = "src/main.rs"
 
 [[bin]]
 name = "spektrafilm-f64"
-path = "src/main.rs"
+path = "src/bin/spektrafilm-f64.rs"
 required-features = ["precision-f64"]
-
-[[bin]]
-name = "decode_raw_gui"
-path = "src/bin/decode_raw_gui.rs"
 
 [features]
 precision-f64 = [
@@ -32,11 +31,9 @@ spektrafilm-math.workspace = true
 clap.workspace = true
 serde_json.workspace = true
 image.workspace = true
-exr.workspace = true
 anyhow.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 rayon.workspace = true
 spektrafilm-photo-input.workspace = true
-tiff = "0.10"
 tempfile = "3"

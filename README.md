@@ -1,5 +1,3 @@
-![spektrafilm-rs](docs/card.jpg)
-
 # spektrafilm-rs
 
 **English** | [简体中文](README.zh-CN.md)
@@ -32,15 +30,14 @@ We compared prints from real photographs and gray scales with reference renders.
 | --- | --- |
 | Studied and deliberately held back | The rem-jet/back-reflection prototype produced an excessive red tail. Wavelength smoothing, reconstructed-white normalization and Langmuir DIR remain studies. Production uses the established halation, normalization and DIR paths. |
 | Awaiting measurements or permission | Multigrade half grades are unavailable. The hard-end wedge did not support a reliable 4½ step. Portra 160NC/160VC/400NC/400VC and their matching neutral print settings await explicit redistribution terms. |
-| Not developed | Embedded-ICC conversion in standalone input and a wider-gamut workflow redesign. CPU and CUDA also lack the physical film-border renderer. CUDA is experimental. |
+| Not developed | Embedded-ICC conversion in standalone input and a wider-gamut workflow redesign. Physical film borders require Vulkan. |
 
 ## Get started
 
 Requires Rust **1.99+** and the platform's native build tools. Vulkan is the
 validated physical-engine GPU backend. Windows builds and Linux software-Vulkan
 compute are covered by CI; other platform/backend combinations need separate
-qualification. See [build and usage](docs/USAGE.md) for native dependencies,
-GUI/export setup and the experimental CUDA option.
+qualification. See [build and usage](docs/USAGE.md) for native dependencies and GUI/export setup.
 
 ```sh
 git clone https://github.com/ye602a/spektrafilm-rs.git
@@ -58,8 +55,8 @@ On Windows, use `target\release\spektrafilm.exe` and run the process command on 
 - [Current engine work and upstream comparisons](docs/ENGINE_EVOLUTION.md)
 - [Build and usage](docs/USAGE.md)
 - [Host GPU integration](docs/maintenance/HOST_GPU_INTEGRATION_CONTRACT.md)
-- [Public integration example](crates/spektrafilm-core/examples/fpw_host_contract.rs)
-- [Compatibility and development plan](docs/maintenance/FPW_PARITY_MIGRATION_PLAN.md)
+- [Public integration example](crates/spektrafilm-core/examples/host_gpu_contract.rs)
+- [Compatibility and development plan](docs/ENGINE_EVOLUTION.md)
 - [Film engine measurements](docs/ENGINE_STUDIES.md)
 - [Validation scope and evidence](docs/maintenance/VALIDATION.md)
 
@@ -78,3 +75,5 @@ Code: [GPL-3.0](LICENSE). Spectral data, profiles and their derivatives:
 SpektraLab still negatives and Multigrade IV RC have [separate attribution and RS calibration notes](data/SPEKTRALAB_BW_NOTICE.md).
 [Versioned calibration provenance](data/negative_scan_ap0_v1/PROVENANCE.md)
 is retained alongside the data.
+
+See the [third-party notices](THIRD_PARTY_NOTICES.md) and [bundled data inventory](data/MANIFEST.json).

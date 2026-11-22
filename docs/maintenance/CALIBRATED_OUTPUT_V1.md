@@ -4,10 +4,8 @@
 finish exposure, quantization and display sampling on a host-supplied device.
 The host retains the resulting textures.
 
-The `negative_scan_ap0_v1` route preserves FPW source revision
-`ae3428acd98e39c48784a79dc8f3369ab1236cb1`. AP0 is the fixed transmission
-transport for these two calibrations; it does not select a new engine working
-space. An algorithm or table change requires a new route version.
+The v1 route carries linear AP0 transmission for both negative calibrations.
+An algorithm or table change requires a new route version.
 
 ## Source and output contract
 
@@ -28,10 +26,10 @@ flag and device identity.
 The accepted negative route retains its fixed spectral/response settings and
 original DIR, disables camera diffusion, scan glare, transport gamut mapping and
 transport sharpening, and applies the v1 inversion/toe/shoulder/gamut mapping
-once. `AcceptedStockSetup::FpwV1` supplies the accepted stock constants; the
-host's persisted recipe supplies the route/transport controls. See the
-[public host example](../../crates/spektrafilm-core/examples/fpw_host_contract.rs)
-and [accepted stock contract](FPW_ACCEPTED_STOCK_SETUP_V1.md).
+once. Select the opt-in physical stock defaults and supply the transport
+settings in the runtime recipe. See the
+[public host example](../../crates/spektrafilm-core/examples/host_gpu_contract.rs)
+and [physical stock defaults](HOST_GPU_INTEGRATION_CONTRACT.md#physical-stock-defaults).
 
 Both output textures have the requested positive dimensions:
 
@@ -141,60 +139,31 @@ applying it again to GPU results, which already include the requested finish.
 
 ## Provenance and validation
 
-FPW runtime source is GPL-3.0-or-later. The profile-derived calibration data
+The original FPW runtime is GPL-3.0-or-later. The profile-derived calibration
 retains Andrea Volpato's CC BY-SA 4.0 attribution and the full preserved
-[`SPEKTRAFILM_DATA_LICENSE.txt`](../../SPEKTRAFILM_DATA_LICENSE.txt).
-The source shaders, extracted JSONs and independent original shader fixture are
-byte-identical to the pinned FPW commit, including absence of a final newline.
-Data hashes and original research-calibration identities are recorded in
-[`data/negative_scan_ap0_v1/PROVENANCE.md`](../../data/negative_scan_ap0_v1/PROVENANCE.md).
+[SPEKTRAFILM_DATA_LICENSE.txt](../../SPEKTRAFILM_DATA_LICENSE.txt).
+The calibration bytes and independent Python-heldout values are identified in
+[data provenance](../../data/negative_scan_ap0_v1/PROVENANCE.md). Production
+shader bytes are preserved in the repository.
 
-| Frozen source | Original Git blob | Use in RS |
-| --- | --- | --- |
-| `negative_scan.rs` | `24e92fcc1ef7b3999d53a7eb2033c725acf0ab54` | Original scalar math in production; separately compiled scalar test reference |
-| `physical_output.rs` | `144b7e54321df7a79243ec43ea4219d9736e8071` | Original node preparation, bindings, finish and texture semantics |
-| `physical_output.wgsl` | `10f716f83285227875af6a726e1e89c1176b7c60` | Exact production shader and independent original-shader test fixture |
-| `images.rs` | `1764d528f4141a1edbbbbcbf595dd5d4cda43683` | Original transfer/finish functions; separately compiled test reference |
+The calibrated output regressions exercise:
 
-The independent scalar fixture is the original `negative_scan.rs` prefix before
-its `#[cfg(test)]` module, with only its two `include_str!` paths redirected to
-the preserved JSONs. The original timing-dependent self-tests are not imported.
-The test crate supplies the small original anyhow macro surface without changing
-the math. The independent transfer fixture consists of the exact original
-`encode_srgb`, `decode_srgb` and `finish_exposure_table` definitions. Formatting
-is skipped for both frozen fixtures, and their hashes are checked.
+- Scalar CPU inversion against independent Python values at the original
+  tolerance of 2e-6 in encoded sRGB.
+- Exact CPU/GPU RGB16 quantization for encoded sRGB. For calibrated negatives,
+  the per-channel tolerance is three RGB16 codes against the scalar CPU
+  inversion, including calibration knots and adjacent f32 inputs.
+- Exact application of the CPU finish table to GPU codes, exact cropping and
+  integer-factor reduction, display conversion, and retained texture ownership
+  across later renders and finish-table replacements.
+- Tiny outputs, invalid transport and geometry, and CPU cancellation.
+- Complete paper and negative renders, publication only after successful
+  output, and density reuse on a successful retry.
 
-`tests/calibrated_output_v1.rs` runs the following qualifications:
-
-- CPU f32 outputs match the independently compiled original FPW CPU implementation
-  exactly for both stock calibrations, including calibration knots and adjacent
-  representable f32 values.
-- The original Python-heldout fixture remains within the original `2e-6`
-  encoded-channel tolerance. It is an independent oracle, not newly generated
-  expected output from the implementation under test.
-- Independently compiled original and production GPU consumers produce identical
-  RGB16 and RGBA8 codes for encoded sRGB, both calibrated negatives, finish
-  `-125/0/+125` centi-EV and full/cropped/reduced outputs.
-- The original no-finish CPU/GPU envelope remains at most 3 RGB16 codes for the
-  calibrated negative fixture, at most 1 for ordinary regional output and zero
-  for ordinary full output. Finish-enabled outputs are compared exactly to the
-  original GPU consumer; the CPU envelope is not silently widened.
-- Heldout GPU output, tiny 1x1 output, invalid transport/geometry/input buffers
-  and CPU stock/data/cancellation errors are exercised.
-- Retained host textures remain unchanged after later renders, stock changes and
-  finish-cache replacements on the same output object.
-- A full paper-chain wrapper regression reaches a cold density miss, rejects
-  malformed output geometry and publishes no density. Wrong transport and
-  pre-cancellation also return errors without stores. A valid retry stores the
-  density and a following request hits it, with identical output codes.
-- A complete Pro400H physical render with multilayer grain supplies its linear
-  AP0 plane to the independently compiled original CPU inversion. The new
-  complete-render GPU result stays within the original 3-code RGB16 envelope.
-
-Run the offline source gate and required GPU test with:
+Verify the data and run the device regressions with:
 
 ```sh
-python scripts/verify_calibrated_output_sources.py
+python tools/verify_data_manifest.py
 SPEKTRAFILM_REQUIRE_GPU=1 cargo test --locked \
   -p spektrafilm-core -p spektrafilm-gpu --features openblas-src/system \
   --test calibrated_output_v1

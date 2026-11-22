@@ -48,7 +48,7 @@ impl WgpuBackend {
         )
     }
 
-    /// Exact FPW-compatible f32 -> RGB16 quantization on the GPU. Only packed
+    /// Exact f32 -> RGB16 quantization on the GPU. Only packed
     /// 16-bit samples cross the readback boundary, including after a region.
     pub fn run_film_chain_rgb16(
         &self,
@@ -73,8 +73,8 @@ impl WgpuBackend {
             |(readback, width, height, channels)| {
                 let data = self.read_completed_output(&readback, |bytes| {
                     let mut data = Vec::with_capacity(channels as usize);
-                    for word in bytes.chunks_exact(4) {
-                        let packed = u32::from_le_bytes(word.try_into().unwrap());
+                    for word in bytes.as_chunks::<4>().0 {
+                        let packed = u32::from_le_bytes(*word);
                         data.push(packed as u16);
                         if data.len() < channels as usize {
                             data.push((packed >> 16) as u16);
@@ -232,7 +232,7 @@ impl WgpuBackend {
     fn check_output_limits(&self, bytes: u64, groups: [u32; 2]) -> Result<(), OutputError> {
         let limits = self.device.limits();
         if bytes > limits.max_buffer_size
-            || bytes > limits.max_storage_buffer_binding_size as u64
+            || bytes > limits.max_storage_buffer_binding_size
             || groups
                 .iter()
                 .any(|&g| g == 0 || g > limits.max_compute_workgroups_per_dimension)

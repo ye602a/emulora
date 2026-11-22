@@ -1,0 +1,21 @@
+Bundled film-engine data changes
+
+2026-11-22 (WP-E1)
+- Retained the 36 bundled film and paper profiles, neutral print filter packs,
+  Hanatos 2025 irradiance table, Arctic beta04 reflectance table and descriptor,
+  and the two v1 negative-scan calibrations with their heldout validation data.
+- Removed the superseded arctic2026alpha02 tables and descriptor, the unused
+  hanatos_irradiance_xy_coeffs_250304.lut and unused dichroic, heat-absorbing
+  and lens-transmission filter CSVs and accompanying notes.
+- Inventoried the retained data in MANIFEST.json. No retained profile or
+  calibration values were modified.
+
+Original profiles and LUTs by Andrea Volpato / spektrafilm
+https://github.com/andreavolpato/spektrafilm
+Licensed CC BY-SA 4.0. See ../SPEKTRAFILM_DATA_LICENSE.txt.
+RS adapters and fits are recorded in the associated notices and provenance.
+
+SpektraLab profiles and measurements by SpektraLab / Hanze Qiu
+https://github.com/JamesQiu2005/SpektraLab
+https://github.com/JamesQiu2005
+Licensed CC BY-SA 4.0. See SPEKTRALAB_BW_NOTICE.md for adaptation details.

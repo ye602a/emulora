@@ -1,11 +1,8 @@
-//! Frozen `negative_scan_ap0_v1` inversion and FPW's accepted final output order.
+//! Versioned negative-scan inversion and calibrated final output.
 //!
-//! Derived from GPL-3.0-or-later FPW at ae3428acd98e39c48784a79dc8f3369ab1236cb1,
-//! `negative_scan.rs`, `physical_output.rs`, and the transfer/finish functions in
-//! `images.rs`. Calibration data derives from Andrea Volpato's spektrafilm
-//! profiles under CC BY-SA 4.0; see data/negative_scan_ap0_v1/PROVENANCE.md.
-//! AP0 is the existing v1 negative transmission transport, not a new engine
-//! working-space choice. Do not alter these tables or math under this version.
+//! The v1 calibration uses linear AP0 transmission. It derives from Andrea
+//! Volpato's spektrafilm profiles under CC BY-SA 4.0. See the provenance in
+//! data/negative_scan_ap0_v1/PROVENANCE.md for the frozen data and reference.
 
 use std::sync::{
     atomic::{AtomicBool, Ordering},
@@ -143,7 +140,7 @@ pub fn positive_scan_v1(
     stop: Option<&AtomicBool>,
 ) -> Result<Vec<f32>, CalibratedOutputError> {
     let cal = calibration(NegativeStockV1::try_from(stock)?);
-    if scan.len() % 3 != 0 {
+    if !scan.len().is_multiple_of(3) {
         return Err(CalibratedOutputError::InvalidScanLength);
     }
     check_cancelled(stop)?;
@@ -179,6 +176,7 @@ pub fn positive_scan_v1(
 
 // Keep the conversion's scalar order aligned with the independent frozen
 // reference. No resampling or fitting of calibration nodes is performed.
+#[allow(clippy::chunks_exact_to_as_chunks, reason = "Keep the v1 scalar RGB slice loop as qualified.")]
 fn convert_positive(
     scan: &[f32],
     output: &mut [f32],
@@ -453,7 +451,7 @@ impl PhysicalOutputV1 {
         if view.width.max(view.height) > limits.max_texture_dimension_2d
             || view.width.div_ceil(16) > limits.max_compute_workgroups_per_dimension
             || view.height.div_ceil(16) > limits.max_compute_workgroups_per_dimension
-            || output.buffer.size() > limits.max_storage_buffer_binding_size as u64
+            || output.buffer.size() > limits.max_storage_buffer_binding_size
         {
             return Err(OutputError::DeviceLimitExceeded.into());
         }

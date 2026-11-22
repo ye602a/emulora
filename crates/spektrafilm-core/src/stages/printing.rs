@@ -154,7 +154,7 @@ pub fn expose_calibrated(
         .iter()
         .map(|row| {
             [
-                row.get(0).copied().unwrap_or(0.0),
+                row.first().copied().unwrap_or(0.0),
                 row.get(1).copied().unwrap_or(0.0),
                 row.get(2).copied().unwrap_or(0.0),
             ]
@@ -377,7 +377,7 @@ pub fn process(
         .iter()
         .map(|row| {
             [
-                row.get(0).copied().unwrap_or(0.0),
+                row.first().copied().unwrap_or(0.0),
                 row.get(1).copied().unwrap_or(0.0),
                 row.get(2).copied().unwrap_or(0.0),
             ]

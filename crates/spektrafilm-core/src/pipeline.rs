@@ -56,7 +56,7 @@ use crate::profile::Profile;
 use crate::spectral_service;
 use crate::stages;
 use crate::stages::filming::select_illuminant;
-use crate::stock_setup::{AcceptedStockSetup, ResolvedStockSetup};
+use crate::stock_setup::{StockDefaults, ResolvedStockSetup};
 
 fn validate_spectral_recipe(params: &RuntimeParams) -> Result<(), String> {
     if !(0.0..=2.0).contains(&params.film_render.leuco_cyan_coupling) {
@@ -289,8 +289,8 @@ pub struct Pipeline {
     preflash_raw: [f64; 3],
     /// Output gamut compressor (built once; identity unless oklch is enabled).
     output_gamut: crate::gamut_compression::OutputGamutCompress,
-    /// Opt-in accepted host stock constants, separate from general defaults.
-    accepted_stock_setup: Option<ResolvedStockSetup>,
+    /// Opt-in physical stock defaults.
+    stock_defaults: Option<ResolvedStockSetup>,
     calibration: Option<CalibrationInputs>,
     calibrated_neutrals: Option<[f32; 3]>,
 }
@@ -330,9 +330,9 @@ impl Pipeline {
         self.preflash_raw
     }
 
-    /// Versioned stock setup selected when constructing this pipeline.
-    pub fn accepted_stock_setup(&self) -> Option<AcceptedStockSetup> {
-        self.accepted_stock_setup.map(ResolvedStockSetup::selection)
+    /// Physical stock defaults selected when constructing this pipeline.
+    pub fn stock_defaults(&self) -> Option<StockDefaults> {
+        self.stock_defaults.map(ResolvedStockSetup::selection)
     }
 
     /// Refresh a spectral pipeline for the same profiles, resources and stock setup.
@@ -369,11 +369,11 @@ impl Pipeline {
             params.enlarger.m_filter_neutral = m;
             params.enlarger.y_filter_neutral = y;
         }
-        if let Some(setup) = self.accepted_stock_setup {
+        if let Some(setup) = self.stock_defaults {
             setup.before_calibration(&mut params);
         }
         apply_film_specific_params(&self.film, &mut params);
-        if let Some(setup) = self.accepted_stock_setup {
+        if let Some(setup) = self.stock_defaults {
             setup.after_calibration(&mut params);
         }
         Some(params)
@@ -428,41 +428,36 @@ impl Pipeline {
             print_illuminant,
             preflash_raw: [0.0; 3],
             output_gamut,
-            accepted_stock_setup: None,
+            stock_defaults: None,
             calibration: None,
             calibrated_neutrals: None,
         }
     }
 
     /// Build the normal spectral pipeline with a versioned, opt-in set of
-    /// accepted stock constants. The pre/post-calibration order matches the
-    /// original host adapter. This does not select RAW preparation, the scan
-    /// transport, output inversion or other application recipe parameters.
-    pub fn new_with_spectral_and_stock_setup(
+    /// physical stock defaults. Halation is set before calibration and slide DIR
+    /// overrides are applied after it. The caller supplies the runtime recipe.
+    pub fn new_with_spectral_and_stock_defaults(
         mut film: Profile,
         mut print: Profile,
         mut params: RuntimeParams,
         data_dir: &Path,
-        setup: AcceptedStockSetup,
+        setup: StockDefaults,
     ) -> Result<Self, String> {
         let resolved = setup.resolve(&film).map_err(|error| error.to_string())?;
-        match setup {
-            AcceptedStockSetup::FpwV1(_) => {
-                // Preserve the historical effective lights on owned profiles for every stage.
-                if !matches!(film.info.reference_illuminant.as_str(), "D50" | "D55" | "D65") {
-                    film.info.reference_illuminant = "D55".into();
-                }
-                for material in [&mut film, &mut print] {
-                    if !matches!(material.info.viewing_illuminant.as_str(), "D50" | "D55" | "D65") {
-                        material.info.viewing_illuminant = "D50".into();
-                    }
-                }
+        // Use the v1 daylight fallbacks consistently throughout the pipeline.
+        if !matches!(film.info.reference_illuminant.as_str(), "D50" | "D55" | "D65") {
+            film.info.reference_illuminant = "D55".into();
+        }
+        for material in [&mut film, &mut print] {
+            if !matches!(material.info.viewing_illuminant.as_str(), "D50" | "D55" | "D65") {
+                material.info.viewing_illuminant = "D50".into();
             }
         }
         resolved.before_calibration(&mut params);
         let mut pipeline = Self::new_with_spectral(film, print, params, data_dir)?;
         resolved.after_calibration(&mut pipeline.params);
-        pipeline.accepted_stock_setup = Some(resolved);
+        pipeline.stock_defaults = Some(resolved);
         Ok(pipeline)
     }
 
@@ -830,7 +825,7 @@ impl Pipeline {
             print_illuminant,
             preflash_raw,
             output_gamut,
-            accepted_stock_setup: None,
+            stock_defaults: None,
             calibration: Some(calibration),
             calibrated_neutrals: neutral_cmy_f64.map(|v| v.map(|x| x as f32)),
         };
@@ -1000,7 +995,7 @@ impl Pipeline {
 
         // GPU fast path: dispatch the whole filming→printing→scanning chain
         // (or filming→scanning when scan_film) as a single GPU command
-        // buffer — one upload + one readback total. CUDA and WGSL run the
+        // buffer — one upload + one readback total. The wgpu backend runs the
         // extended resident chain, including camera/scanner lens blur,
         // highlight boost, and enlarger diffusion. Backends that do not
         // implement the resident chain return `None` and fall through.
@@ -1670,13 +1665,13 @@ impl Pipeline {
             let mu = m.ln() - sigma2 / 2.0;
             // glare_rgb_offset = (XYZ→RGB) · illuminant_xyz / 100.
             let mut illu_xyz = [0.0f64; 3];
-            for i in 0..n_wl {
-                illu_xyz[0] += viewing_illu[i] * spektrafilm_math::spectral::CMF_X[i] as f64;
-                illu_xyz[1] += viewing_illu[i] * spektrafilm_math::spectral::CMF_Y[i] as f64;
-                illu_xyz[2] += viewing_illu[i] * spektrafilm_math::spectral::CMF_Z[i] as f64;
+            for (i, &illuminant) in viewing_illu[..n_wl].iter().enumerate() {
+                illu_xyz[0] += illuminant * spektrafilm_math::spectral::CMF_X[i] as f64;
+                illu_xyz[1] += illuminant * spektrafilm_math::spectral::CMF_Y[i] as f64;
+                illu_xyz[2] += illuminant * spektrafilm_math::spectral::CMF_Z[i] as f64;
             }
-            for c in 0..3 {
-                illu_xyz[c] /= scan_norm;
+            for value in &mut illu_xyz {
+                *value /= scan_norm;
             }
             let mut offset_rgb = [0.0f32; 3];
             for i in 0..3 {
@@ -1722,9 +1717,9 @@ impl Pipeline {
         let hboost = &self.params.film_render.halation;
         let highlight_boost = if hboost.boost_ev != 0.0 {
             Some(spektrafilm_gpu::HighlightBoostGpuParams {
-                boost_ev: hboost.boost_ev as f32,
-                boost_range: hboost.boost_range as f32,
-                protect_ev: hboost.protect_ev as f32,
+                boost_ev: hboost.boost_ev,
+                boost_range: hboost.boost_range,
+                protect_ev: hboost.protect_ev,
             })
         } else {
             None

@@ -21,7 +21,7 @@ cp "$BUILD_TARGET_DIR/release/spektrafilm-gui" "$APP_BUNDLE/Contents/MacOS/spekt
 cp "$BUILD_TARGET_DIR/release/spektrafilm" "$APP_BUNDLE/Contents/MacOS/spektrafilm"
 cp "$BUILD_TARGET_DIR/release/spektrafilm-f64" "$APP_BUNDLE/Contents/MacOS/spektrafilm-f64"
 cp -R data "$APP_BUNDLE/Contents/Resources/data"
-cp LICENSE SPEKTRAFILM_DATA_LICENSE.txt COLOUR_LICENSE.txt "$APP_BUNDLE/Contents/Resources/"
+cp LICENSE SPEKTRAFILM_DATA_LICENSE.txt COLOUR_LICENSE.txt THIRD_PARTY_NOTICES.md "$APP_BUNDLE/Contents/Resources/"
 chmod +x "$APP_BUNDLE/Contents/MacOS/spektrafilm-gui" \
     "$APP_BUNDLE/Contents/MacOS/spektrafilm" \
     "$APP_BUNDLE/Contents/MacOS/spektrafilm-f64"
@@ -87,7 +87,6 @@ Backends:
   experimental; the current engine qualification covers Vulkan on Linux.
 - The standalone CLI is built separately and may fall back to CPU when no
   compiled GPU backend is available. Set SPEKTRAFILM_BACKEND=cpu to select CPU.
-- CUDA is not available on modern macOS builds.
 
 f64 export:
 - spektrafilm-f64 is bundled inside Spektrafilm.app/Contents/MacOS.

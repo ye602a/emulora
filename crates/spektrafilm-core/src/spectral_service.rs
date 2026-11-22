@@ -387,12 +387,12 @@ fn eval_erf4_bandpass(params: &[f64]) -> Vec<[f64; 3]> {
     let sigma_ir = params[3];
 
     let mut window = vec![[0.0f64; 3]; N_WAVELENGTHS];
-    for i in 0..N_WAVELENGTHS {
+    for (i, response) in window.iter_mut().enumerate() {
         let wl = spectral::WAVELENGTH_MIN as f64 + (i as f64) * spectral::WAVELENGTH_STEP as f64;
         let edge_uv = 0.5 * (1.0 + erf((wl - c_uv) / (sigma_uv * sqrt2)));
         let edge_ir = 0.5 * (1.0 - erf((wl - c_ir) / (sigma_ir * sqrt2)));
         let w = edge_uv * edge_ir;
-        window[i] = [w, w, w];
+        *response = [w, w, w];
     }
     window
 }
@@ -400,7 +400,7 @@ fn eval_erf4_bandpass(params: &[f64]) -> Vec<[f64; 3]> {
 /// The unwarped poly4 fit in the shipped profiles. Grid axis zero is tc.x.
 pub(crate) fn apply_hanatos_surface(lut: &mut TcLut, rows: &[Vec<f64>], white: (f64, f64)) {
     let scale = (lut.size - 1) as f64;
-    for (cell, raw) in lut.data.chunks_exact_mut(3).enumerate() {
+    for (cell, raw) in lut.data.as_chunks_mut::<3>().0.iter_mut().enumerate() {
         let x = (cell / lut.size) as f64 / scale - white.0;
         let y = (cell % lut.size) as f64 / scale - white.1;
         let (xx, yy) = (x * x, y * y);

@@ -408,6 +408,7 @@ mod parity_tests {
     /// with a non-identity setting that exercises every control, including the
     /// developer-exhaustion offset solve.
     #[test]
+    #[allow(clippy::excessive_precision, reason = "Preserve the original reference samples verbatim.")]
     fn morph_matches_python_reference() {
         let dir = data_dir();
         let print = crate::profile::load_profile_by_name(&dir, "kodak_portra_endura").unwrap();

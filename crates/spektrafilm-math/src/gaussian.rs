@@ -77,8 +77,8 @@ pub fn gaussian_blur(img: &ImageBuf, sigma: f32) -> ImageBuf {
     });
 
     let mut out = ImageBuf::new(img.width, img.height);
-    for c in 0..3 {
-        out.write_channel(c, &channels[c]);
+    for (c, channel) in channels.iter().enumerate() {
+        out.write_channel(c, channel);
     }
     out
 }
@@ -127,7 +127,7 @@ fn fir_blur_1d(
             .enumerate()
             .for_each(|(y, row_dst)| {
                 let row_src = &src[y * w..(y + 1) * w];
-                for x in 0..w {
+                for (x, dst) in row_dst.iter_mut().enumerate() {
                     let mut sum = ZERO;
                     for (ki, &kv) in kernel.iter().enumerate() {
                         let sx = (x as isize + ki as isize - radius as isize)
@@ -135,14 +135,14 @@ fn fir_blur_1d(
                             .min(w as isize - 1) as usize;
                         sum += row_src[sx] * kv;
                     }
-                    row_dst[x] = sum;
+                    *dst = sum;
                 }
             });
     } else {
         dst.par_chunks_exact_mut(w)
             .enumerate()
             .for_each(|(y, row_dst)| {
-                for x in 0..w {
+                for (x, dst) in row_dst.iter_mut().enumerate() {
                     let mut sum = ZERO;
                     for (ki, &kv) in kernel.iter().enumerate() {
                         let sy = (y as isize + ki as isize - radius as isize)
@@ -150,7 +150,7 @@ fn fir_blur_1d(
                             .min(h as isize - 1) as usize;
                         sum += src[sy * w + x] * kv;
                     }
-                    row_dst[x] = sum;
+                    *dst = sum;
                 }
             });
     }

@@ -1,8 +1,5 @@
 # Host GPU integration
 
-Development is driven by FPW, a photography application that is not yet public;
-the engine is maintained here and can be built and used independently.
-
 RS owns film/print/scanner processing, physical grain, calibrated output and
 engine caches. Hosts supply prepared input, rendering choices, source identity
 and cancellation signals, and own application state and final frame publication.
@@ -96,20 +93,45 @@ and compiled pipelines without saving or restoring global photo-cache state.
 | Exact negative-density caching | [GPU_NEGATIVE_CACHE.md](GPU_NEGATIVE_CACHE.md) |
 | Scoped GPU output, RGB16 and display regions | [GPU_OUTPUT_CONTRACT.md](GPU_OUTPUT_CONTRACT.md) |
 | Calibrated negative inversion and final output | [CALIBRATED_OUTPUT_V1.md](CALIBRATED_OUTPUT_V1.md) |
-| Versioned stock initialization | [FPW_ACCEPTED_STOCK_SETUP_V1.md](FPW_ACCEPTED_STOCK_SETUP_V1.md) |
+| Versioned stock initialization | [Physical stock defaults](#physical-stock-defaults) |
 | Isolated probes | [GPU_PROBE_ISOLATION.md](GPU_PROBE_ISOLATION.md) |
 | Multilayer grain and precise Vulkan IIR | [GRAIN_MULTILAYER_MIGRATION.md](GRAIN_MULTILAYER_MIGRATION.md) |
-| Resource content identity | [FPW_RESOURCE_COMPATIBILITY.md](FPW_RESOURCE_COMPATIBILITY.md) |
+| Resource content identity | [Bundled resources](#bundled-resources) |
 
-The [public host example](../../crates/spektrafilm-core/examples/fpw_host_contract.rs)
+The [public host example](../../crates/spektrafilm-core/examples/host_gpu_contract.rs)
 exercises paper, slide and calibrated-negative routes with bundled resources.
-Current test evidence is in [VALIDATION.md](VALIDATION.md); changes to accepted
-rendering follow the [compatibility plan](FPW_PARITY_MIGRATION_PLAN.md).
+Current test evidence is in [VALIDATION.md](VALIDATION.md).
+
+## Physical stock defaults
+
+Use Pipeline::new_with_spectral_and_stock_defaults with
+StockDefaults::Physical(StockRoute::Paper), Slide or NegativeScan. The route
+checks the stock type. The caller sets the scan flag, paper, input and output
+colour spaces, and exposure controls. The optional preset leaves the ordinary
+constructors available for recipes that use material-specific defaults.
+
+The preset selects halation radius and strength from the stock metadata
+before calibration. It uses D55 as the fallback for the film reference light
+and D50 for material viewing lights outside D50/D55/D65. After calibration it
+applies the v1 DIR overrides to Provia 100F and Velvia 100. Other slides retain
+their normal spectral constructor DIR parameters. Runtime refresh reapplies
+the same stock defaults. Rebuild when the stock, paper, route or resources
+change.
+
+## Bundled resources
+
+The [data manifest](../../data/MANIFEST.json) identifies each resource by path,
+byte length and SHA-256. Verify it at installation or when selecting a new
+resource set. Cache or persisted recipe identity can include the resource
+revision, film, paper, stock defaults and output route. Runtime density reuse
+uses the engine's prepared dependency key and the host's source generation.
 
 ### Exposure ownership and read-only latitude
 
-FPW main e1d0759 and the adoption branch 9ec49d9 set camera.auto_exposure=false, send the recipe camera EV once, and set enlarger.print_exposure_compensation=false. The standalone LAB-style meters are opt-in for a host. The adoption branch already samples its preprocessed scene on GPU and probes a prepared stock pipeline for its latitude panel. RS now exposes the corresponding read-only medium measurement; when FPW next updates the pin it can reuse this API and keep its existing frame histogram and worker cache. This batch did not change FPW's pin.
+A host that owns metering can set camera.auto_exposure=false, pass the recipe
+camera EV once and set enlarger.print_exposure_compensation=false. A host can
+also use the standalone meter and read-only film latitude probe.
 
-For a future host pre-development auto adjustment, supply the resulting linear frame to both the film render and scene measurement. Keep the RS meter off. If the host has applied the gain to pixels, camera EV carries only the photographer's additional film trim. Alternatively a host can supply untouched pixels and fold a global gain into the camera trim once when using the FPW non-retimed paper contract. A local tone adjustment must travel in the pixels. The prepared source identity must change with the preprocessed pixels so a cached scene histogram or negative cannot outlive that adjustment. Manual film EV and enlarger compensation are included in the probed medium. Applying manual EV to the scene samples again would double-count it. Any deliberately enabled RS meter contributes only its measured auto EV to these samples.
+For a future host pre-development auto adjustment, supply the resulting linear frame to both the film render and scene measurement. Keep the RS meter off. If the host has applied the gain to pixels, camera EV carries only the photographer's additional film trim. Alternatively a host can supply untouched pixels and fold a global gain into the camera trim once when using the paper route with print exposure compensation off. A local tone adjustment must travel in the pixels. The prepared source identity must change with the preprocessed pixels so a cached scene histogram or negative cannot outlive that adjustment. Manual film EV and enlarger compensation are included in the probed medium. Applying manual EV to the scene samples again would double-count it. Any deliberately enabled RS meter contributes only its measured auto EV to these samples.
 
-For resident work, measure the small neutral ramp on the existing backend. The isolated probe leaves the retained photo negative and work planes alone. A host already holding its scene histogram can compare bins directly to shadow_ev and highlight_ev. A host with GPU-only final textures need not read back a full photo to use the medium boundaries. [FPW exposure adapter](https://github.com/ye602a/fursuit-photo-workflow/blob/9ec49d9/native/crates/fpw-runtime/src/film.rs) · [FPW latitude implementation](https://github.com/ye602a/fursuit-photo-workflow/blob/9ec49d9/native/crates/fpw-runtime/src/latitude.rs)
+For resident work, measure the small neutral ramp on the existing backend. The isolated probe leaves the retained photo negative and work planes alone. A host already holding its scene histogram can compare bins directly to shadow_ev and highlight_ev. A host with GPU-only final textures need not read back a full photo to use the medium boundaries.

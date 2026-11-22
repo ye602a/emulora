@@ -1,0 +1,334 @@
+{
+  "version": 1,
+  "files": [
+    {
+      "path": "CHANGELOG.txt",
+      "bytes": 1072,
+      "sha256": "6bc0539997d0fc6e4720979c11dc3a072956a477585698ab68e4963e14bb6fa5",
+      "category": "data-documentation",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "path": "SPEKTRALAB_BW_NOTICE.md",
+      "bytes": 3213,
+      "sha256": "76e10f80a7d060e2138ff7259b6cb81df548780f8dcd46d55c9432bc71cad457",
+      "category": "data-documentation",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "path": "filters/neutral_print_filters.json",
+      "bytes": 25224,
+      "sha256": "8c96ba7089629aa38914492dc65c526551a1decbbb8769c2383d40e4e9632b38",
+      "category": "print-filter-calibration",
+      "license": "CC-BY-SA-4.0"
+    },
+    {
+      "path": "luts/spectral_upsampling/arctic2026beta04_reflectance_xy_tc.npy",
+      "bytes": 5972096,
+      "sha256": "cf5b3dafad6470cdd3981038149374c967820654b94142332808681d364083a6",
+      "category": "spectral-upsampling",
+      "license": "CC-BY-SA-4.0"
+    },
+    {
+      "path": "luts/spectral_upsampling/arctic2026beta04_reflectance_xy_tc.toml",
+      "bytes": 1222,
+      "sha256": "4bbc5183fb86a767d53c3851bffb02500a494f77bc9a8c1f447fbd2c05371d0e",
+      "category": "spectral-upsampling",
+      "license": "CC-BY-SA-4.0"
+    },
+    {
+      "path": "luts/spectral_upsampling/irradiance_xy_tc.npy",
+      "bytes": 5972096,
+      "sha256": "52f90c724811f5fab80769f8548bf24d08a521eb09e65ab6e016893258d2a783",
+      "category": "spectral-upsampling",
+      "license": "CC-BY-SA-4.0"
+    },
+    {
+      "path": "negative_scan_ap0_v1/CHANGELOG.txt",
+      "bytes": 837,
+      "sha256": "b350c833b48b223f3ae89f3a4711621305803b7e9b82203a70c43ebf28e09d62",
+      "category": "data-documentation",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "path": "negative_scan_ap0_v1/PROVENANCE.md",
+      "bytes": 2150,
+      "sha256": "1954edecb808404122fc0c429a415f081d0aebfc5c25951a9d8f8126723b7fa0",
+      "category": "data-documentation",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "path": "negative_scan_ap0_v1/heldout.json",
+      "bytes": 38382,
+      "sha256": "fd8d58649ce26b31f6c919f6ca4d7d668e2d557aca3ce4e87542a0e2c37b34ce",
+      "category": "validation-fixture",
+      "license": "CC-BY-SA-4.0"
+    },
+    {
+      "path": "negative_scan_ap0_v1/pro400h.json",
+      "bytes": 18920,
+      "sha256": "6728ba04757b352d70756367efd1f2465f2b15ed4d1ba6882a0bef8c589606b3",
+      "category": "negative-scan-calibration",
+      "license": "CC-BY-SA-4.0"
+    },
+    {
+      "path": "negative_scan_ap0_v1/xtra.json",
+      "bytes": 19548,
+      "sha256": "85db3fc1733979c95a53f622f4ba0cb137fab7eecd2b936529634bad23a69ad8",
+      "category": "negative-scan-calibration",
+      "license": "CC-BY-SA-4.0"
+    },
+    {
+      "path": "profiles/fujifilm_c200.json",
+      "bytes": 206785,
+      "sha256": "30db07d88090aadc62e03d18c2c51f67a20a1673390c69f99933b7ed5406d2c8",
+      "category": "film-or-paper-profile",
+      "license": "CC-BY-SA-4.0"
+    },
+    {
+      "path": "profiles/fujifilm_crystal_archive_typeii.json",
+      "bytes": 206097,
+      "sha256": "0db98e5b8e2ed5248696e62bc39b7f21459a8812d64049b1275d7be995af873b",
+      "category": "film-or-paper-profile",
+      "license": "CC-BY-SA-4.0"
+    },
+    {
+      "path": "profiles/fujifilm_neopan_acros_100_ii.json",
+      "bytes": 54824,
+      "sha256": "32827b54a169a4c0f4c1abccba39bf8e1c9d5627ecc08d75cc1a78c10e4d533d",
+      "category": "film-or-paper-profile",
+      "license": "CC-BY-SA-4.0"
+    },
+    {
+      "path": "profiles/fujifilm_pro_400h.json",
+      "bytes": 207090,
+      "sha256": "da1be731ab79fb5535c43042494fa7298c942179abb68270b928aa012c629b31",
+      "category": "film-or-paper-profile",
+      "license": "CC-BY-SA-4.0"
+    },
+    {
+      "path": "profiles/fujifilm_provia_100f.json",
+      "bytes": 209348,
+      "sha256": "f061f7aa55e3fefe1c89ee2edb8555a2d44fe8167d02f663c787067d131137b6",
+      "category": "film-or-paper-profile",
+      "license": "CC-BY-SA-4.0"
+    },
+    {
+      "path": "profiles/fujifilm_velvia_100.json",
+      "bytes": 209162,
+      "sha256": "af696fa9662e0483cb9428d2939675044f2016fc3fad760b50a20a0a586fc04b",
+      "category": "film-or-paper-profile",
+      "license": "CC-BY-SA-4.0"
+    },
+    {
+      "path": "profiles/fujifilm_xtra_400.json",
+      "bytes": 206953,
+      "sha256": "5f2a3642c7c8db5e750d7366c34b47d24b89ad78d2abe41da4b5282fd4286e58",
+      "category": "film-or-paper-profile",
+      "license": "CC-BY-SA-4.0"
+    },
+    {
+      "path": "profiles/ilford_hp5_plus_400.json",
+      "bytes": 57437,
+      "sha256": "945d713af89c4df4d88b5be4295043477b47b52a51a2ae700ede819f87b82c4d",
+      "category": "film-or-paper-profile",
+      "license": "CC-BY-SA-4.0"
+    },
+    {
+      "path": "profiles/ilford_multigrade_iv_rc.json",
+      "bytes": 114157,
+      "sha256": "50241f43e5428586c83bbd7f9c30d6a39a59acd4fa93ff02c7fa1f785b280491",
+      "category": "film-or-paper-profile",
+      "license": "CC-BY-SA-4.0"
+    },
+    {
+      "path": "profiles/kodak_2302.json",
+      "bytes": 287554,
+      "sha256": "3c04bb2e7701eae97eaaf14100cbf80c8f00dd07db3deda3f14b37ac060ca2be",
+      "category": "film-or-paper-profile",
+      "license": "CC-BY-SA-4.0"
+    },
+    {
+      "path": "profiles/kodak_2383.json",
+      "bytes": 206043,
+      "sha256": "eb7fdfa3b75a909bf5c400802f7401160c8017ed1ac3e8e0d1c8448d56fbe184",
+      "category": "film-or-paper-profile",
+      "license": "CC-BY-SA-4.0"
+    },
+    {
+      "path": "profiles/kodak_2393.json",
+      "bytes": 206000,
+      "sha256": "b564aece5e9fe43a5c7878d661a8c260c9f73a647a55899596c78487c79678dc",
+      "category": "film-or-paper-profile",
+      "license": "CC-BY-SA-4.0"
+    },
+    {
+      "path": "profiles/kodak_doublex.json",
+      "bytes": 286995,
+      "sha256": "37c333046554151ac5538e6eeb1f2cadef919876c63d0dd861c547952874fac3",
+      "category": "film-or-paper-profile",
+      "license": "CC-BY-SA-4.0"
+    },
+    {
+      "path": "profiles/kodak_ektachrome_100.json",
+      "bytes": 208738,
+      "sha256": "ef194fd80c60a1ac42bbbf1df458b4d047fc07bc17eebce674bb3bcba2ccf62a",
+      "category": "film-or-paper-profile",
+      "license": "CC-BY-SA-4.0"
+    },
+    {
+      "path": "profiles/kodak_ektacolor_edge.json",
+      "bytes": 205422,
+      "sha256": "5db23694d478c35cc0f96d42f94da79e552b2f8eb0853767449a24ac0f0f890e",
+      "category": "film-or-paper-profile",
+      "license": "CC-BY-SA-4.0"
+    },
+    {
+      "path": "profiles/kodak_ektar_100.json",
+      "bytes": 207128,
+      "sha256": "60acbd46c75005771569eafb97f534a4495e9d4e1e9c1e419b90cea2676ec7cf",
+      "category": "film-or-paper-profile",
+      "license": "CC-BY-SA-4.0"
+    },
+    {
+      "path": "profiles/kodak_endura_premier.json",
+      "bytes": 205653,
+      "sha256": "fd37807d61eb730cda54e85d36640e35a0f8da58666bfc6aa83db888b2e364c2",
+      "category": "film-or-paper-profile",
+      "license": "CC-BY-SA-4.0"
+    },
+    {
+      "path": "profiles/kodak_gold_200.json",
+      "bytes": 206865,
+      "sha256": "aa8a0c1c7851fface3752f968cdf6c6d74a26fc9756a4460d3155d2382506b7c",
+      "category": "film-or-paper-profile",
+      "license": "CC-BY-SA-4.0"
+    },
+    {
+      "path": "profiles/kodak_kodachrome_64.json",
+      "bytes": 208570,
+      "sha256": "f88ede487219cf75090ed6663af6923c595707b3c48819f2ccf27122130e921d",
+      "category": "film-or-paper-profile",
+      "license": "CC-BY-SA-4.0"
+    },
+    {
+      "path": "profiles/kodak_portra_160.json",
+      "bytes": 207062,
+      "sha256": "1bc9b65a6940f3a4381e8d14d0ac43594aff9495051992ce4d7408e761549992",
+      "category": "film-or-paper-profile",
+      "license": "CC-BY-SA-4.0"
+    },
+    {
+      "path": "profiles/kodak_portra_400.json",
+      "bytes": 207169,
+      "sha256": "b5cdc73dbec8f462f488bca70bedf23fd13ce79969c0457e8ac2a2565d92bf5d",
+      "category": "film-or-paper-profile",
+      "license": "CC-BY-SA-4.0"
+    },
+    {
+      "path": "profiles/kodak_portra_800.json",
+      "bytes": 206916,
+      "sha256": "5b0c6e861c6273a2ecdf552525e80738037918e650a0dc206e095acfd02f8b43",
+      "category": "film-or-paper-profile",
+      "license": "CC-BY-SA-4.0"
+    },
+    {
+      "path": "profiles/kodak_portra_800_push1.json",
+      "bytes": 207154,
+      "sha256": "dac9cbcd2442442d9dee90bd2d6a28dcc4b996635dcac0b44ac8ecd32c4b3a4f",
+      "category": "film-or-paper-profile",
+      "license": "CC-BY-SA-4.0"
+    },
+    {
+      "path": "profiles/kodak_portra_800_push2.json",
+      "bytes": 207128,
+      "sha256": "5ee01e4a00c157721738314313a43b46fcd5dae62ed3a7e4730f9054b66f6282",
+      "category": "film-or-paper-profile",
+      "license": "CC-BY-SA-4.0"
+    },
+    {
+      "path": "profiles/kodak_portra_endura.json",
+      "bytes": 205481,
+      "sha256": "e3bb6069e02d088d8080d38ce28035816038f62786e2aff9176bf4aeeb4820a0",
+      "category": "film-or-paper-profile",
+      "license": "CC-BY-SA-4.0"
+    },
+    {
+      "path": "profiles/kodak_supra_endura.json",
+      "bytes": 205758,
+      "sha256": "3a0928013effbb33e81acd01db426937faa3a12021a267c54b4d96e916286bd6",
+      "category": "film-or-paper-profile",
+      "license": "CC-BY-SA-4.0"
+    },
+    {
+      "path": "profiles/kodak_tmax_100.json",
+      "bytes": 55571,
+      "sha256": "9361e3056bfd092fff4a258c1397c7520a39f5512f9d0c920a9135b1a3d600e4",
+      "category": "film-or-paper-profile",
+      "license": "CC-BY-SA-4.0"
+    },
+    {
+      "path": "profiles/kodak_tri_x_400.json",
+      "bytes": 54729,
+      "sha256": "cc157a5b1644700bd9a458f585a73af28f6c661e8404e443f13b12a62d21db2b",
+      "category": "film-or-paper-profile",
+      "license": "CC-BY-SA-4.0"
+    },
+    {
+      "path": "profiles/kodak_trix.json",
+      "bytes": 107844,
+      "sha256": "4576c0f34ed7e69dd99551b28560e08f597cca3d71385c1e35577edf4ae4a986",
+      "category": "film-or-paper-profile",
+      "license": "CC-BY-SA-4.0"
+    },
+    {
+      "path": "profiles/kodak_ultra_endura.json",
+      "bytes": 205794,
+      "sha256": "319fa2514e9a6809fd09ce587c4f714effc035e7f9ebaeb3b55d9bc1b52c2a72",
+      "category": "film-or-paper-profile",
+      "license": "CC-BY-SA-4.0"
+    },
+    {
+      "path": "profiles/kodak_ultramax_400.json",
+      "bytes": 206958,
+      "sha256": "248b78bdcc4fdbe864e30f193f900059ecd98cbdb276c88ad8f6f5b520137901",
+      "category": "film-or-paper-profile",
+      "license": "CC-BY-SA-4.0"
+    },
+    {
+      "path": "profiles/kodak_verita_200d.json",
+      "bytes": 206939,
+      "sha256": "5d71a3f544721a71cfa0b0671ce1b5eda6dc1e6a09273810793d4bc821b272fc",
+      "category": "film-or-paper-profile",
+      "license": "CC-BY-SA-4.0"
+    },
+    {
+      "path": "profiles/kodak_vision3_200t.json",
+      "bytes": 207307,
+      "sha256": "4a28f049fd6bad67be98efdb058b413c6b3c022e2932b357b346d902c4c393c8",
+      "category": "film-or-paper-profile",
+      "license": "CC-BY-SA-4.0"
+    },
+    {
+      "path": "profiles/kodak_vision3_250d.json",
+      "bytes": 207058,
+      "sha256": "9ab85c8627c0533beb925b747e441e93beabe9e98c2429695b0a53866b56fcc7",
+      "category": "film-or-paper-profile",
+      "license": "CC-BY-SA-4.0"
+    },
+    {
+      "path": "profiles/kodak_vision3_500t.json",
+      "bytes": 206966,
+      "sha256": "d7beca68bf16db88dbb7373fd13a6a1150a57a911a54bb0309a760a6f9883329",
+      "category": "film-or-paper-profile",
+      "license": "CC-BY-SA-4.0"
+    },
+    {
+      "path": "profiles/kodak_vision3_50d.json",
+      "bytes": 207089,
+      "sha256": "fd426abc9de911682080db222020978dee4e8df7ca939bfcd5c9d0f6df249fa1",
+      "category": "film-or-paper-profile",
+      "license": "CC-BY-SA-4.0"
+    }
+  ]
+}

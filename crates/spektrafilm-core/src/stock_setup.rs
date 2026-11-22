@@ -1,20 +1,11 @@
-//! Versioned stock defaults extracted from FPW's accepted engine adapter.
-//!
-//! Source: ye602a/fursuit-photo-workflow, ae3428acd98e39c48784a79dc8f3369ab1236cb1,
-//! native/crates/fpw-runtime/src/film.rs, Engine::configure_pipeline
-//! (Git blob ba88953cafe93cbc1eedf0c2582ec19a34ba57f3). GPL-3.0, as this crate.
-//! These constants are explicitly selected; they do not change legacy defaults,
-//! profile data, recipe controls, transfer functions, or spectral calibration.
+//! Opt-in physical stock defaults for spectral pipeline construction.
 
 use crate::{params::RuntimeParams, profile::Profile};
 
-/// Stable identity of the stock-default contract accepted by the FPW adapter.
-pub const FPW_STOCK_SETUP_V1_ID: &str = "fpw-accepted-stock-v1";
+/// Stable identity of the first physical stock-default contract.
+pub const PHYSICAL_STOCK_DEFAULTS_V1_ID: &str = "physical-stock-defaults-v1";
 
-/// The three existing host routes used to validate the selected film stock.
-///
-/// This selects stock defaults, not the host's output recipe. The caller still
-/// supplies its accepted scan/print, exposure and color parameters.
+/// Film routes used to validate the stock against the intended physical process.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum StockRoute {
     Paper,
@@ -22,13 +13,14 @@ pub enum StockRoute {
     NegativeScan,
 }
 
-/// Explicit compatibility selection; omitting it preserves standalone behavior.
+/// Versioned, opt-in film defaults for halation, slide DIR and calibration lighting.
 ///
-/// A new set of accepted constants must use a new variant/version rather than
-/// silently changing `FpwV1` or the engine's global `RuntimeParams::default()`.
+/// The route validates the film type. Callers supply scan, print, exposure and
+/// colour settings in the runtime recipe.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum AcceptedStockSetup {
-    FpwV1(StockRoute),
+pub enum StockDefaults {
+    /// First physical stock defaults, identified by [PHYSICAL_STOCK_DEFAULTS_V1_ID].
+    Physical(StockRoute),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -39,20 +31,18 @@ pub enum StockSetupError {
         film_type: String,
         route: StockRoute,
     },
-    #[error("FPW v1 slide controls have not been accepted for stock {stock:?}")]
-    UnsupportedSlideStock { stock: Option<String> },
 }
 
-impl AcceptedStockSetup {
+impl StockDefaults {
     pub const fn id(self) -> &'static str {
         match self {
-            Self::FpwV1(_) => FPW_STOCK_SETUP_V1_ID,
+            Self::Physical(_) => PHYSICAL_STOCK_DEFAULTS_V1_ID,
         }
     }
 
     pub const fn route(self) -> StockRoute {
         match self {
-            Self::FpwV1(route) => route,
+            Self::Physical(route) => route,
         }
     }
 
@@ -60,25 +50,17 @@ impl AcceptedStockSetup {
     /// Resolution does not mutate the profile or any caller-owned parameters.
     pub(crate) fn resolve(self, film: &Profile) -> Result<ResolvedStockSetup, StockSetupError> {
         let route = self.route();
-        if film.is_positive() != (route == StockRoute::Slide) {
+        if film.is_printing() || film.is_positive() != (route == StockRoute::Slide) {
             return Err(StockSetupError::RouteMismatch {
                 stock: film.info.stock.clone(),
                 film_type: film.info.film_type.clone(),
                 route,
             });
         }
-        let slide_scale = if route == StockRoute::Slide {
-            Some(match film.info.stock.as_deref() {
-                Some("fujifilm_provia_100f") => 1.3,
-                Some("fujifilm_velvia_100") => 0.9,
-                _ => {
-                    return Err(StockSetupError::UnsupportedSlideStock {
-                        stock: film.info.stock.clone(),
-                    });
-                }
-            })
-        } else {
-            None
+        let slide_scale = match (route, film.info.stock.as_deref()) {
+            (StockRoute::Slide, Some("fujifilm_provia_100f")) => Some(1.3),
+            (StockRoute::Slide, Some("fujifilm_velvia_100")) => Some(0.9),
+            _ => None,
         };
         Ok(ResolvedStockSetup {
             selection: self,
@@ -102,14 +84,14 @@ impl AcceptedStockSetup {
 /// Keeping it avoids reinterpreting an unchecked stock name on refresh.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct ResolvedStockSetup {
-    selection: AcceptedStockSetup,
+    selection: StockDefaults,
     halation_sigma: f64,
     halation_strength: Option<[f64; 3]>,
     slide_scale: Option<f64>,
 }
 
 impl ResolvedStockSetup {
-    pub(crate) fn selection(self) -> AcceptedStockSetup {
+    pub(crate) fn selection(self) -> StockDefaults {
         self.selection
     }
 
@@ -124,7 +106,7 @@ impl ResolvedStockSetup {
     }
 
     /// Apply only after the ordinary constructor has finished calibration.
-    /// Reapplying writes fixed accepted values; it never compounds the scale.
+    /// Reapplying writes fixed stock-specific values; it never compounds the scale.
     pub(crate) fn after_calibration(self, params: &mut RuntimeParams) {
         if let Some(scale) = self.slide_scale {
             let dir = &mut params.film_render.dir_couplers;
@@ -151,7 +133,7 @@ mod tests {
     }
 
     #[test]
-    fn accepted_stock_metadata_branches_match_the_pinned_adapter() {
+    fn physical_defaults_follow_stock_metadata() {
         let base = film("kodak_portra_400");
         let original_strength = [0.13, 0.07, 0.004];
         for (usage, sigma) in [("cine", 50.0), ("still", 65.0), ("unknown", 65.0)] {
@@ -171,7 +153,7 @@ mod tests {
                     params.film_render.halation.halation_amount = 0.4;
                     params.film_render.grain.output_sampling = Some([1.7, 0.6]);
                     let untouched = serde_json::to_value(&params).unwrap();
-                    let selected = AcceptedStockSetup::FpwV1(route).resolve(&profile).unwrap();
+                    let selected = StockDefaults::Physical(route).resolve(&profile).unwrap();
                     selected.before_calibration(&mut params);
                     selected.after_calibration(&mut params);
                     assert_eq!(
@@ -194,10 +176,10 @@ mod tests {
     }
 
     #[test]
-    fn accepted_slide_controls_are_fixed_and_idempotent() {
+    fn stock_specific_slide_controls_are_fixed_and_idempotent() {
         for (stock, scale) in [("fujifilm_provia_100f", 1.3), ("fujifilm_velvia_100", 0.9)] {
             let profile = film(stock);
-            let selected = AcceptedStockSetup::FpwV1(StockRoute::Slide)
+            let selected = StockDefaults::Physical(StockRoute::Slide)
                 .resolve(&profile)
                 .unwrap();
             let mut params = RuntimeParams::default();
@@ -228,81 +210,18 @@ mod tests {
     }
 
     #[test]
-    fn accepted_stock_routes_reject_unchecked_slides_without_mutation() {
-        for stock in ["kodak_ektachrome_100", "kodak_kodachrome_64", "kodak_trix"] {
-            let profile = film(stock);
-            assert!(profile.is_positive());
-            assert!(matches!(
-                AcceptedStockSetup::FpwV1(StockRoute::Slide).resolve(&profile),
-                Err(StockSetupError::UnsupportedSlideStock { .. })
-            ));
-        }
-        let mut missing_stock = film("fujifilm_provia_100f");
-        missing_stock.info.stock = None;
-        assert!(matches!(
-            AcceptedStockSetup::FpwV1(StockRoute::Slide).resolve(&missing_stock),
-            Err(StockSetupError::UnsupportedSlideStock { stock: None })
-        ));
+    fn physically_incompatible_stock_routes_are_rejected() {
         let negative = film("kodak_portra_400");
         assert!(matches!(
-            AcceptedStockSetup::FpwV1(StockRoute::Slide).resolve(&negative),
+            StockDefaults::Physical(StockRoute::Slide).resolve(&negative),
             Err(StockSetupError::RouteMismatch { .. })
         ));
         for route in [StockRoute::Paper, StockRoute::NegativeScan] {
             assert!(matches!(
-                AcceptedStockSetup::FpwV1(route).resolve(&film("fujifilm_provia_100f")),
+                StockDefaults::Physical(route).resolve(&film("fujifilm_provia_100f")),
                 Err(StockSetupError::RouteMismatch { .. })
             ));
         }
     }
 
-    #[test]
-    fn accepted_stock_setup_classifies_every_bundled_filming_profile() {
-        let mut checked = 0;
-        for entry in std::fs::read_dir(data_dir().join("profiles")).unwrap() {
-            let path = entry.unwrap().path();
-            if path.extension().is_none_or(|extension| extension != "json") {
-                continue;
-            }
-            let stock = path.file_stem().unwrap().to_str().unwrap();
-            let profile = film(stock);
-            if !profile.is_filming() {
-                continue;
-            }
-            let route = if profile.is_positive() {
-                StockRoute::Slide
-            } else {
-                StockRoute::Paper
-            };
-            let accepted = AcceptedStockSetup::FpwV1(route).resolve(&profile);
-            if profile.is_positive()
-                && !matches!(stock, "fujifilm_provia_100f" | "fujifilm_velvia_100")
-            {
-                assert!(
-                    matches!(accepted, Err(StockSetupError::UnsupportedSlideStock { .. })),
-                    "{stock}"
-                );
-            } else {
-                let resolved = accepted.unwrap();
-                assert_eq!(resolved.selection(), AcceptedStockSetup::FpwV1(route));
-                assert_eq!(resolved.selection().id(), FPW_STOCK_SETUP_V1_ID);
-                let mut params = RuntimeParams::default();
-                resolved.before_calibration(&mut params);
-                let expected_sigma = if profile.info.usage == "cine" {
-                    50.0
-                } else {
-                    65.0
-                };
-                assert_eq!(
-                    params.film_render.halation.halation_first_sigma_um,
-                    [expected_sigma; 3]
-                );
-            }
-            checked += 1;
-        }
-        assert!(
-            checked >= 20,
-            "must exercise the real bundled film profile inventory"
-        );
-    }
 }

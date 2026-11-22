@@ -414,6 +414,11 @@ fn cmd_export_lut(
         cube,
         "# Derived by spektrafilm-rs from the selected profiles."
     )?;
+    writeln!(
+        cube,
+        "# Bundled spektrafilm spectral data: Andrea Volpato, https://github.com/andreavolpato/spektrafilm\n\
+         # Bundled spectral data license: CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/)"
+    )?;
     for meta in
         std::iter::once(&film.metadata).chain((!params.io.scan_film).then_some(&print.metadata))
     {

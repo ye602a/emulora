@@ -9,8 +9,6 @@ pub use render::{FilmRenderOptions, FilmSubmissionPolicy, SourceIdentity};
 mod negative_cache;
 #[cfg(feature = "wgpu-backend")]
 pub use negative_cache::NegativeCacheStats;
-#[cfg(feature = "cuda-backend")]
-pub mod cuda_backend;
 #[cfg(feature = "wgpu-backend")]
 pub mod wgpu_backend;
 /// The exact wgpu version of the host-device contract.
@@ -49,6 +47,7 @@ pub trait ComputeBackend: Send + Sync {
     /// `colour.XYZ_to_RGB` step-by-step). Pre-combining loses ~1 ULP per
     /// output channel which compounds to ~5e-6 of drift in the bare
     /// chain. GPU may collapse for performance.
+    #[allow(clippy::too_many_arguments, reason = "Keep the separate colour matrices and spectral inputs in the backend boundary.")]
     fn scan_spectral(
         &self,
         density_cmy: &ImageBuf,
@@ -72,6 +71,7 @@ pub trait ComputeBackend: Send + Sync {
 
     /// Spectral printing: film density CMY → print log-exposure via spectral integration.
     /// GPU backends override this with a compute shader.
+    #[allow(clippy::too_many_arguments, reason = "The spectral inputs and preflash are supplied separately at the backend boundary.")]
     fn print_spectral(
         &self,
         density_cmy: &ImageBuf,
@@ -298,9 +298,7 @@ pub struct FilmChainParams<'a> {
     /// Optional enlarger diffusion filter. Applied in the print stage on
     /// linear print raw between print_spectral and print density curves.
     pub enlarger_diffusion: Option<DiffusionGpuPlan>,
-    /// The print_exposure × B&W printing correction scalar. Used by CUDA
-    /// when `enlarger_diffusion` is active so it can preserve the CPU
-    /// print-stage ordering around preflash.
+    /// The print_exposure × B&W printing correction scalar.
     pub print_exposure_scale: f64,
     /// Whether the final output should be sRGB-encoded after clamping. Mirrors
     /// `RuntimeParams::io.output_cctf_encoding`.
@@ -397,7 +395,7 @@ pub struct DirCouplersGpuParams<'a> {
 /// `density_min`, etc.
 #[derive(Debug, Clone)]
 pub struct GrainGpuParams {
-    /// Optional FPW-equivalent three-emulsion GPU physics. None keeps the legacy sampler.
+    /// Optional three-emulsion GPU grain model. None keeps the legacy sampler.
     pub layers: Option<LayeredGrainGpuParams>,
     pub density_min: [f32; 3],
     pub density_max: [f32; 3],
@@ -412,7 +410,7 @@ pub struct GrainGpuParams {
 }
 
 /// Curves and particle constants for three distinct dye/emulsion layers.
-/// Prepared by the engine core, never by an FPW-specific adapter.
+/// Prepared from film and print parameters by the engine core.
 #[derive(Debug, Clone)]
 pub struct LayeredGrainGpuParams {
     pub output_sampling: Option<[f32; 2]>,
@@ -504,42 +502,33 @@ pub struct Lut3D {
 
 /// Select the best available backend at runtime.
 ///
-/// Honors `SPEKTRAFILM_BACKEND=cpu|cuda|wgpu` when the requested backend is compiled in.
+/// Honors `SPEKTRAFILM_BACKEND=cpu|wgpu` when the requested backend is compiled in.
 /// Useful for benchmarking and for f64 mode where the GPU shaders truncate to f32.
 pub fn select_backend() -> Box<dyn ComputeBackend> {
     let requested = std::env::var("SPEKTRAFILM_BACKEND")
         .ok()
         .map(|v| v.to_ascii_lowercase());
+    let requested = match requested.as_deref() {
+        Some("cuda") => {
+            tracing::warn!("SPEKTRAFILM_BACKEND=cuda is retired; selecting the default backend (Vulkan when available, otherwise CPU)");
+            None
+        }
+        other => other,
+    };
 
-    if requested.as_deref() == Some("cpu") {
+    if requested == Some("cpu") {
         tracing::info!("using CPU backend");
         return Box::new(cpu_backend::CpuBackend);
     }
 
-    #[cfg(feature = "cuda-backend")]
-    {
-        if requested.as_deref() == Some("cuda") {
-            if let Some(cuda) = cuda_backend::CudaBackend::new() {
-                tracing::info!("using CUDA GPU backend");
-                return Box::new(cuda);
-            }
-            tracing::warn!("CUDA backend requested but unavailable; falling back");
-        }
-    }
-
-    #[cfg(not(feature = "cuda-backend"))]
-    if requested.as_deref() == Some("cuda") {
-        tracing::warn!("CUDA backend requested but spektrafilm-gpu was built without cuda-backend");
-    }
-
     #[cfg(feature = "wgpu-backend")]
     {
-        if requested.as_deref().is_none() || requested.as_deref() == Some("wgpu") {
+        if requested.is_none() || requested == Some("wgpu") {
             if let Some(gpu) = wgpu_backend::WgpuBackend::new() {
                 tracing::info!("using wgpu GPU backend");
                 return Box::new(gpu);
             }
-            if requested.as_deref() == Some("wgpu") {
+            if requested == Some("wgpu") {
                 tracing::warn!("wgpu backend requested but unavailable; falling back");
             }
         }

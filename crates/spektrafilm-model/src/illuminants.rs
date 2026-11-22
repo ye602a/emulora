@@ -23,9 +23,9 @@ pub fn blackbody_radiance(wavelength_nm: f32, temperature_k: f32) -> f32 {
 /// Generate a full blackbody SPD (81 wavelengths, 380-780nm at 5nm).
 pub fn blackbody_spd(temperature_k: f32) -> [f32; N_WAVELENGTHS] {
     let mut spd = [0.0f32; N_WAVELENGTHS];
-    for i in 0..N_WAVELENGTHS {
+    for (i, value) in spd.iter_mut().enumerate() {
         let wl = WAVELENGTH_MIN + (i as f32) * WAVELENGTH_STEP;
-        spd[i] = blackbody_radiance(wl, temperature_k);
+        *value = blackbody_radiance(wl, temperature_k);
     }
 
     // Normalize to peak = 1.0

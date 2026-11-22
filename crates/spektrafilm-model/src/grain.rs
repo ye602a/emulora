@@ -22,6 +22,7 @@ fn print_stage_timing(enabled: bool, stage: &str, start: Instant) {
 ///
 /// Port of Python `layer_particle_model`. Density values flow through in `Scalar`
 /// (full f64 precision in `precision-f64` mode); RNG sampling uses f64 directly.
+#[allow(clippy::too_many_arguments, reason = "Keep the particle model inputs explicit at the numerical boundary.")]
 pub fn layer_particle_model(
     density: &[Scalar],
     width: u32,

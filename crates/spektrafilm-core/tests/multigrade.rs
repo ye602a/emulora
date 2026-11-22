@@ -60,7 +60,7 @@ fn four_films_print_monotonic_wedges_and_filter_colors_on_graded_silver() {
             p.print_render.paper_grade = Some(grade);
             let pipe = build(stock, p.clone());
             let y = pipe.try_process(input.clone(), &CpuBackend).unwrap().data;
-            let green: Vec<_> = y.chunks_exact(3).map(|rgb| rgb[1]).collect();
+            let green: Vec<_> = y.as_chunks::<3>().0.iter().map(|rgb| rgb[1]).collect();
             let span = (green[6] / green[0]).log10();
             println!(
                 "{stock} {} mid {:.5} span {:.5}",
@@ -83,7 +83,7 @@ fn four_films_print_monotonic_wedges_and_filter_colors_on_graded_silver() {
                 assert!((red[10] - green[3]).abs() < 0.001);
                 assert!(red[22] > green[7] + 0.02 && red[25] < green[8] - 0.02);
                 assert!(
-                    y.chunks_exact(3)
+                    y.as_chunks::<3>().0.iter()
                         .all(|v| (v[0] - v[1]).abs() < 0.002 && (v[2] - v[1]).abs() < 0.002)
                 );
                 let default = build(stock, recipe());

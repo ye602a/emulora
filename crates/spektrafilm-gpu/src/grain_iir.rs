@@ -104,6 +104,7 @@ fn coefficients(sigma: f64) -> [f64; 4] {
     [1.0 - (b1 + b2 + b3) / b0, b1 / b0, b2 / b0, b3 / b0]
 }
 
+#[allow(clippy::too_many_arguments, reason = "The IIR pass binds the two buffers and takes axis, geometry and radii directly.")]
 pub(super) fn append_pass(
     jobs: &mut Vec<GrainJob>,
     backend: &WgpuBackend,
@@ -290,7 +291,7 @@ mod tests {
             pass.dispatch_workgroups(groups.0, groups.1, 1);
         }
         encoder.copy_buffer_to_buffer(
-            if axes.len() % 2 == 0 { &a } else { &b },
+            if axes.len().is_multiple_of(2) { &a } else { &b },
             0,
             &output,
             0,

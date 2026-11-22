@@ -3,7 +3,7 @@
 
 use spektrafilm_gpu::ComputeBackend;
 use spektrafilm_math::image::ImageBuf;
-use spektrafilm_math::precision::{from_f32, from_f64};
+use spektrafilm_math::precision::from_f64;
 use rayon::prelude::*;
 
 use crate::density_curves::normalize_density_curves;
@@ -44,7 +44,7 @@ pub fn compute_exposure_correction(
     diffusion_tail_pixel: f32,
     diffusion_tail_weight: f64,
     positive: bool,
-    backend: &dyn ComputeBackend,
+    _backend: &dyn ComputeBackend,
 ) -> ImageBuf {
     let mut density_silver = density_cmy.clone();
 
@@ -104,16 +104,16 @@ pub fn compute_exposure_correction(
         let one = from_f64(1.0);
         let mut blended_channels: [Vec<spektrafilm_math::precision::Scalar>; 3] =
             [vec![one; n_pix], vec![one; n_pix], vec![one; n_pix]];
-        for c in 0..3 {
+        for (c, blended) in blended_channels.iter_mut().enumerate() {
             let ch = correction.extract_channel(c);
             let g = gaussian_blur_channel(&ch, w_img, h_img, diffusion_size_pixel);
             let t = exponential_filter_channel(&ch, w_img, h_img, diffusion_tail_pixel);
             for i in 0..n_pix {
-                blended_channels[c][i] = (one - w) * g[i] + w * t[i];
+                blended[i] = (one - w) * g[i] + w * t[i];
             }
         }
-        for c in 0..3 {
-            correction.write_channel(c, &blended_channels[c]);
+        for (c, blended) in blended_channels.iter().enumerate() {
+            correction.write_channel(c, blended);
         }
     }
 

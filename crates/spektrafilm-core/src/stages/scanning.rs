@@ -216,7 +216,7 @@ pub(crate) fn scan_with_negative(
         .iter()
         .map(|row| {
             [
-                row.get(0).copied().unwrap_or(0.0),
+                row.first().copied().unwrap_or(0.0),
                 row.get(1).copied().unwrap_or(0.0),
                 row.get(2).copied().unwrap_or(0.0),
             ]
@@ -224,7 +224,6 @@ pub(crate) fn scan_with_negative(
         .collect();
     let base_density: Vec<f64> = profile.data.base_density.clone();
 
-    let illuminant_f32 = select_illuminant(&profile.info.viewing_illuminant);
     // Use the full-precision f64 illuminant — the f32 → f64 promotion of
     // the f32 constants drops ~7 digits per sample and accumulates ~5e-6
     // of drift in the scan stage after the 81-wavelength reduction.
@@ -256,14 +255,14 @@ pub(crate) fn scan_with_negative(
     let illu_y_sum: f64 = (0..n_wl)
         .map(|i| illuminant[i] * spectral::CMF_Y_F64[i])
         .sum();
-    for i in 0..n_wl {
-        illu_xyz_runtime[0] += illuminant[i] * spectral::CMF_X_F64[i];
-        illu_xyz_runtime[1] += illuminant[i] * spectral::CMF_Y_F64[i];
-        illu_xyz_runtime[2] += illuminant[i] * spectral::CMF_Z_F64[i];
+    for (i, &light) in illuminant[..n_wl].iter().enumerate() {
+        illu_xyz_runtime[0] += light * spectral::CMF_X_F64[i];
+        illu_xyz_runtime[1] += light * spectral::CMF_Y_F64[i];
+        illu_xyz_runtime[2] += light * spectral::CMF_Z_F64[i];
     }
     let _ = illu_y_sum;
-    for c in 0..3 {
-        illu_xyz_runtime[c] /= normalization;
+    for channel in &mut illu_xyz_runtime {
+        *channel /= normalization;
     }
     // XYZ_to_xy then xy_to_xyz roundtrip (renormalizes Y to exactly 1).
     let sum_xyz = illu_xyz_runtime[0] + illu_xyz_runtime[1] + illu_xyz_runtime[2];
@@ -376,13 +375,13 @@ pub(crate) fn scan_with_negative(
         // Illuminant XYZ (Y=1) from the SPD (matches Python `contract('k,kl->l', illu, CMFs)/norm`).
         // Use the unnormalized integration here — the scaling cancels because we apply M next.
         let mut illu_xyz = [0.0f64; 3];
-        for i in 0..n_wl {
-            illu_xyz[0] += illuminant[i] * spectral::CMF_X[i] as f64;
-            illu_xyz[1] += illuminant[i] * spectral::CMF_Y[i] as f64;
-            illu_xyz[2] += illuminant[i] * spectral::CMF_Z[i] as f64;
+        for (i, &light) in illuminant[..n_wl].iter().enumerate() {
+            illu_xyz[0] += light * spectral::CMF_X[i] as f64;
+            illu_xyz[1] += light * spectral::CMF_Y[i] as f64;
+            illu_xyz[2] += light * spectral::CMF_Z[i] as f64;
         }
-        for c in 0..3 {
-            illu_xyz[c] /= normalization;
+        for channel in &mut illu_xyz {
+            *channel /= normalization;
         }
         // Two-step: M_base @ M_cat @ illu_xyz — same order as the
         // per-pixel scan path so the glare offset stays consistent.

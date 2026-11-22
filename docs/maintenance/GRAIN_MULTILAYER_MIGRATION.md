@@ -38,9 +38,7 @@ Checked wgpu output calls return `OutputError::UnsupportedGrainIir` when the
 selected effective blur radii need IIR but the device is not Vulkan or lacks
 `PASSTHROUGH_SHADERS`. Rejection precedes cache changes and consumer encoding;
 passthrough support on another backend does not make this SPIR-V kernel usable.
-CUDA does not implement the explicit multilayer model: its checked call returns
-`UnsupportedMultilayerGrain`, and its legacy call fails explicitly instead of
-silently selecting simple grain. CPU reference sampling remains a separate path.
+CPU reference sampling remains a separate path.
 
 ## Verification
 
@@ -65,5 +63,4 @@ SPEKTRAFILM_REQUIRE_GPU=1 cargo test --locked -p spektrafilm-gpu --lib actual_gp
 ```
 
 These are software-Vulkan numerical results. Target-device qualification and
-host image acceptance remain separate; see [VALIDATION.md](VALIDATION.md) and
-the [compatibility plan](FPW_PARITY_MIGRATION_PLAN.md).
+host image acceptance remain separate. See [VALIDATION.md](VALIDATION.md).

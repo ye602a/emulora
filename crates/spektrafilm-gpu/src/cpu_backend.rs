@@ -432,7 +432,7 @@ pub fn scan_spectral_cpu(
 /// reductions, matching numpy's einsum bit-for-bit on macOS Accelerate.
 ///
 /// Algorithm (mirrors `spektrafilm/model/emulsion.py:compute_density_spectral`
-/// + `spektrafilm/utils/conversions.py:density_to_light` + the
+/// and `spektrafilm/utils/conversions.py:density_to_light` and the
 /// `einsum("ijk,kl->ijl", light, sensitivity)` in `printing.py`):
 ///   1. density_spectral = density_cmy @ channel_density.T + base_density
 ///   2. light             = 10^(-density_spectral) * illuminant   (NaN → 0)
@@ -459,6 +459,7 @@ pub fn print_spectral_cpu(
     )
 }
 
+#[allow(clippy::too_many_arguments, reason = "Match the spectral printing boundary including the separate silver term.")]
 pub fn print_spectral_with_silver(
     density_cmy: &ImageBuf,
     channel_density: &[[f64; 3]],

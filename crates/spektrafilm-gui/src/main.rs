@@ -168,7 +168,7 @@ fn gui_renderer() -> eframe::Renderer {
                 eframe::Renderer::Wgpu
             } else {
                 // Keep the UI compositor away from wgpu/D3D12 by default on
-                // Windows/Linux; CUDA/WGSL compute backends are selected separately.
+                // Windows/Linux; Film compute runs separately.
                 eframe::Renderer::Glow
             }
         }
@@ -833,15 +833,14 @@ impl App {
 
         // ── File ────────────────────────────────────────────────────────
         ui.horizontal(|ui| {
-            if ui.button("Open…").clicked() {
-                if let Some(path) = rfd::FileDialog::new()
+            if ui.button("Open…").clicked()
+                && let Some(path) = rfd::FileDialog::new()
                     .add_filter("Images", spektrafilm_photo_input::RASTER_EXTENSIONS)
                     .add_filter("Camera RAW", spektrafilm_photo_input::RAW_EXTENSIONS)
                     .pick_file()
                 {
                     self.load_image_from_path(&path);
                 }
-            }
             let save_enabled = self.output_image.is_some();
             if ui
                 .add_enabled(save_enabled, egui::Button::new("Save…"))
@@ -2111,6 +2110,7 @@ impl Drop for TempPath {
 /// `cancel` is set the child is SIGKILLed and `Err("cancelled")` is
 /// returned — this prevents the orphan-process / system-freeze bug
 /// where closing the GUI mid-export left the CPU pipeline running.
+#[allow(clippy::too_many_arguments, reason = "Pass the selected export route and worker paths through the existing CLI boundary.")]
 fn run_f64_export(
     cli_path: &Path,
     input: &Path,

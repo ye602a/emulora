@@ -2,7 +2,7 @@ use spektrafilm_core::{
     params::RuntimeParams,
     pipeline::Pipeline,
     profile::load_profile_by_name,
-    stock_setup::{AcceptedStockSetup, StockRoute},
+    stock_setup::{StockDefaults, StockRoute},
 };
 use spektrafilm_gpu::{
     FilmRenderOptions, SourceIdentity, cpu_backend::CpuBackend, wgpu_backend::WgpuBackend,
@@ -29,12 +29,12 @@ fn host_pre_gain_and_manual_film_ev_are_each_counted_once() {
             .is_err()
     );
     let build = |p| {
-        Pipeline::new_with_spectral_and_stock_setup(
+        Pipeline::new_with_spectral_and_stock_defaults(
             film.clone(),
             paper.clone(),
             p,
             &data,
-            AcceptedStockSetup::FpwV1(StockRoute::Paper),
+            StockDefaults::Physical(StockRoute::Paper),
         )
         .unwrap()
     };

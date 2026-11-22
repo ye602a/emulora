@@ -515,6 +515,7 @@ mod parity_tests {
     /// (kodak_portra_400 → kodak_portra_endura); they agree to ~1e-7, the
     /// residual being the f32 storage of the scanner white/black levels.
     #[test]
+    #[allow(clippy::excessive_precision, reason = "Preserve the original reference samples verbatim.")]
     fn print_bw_correction_matches_python() {
         let dir = data_dir();
         let film = crate::profile::load_profile_by_name(&dir, "kodak_portra_400").unwrap();

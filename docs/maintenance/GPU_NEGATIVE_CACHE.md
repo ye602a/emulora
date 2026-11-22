@@ -145,7 +145,7 @@ not establish interruption of GPU execution or recovery from device loss.
 Software Vulkan regression does not replace target-device and host-image
 acceptance. Performance measurements must include key construction, GPU copies,
 memory occupancy and actual print/scan edit workloads. See the
-[compatibility plan](FPW_PARITY_MIGRATION_PLAN.md).
+[host integration contract](HOST_GPU_INTEGRATION_CONTRACT.md).
 
 ## Provenance
 

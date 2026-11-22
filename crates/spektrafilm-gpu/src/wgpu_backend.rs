@@ -14,8 +14,6 @@ mod border_135_shaders;
 #[path = "work_image_tests.rs"]
 mod work_image_tests;
 
-/// wgpu compute backend — dispatches WGSL shaders on GPU via Metal/Vulkan/DX12.
-
 #[cfg(feature = "wgpu-backend")]
 use std::borrow::Cow;
 
@@ -478,7 +476,7 @@ impl WgpuBackend {
     {
         let key = shader_source.as_ptr() as usize;
         let mut cache = self.pipeline_cache.lock().unwrap();
-        if !cache.contains_key(&key) {
+        cache.entry(key).or_insert_with(|| {
             let shader = self
                 .device
                 .create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -509,14 +507,11 @@ impl WgpuBackend {
                     compilation_options: Default::default(),
                     cache: None,
                 });
-            cache.insert(
-                key,
-                CachedPipeline {
+            CachedPipeline {
                     bind_group_layout,
                     pipeline,
-                },
-            );
-        }
+                }
+        });
         cache
     }
 
@@ -579,7 +574,7 @@ impl WgpuBackend {
 
         let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("compute_bind_group"),
-            layout: &bind_group_layout,
+            layout: bind_group_layout,
             entries: &bind_entries,
         });
 
@@ -594,7 +589,7 @@ impl WgpuBackend {
 
         // Dispatch
         let workgroup_size = 1024u32;
-        let num_workgroups = (n_pixels + workgroup_size - 1) / workgroup_size;
+        let num_workgroups = n_pixels.div_ceil(workgroup_size);
 
         let mut encoder = self.device.create_command_encoder(&Default::default());
         {
@@ -602,7 +597,7 @@ impl WgpuBackend {
                 label: Some("compute_pass"),
                 timestamp_writes: None,
             });
-            pass.set_pipeline(&pipeline);
+            pass.set_pipeline(pipeline);
             pass.set_bind_group(0, &bind_group, &[]);
             pass.dispatch_workgroups(num_workgroups, 1, 1);
         }
@@ -1099,7 +1094,7 @@ impl WgpuBackend {
         };
         let limits = self.device.limits();
         if channels as u64 * 4 > limits.max_buffer_size
-            || channels as u64 * 4 > limits.max_storage_buffer_binding_size as u64
+            || channels as u64 * 4 > limits.max_storage_buffer_binding_size
             || (channels / 3).div_ceil(1024) > limits.max_compute_workgroups_per_dimension
             || width.div_ceil(16) > limits.max_compute_workgroups_per_dimension
             || height.div_ceil(16) > limits.max_compute_workgroups_per_dimension
@@ -1940,7 +1935,7 @@ impl WgpuBackend {
             });
             pass.set_pipeline(pipe);
             pass.set_bind_group(0, bg, &[]);
-            pass.dispatch_workgroups((n + workgroup_size - 1) / workgroup_size, 1, 1);
+            pass.dispatch_workgroups(n.div_ceil(workgroup_size), 1, 1);
         };
 
         // 1. Front pass (hanatos or mallett): buf_a (rgb in) → buf_b (raw)
@@ -2988,8 +2983,8 @@ fn build_halation_state(
     let n = hp.halation_n_bounces as usize;
     // Pre-compute normalized decay weights.
     let mut decay = vec![0.0f32; n];
-    for k in 0..n {
-        decay[k] = hp.halation_bounce_decay.powi(k as i32);
+    for (k, weight) in decay.iter_mut().enumerate() {
+        *weight = hp.halation_bounce_decay.powi(k as i32);
     }
     let decay_sum: f32 = decay.iter().sum();
     if decay_sum > 0.0 {
@@ -3237,7 +3232,7 @@ impl HalationState {
             });
             pass.set_pipeline(&job.pipeline.pipeline);
             pass.set_bind_group(0, &job.bg, &[]);
-            pass.dispatch_workgroups((n_pixels + workgroup_size - 1) / workgroup_size, 1, 1);
+            pass.dispatch_workgroups(n_pixels.div_ceil(workgroup_size), 1, 1);
         };
 
         // Scatter
@@ -3691,6 +3686,7 @@ struct SimpleBlurState {
 }
 
 #[cfg(feature = "wgpu-backend")]
+#[allow(clippy::too_many_arguments, reason = "Keep the dispatch buffers and geometry explicit at the call site.")]
 fn build_simple_blur_state(
     device: &wgpu::Device,
     sigma: f32,
@@ -4717,7 +4713,7 @@ impl DirState {
             });
             pass.set_pipeline(&job.pipeline.pipeline);
             pass.set_bind_group(0, &job.bg, &[]);
-            pass.dispatch_workgroups((n_pixels + workgroup_size - 1) / workgroup_size, 1, 1);
+            pass.dispatch_workgroups(n_pixels.div_ceil(workgroup_size), 1, 1);
         };
         let dispatch_blur = |enc: &mut wgpu::CommandEncoder, job: &BlurJob| {
             {
@@ -5026,7 +5022,7 @@ impl UnsharpState {
             });
             pass.set_pipeline(&self.combine.pipeline.pipeline);
             pass.set_bind_group(0, &self.combine.bg, &[]);
-            pass.dispatch_workgroups((n_pixels + workgroup_size - 1) / workgroup_size, 1, 1);
+            pass.dispatch_workgroups(n_pixels.div_ceil(workgroup_size), 1, 1);
         }
         // Copy sharpened result back into buf_b so the downstream
         // readback sees it without needing to know we used a temp.
@@ -5310,7 +5306,7 @@ impl GlareState {
             });
             pass.set_pipeline(&self.gen_dispatch.pipeline.pipeline);
             pass.set_bind_group(0, &self.gen_dispatch.bg, &[]);
-            pass.dispatch_workgroups((n_pixels + workgroup_size - 1) / workgroup_size, 1, 1);
+            pass.dispatch_workgroups(n_pixels.div_ceil(workgroup_size), 1, 1);
         }
         // 2. Optional blur.
         if let Some(b) = &self.blur {
@@ -5341,7 +5337,7 @@ impl GlareState {
             });
             pass.set_pipeline(&self.apply_dispatch.pipeline.pipeline);
             pass.set_bind_group(0, &self.apply_dispatch.bg, &[]);
-            pass.dispatch_workgroups((n_pixels + workgroup_size - 1) / workgroup_size, 1, 1);
+            pass.dispatch_workgroups(n_pixels.div_ceil(workgroup_size), 1, 1);
         }
     }
 }
@@ -5457,7 +5453,7 @@ impl GamutState {
         });
         pass.set_pipeline(&self.dispatch.pipeline.pipeline);
         pass.set_bind_group(0, &self.dispatch.bg, &[]);
-        pass.dispatch_workgroups((n_pixels + workgroup_size - 1) / workgroup_size, 1, 1);
+        pass.dispatch_workgroups(n_pixels.div_ceil(workgroup_size), 1, 1);
     }
 }
 
@@ -5478,6 +5474,7 @@ struct SimpleGrainState {
 }
 
 #[cfg(feature = "wgpu-backend")]
+#[allow(clippy::too_many_arguments, reason = "Keep the dispatch buffers and geometry explicit at the call site.")]
 fn build_grain_state(
     device: &wgpu::Device,
     gp: &crate::GrainGpuParams,
@@ -5699,7 +5696,7 @@ impl SimpleGrainState {
             });
             pass.set_pipeline(&self.grain_dispatch.pipeline.pipeline);
             pass.set_bind_group(0, &self.grain_dispatch.bg, &[]);
-            pass.dispatch_workgroups((n_pixels + workgroup_size - 1) / workgroup_size, 1, 1);
+            pass.dispatch_workgroups(n_pixels.div_ceil(workgroup_size), 1, 1);
         }
         // Optional post-blur.
         if let Some(b) = &self.blur {

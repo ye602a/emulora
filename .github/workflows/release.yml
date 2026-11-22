@@ -24,8 +24,8 @@ jobs:
       - name: Build GUI and f32 CLI
         shell: pwsh
         run: |
-          cargo build --release -p spektrafilm-gui --features spektrafilm-gpu/cuda-backend
-          cargo build --release -p spektrafilm-cli --bin spektrafilm --features spektrafilm-gpu/cuda-backend
+          cargo build --release -p spektrafilm-gui
+          cargo build --release -p spektrafilm-cli --bin spektrafilm
 
       - name: Build f64 exporter
         shell: pwsh
@@ -41,7 +41,7 @@ jobs:
           Copy-Item target\release\spektrafilm.exe $dist\
           Copy-Item target\release\spektrafilm-f64.exe $dist\
           Copy-Item -Recurse data $dist\data
-          Copy-Item LICENSE, SPEKTRAFILM_DATA_LICENSE.txt, COLOUR_LICENSE.txt $dist\
+          Copy-Item LICENSE, SPEKTRAFILM_DATA_LICENSE.txt, COLOUR_LICENSE.txt, THIRD_PARTY_NOTICES.md $dist\
           @"
           spektrafilm-rs Windows x64
 
@@ -49,7 +49,6 @@ jobs:
 
           Backends:
           - The validated film-compute path uses Vulkan; GPU availability depends on the driver and build.
-          - CUDA mode is selected with SPEKTRAFILM_BACKEND=cuda and requires an NVIDIA GPU plus the CUDA NVRTC runtime available on the system.
 
           f64 export:
           - spektrafilm-f64.exe must stay next to spektrafilm-gui.exe.

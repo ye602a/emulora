@@ -33,7 +33,7 @@ selects direct film scanning instead of printing; use it only with the intended
 profile and output contract. The generic CLI does not automatically select the
 versioned host stock/calibrated-output setup.
 
-The CLI, GUI and RAW parity helper share the standalone photo decoder. Use sRGB JPEG or PNG for display-referred photos. Both are decoded to linear sRGB before exposure. Embedded ICC conversion is outside this loader; convert other display profiles to sRGB first. Supported camera RAWs use rawler's linear sRGB development. FPW owns its separate RAW preparation.
+The CLI and GUI share the standalone photo decoder. Use sRGB JPEG or PNG for display-referred photos. Both are decoded to linear sRGB before exposure. Embedded ICC conversion is outside this loader; convert other display profiles to sRGB first. Supported camera RAWs use rawler's linear sRGB development. FPW owns its separate RAW preparation.
 
 Supply linear samples in TIFF. The GUI assumes linear ProPhoto RGB on every TIFF open. The CLI uses the recipe's `io.input_color_space` for TIFF (default ProPhoto RGB). A TIFF tagged with another transfer function needs conversion before rendering. The spectral constructor and recipe refresh accept sRGB, ProPhoto RGB, Rec. 2020 and ACES2065-1 primaries. Encoded output uses sRGB. For linear output in other primaries, turn off encoding and select a supported gamut policy, e.g. `off`. Unsupported primaries and active unsupported gamut algorithms now fail preparation. Existing FPW linear AP0 negative-scan and encoded sRGB routes keep their settings.
 
@@ -67,7 +67,7 @@ The reference comparison used linear ProPhoto RGB TIFF input and encoded sRGB ou
 | Arctic beta04 | 2.828 | 3.838 |
 | Mallett 2019 | 2.828 | 3.838 |
 
-On Hanatos the linear print green channel for the neutral/red/blue patches was 0.184/0.173/0.289 with the clear lens setting and 0.184/0.527/0.044 with compensated No. 25. This follows the neutral-preservation and red/blue separation checked by [LAB's B&W render tests](https://github.com/JamesQiu2005/SpektraLab/blob/b51e672/engine/tests/bw_checks.py). The stocks and print recipes differ between the suites. On the same three compensated No. 25 patches, the largest absolute CPU/Vulkan linear output difference across all three models was 0.00000519. Windows Vulkan also rendered one 512-pixel-long-edge photo through the CLI, and the dedicated resident test checked shoulder fog and negative-cache reuse. Broader photographic acceptance and CUDA/macOS runs remain open.
+On Hanatos the linear print green channel for the neutral/red/blue patches was 0.184/0.173/0.289 with the clear lens setting and 0.184/0.527/0.044 with compensated No. 25. This follows the neutral-preservation and red/blue separation checked by [LAB's B&W render tests](https://github.com/JamesQiu2005/SpektraLab/blob/b51e672/engine/tests/bw_checks.py). The stocks and print recipes differ between the suites. On the same three compensated No. 25 patches, the largest absolute CPU/Vulkan linear output difference across all three models was 0.00000519. Windows Vulkan also rendered one 512-pixel-long-edge photo through the CLI, and the dedicated resident test checked shoulder fog and negative-cache reuse. Broader photographic acceptance and macOS runs remain open.
 
 For Double-X at the 6.5-minute development setting, this optional CLI recipe measured near Kodak's granularity of 14 through a 48 µm aperture at 3–6 µm sampling. Use it with `process --film kodak_doublex --paper kodak_2302 --params FILE`. Sampling pitch changes with film format and image dimensions. [Measured range and reference conditions](ENGINE_STUDIES.md#48-µm-aperture-granularity-batch-12)
 
@@ -93,13 +93,13 @@ See the [silver profile provenance and calibration](../data/SPEKTRALAB_BW_NOTICE
 
 For a colour negative on colour paper, enable **Profiles → Hue from negative** or add `"negative_hue": true` inside the recipe's `print_render` object. Existing recipes use the optical print. Try it on blue and violet clothing or strongly coloured fabrics. On grainy portraits compare the cheeks at both working size and delivery size.
 
-The look reads the developed negative and steers the optical print's hue while retaining its lightness and respecting the paper chroma boundary. CPU and resident Vulkan support sRGB output and zero manual enlarger Y/M shifts. The calibrated neutral pack still applies. For manual Y/M grading, turn off **Hue from negative** before adjusting the filters. The optical print preserves the hue rotation you dial in and can reuse the same resident negative. [Four film/paper comparisons](ENGINE_STUDIES.md#manual-enlarger-ym-and-negative-derived-hue-batch-8) An active colour print with an unsupported trim or output space reports a preparation error. Direct scans, reversal film and black-and-white materials bypass this print look. CUDA reports unsupported for an active colour print.
+The look reads the developed negative and steers the optical print's hue while retaining its lightness and respecting the paper chroma boundary. CPU and resident Vulkan support sRGB output and zero manual enlarger Y/M shifts. The calibrated neutral pack still applies. For manual Y/M grading, turn off **Hue from negative** before adjusting the filters. The optical print preserves the hue rotation you dial in and can reuse the same resident negative. [Four film/paper comparisons](ENGINE_STUDIES.md#manual-enlarger-ym-and-negative-derived-hue-batch-8) An active colour print with an unsupported trim or output space reports a preparation error. Direct scans, reversal film and black-and-white materials bypass this print look.
 
 Hosts with an exclusively owned pipeline can switch the recipe using `Pipeline::refresh_in_place` without copying the profiles or spectral LUT. A false return preserves the last successful pipeline; rebuild from the original profiles and propagate any error for the requested render. Callers retaining an immutable pipeline can use `Pipeline::refreshed` on the same immutable input identity. The option is downstream of the negative cache. A pointwise spectral CUBE can include this look under the exporter's normal grain-free, local-DIR conditions. [Photographs and verification](ENGINE_STUDIES.md#negative-derived-print-hue-batch-7)
 
 ### Spectral CUBE export
 
-`export-lut` accepts the same film, target paper, `--scan-film` and `--params` as `process`. An explicit scan selects the film scan even if a paper is supplied. An explicit paper selects printing ahead of the JSON scan flag. With neither flag, both commands honor the saved route and use the film's target paper for printing. A direct negative scan yields the engine's transmission scan. FPW's negative inversion and calibrated finish are separate, versioned host routes.
+`export-lut` accepts the same film, target paper, `--scan-film` and `--params` as `process`. An explicit scan selects the film scan even if a paper is supplied. An explicit paper selects printing ahead of the JSON scan flag. With neither flag, both commands honor the saved route and use the film's target paper for printing. A direct negative scan yields the engine's transmission scan. The engine also exposes versioned negative inversion and calibrated finish through its host API.
 
 ```sh
 ./target/release/spektrafilm export-lut --film kodak_portra_400 \
@@ -131,7 +131,6 @@ In PowerShell, set `$env:SPEKTRAFILM_BACKEND = "cpu"` before invoking
 
 ```sh
 cargo build --locked --release -p spektrafilm-gui
-cargo build --locked --release -p spektrafilm-cli --bin decode_raw_gui
 ./target/release/spektrafilm-gui
 ```
 
@@ -147,26 +146,18 @@ separate from numerical and interactive-GUI qualification.
 
 ## Backends
 
-`SPEKTRAFILM_BACKEND` selects `wgpu`, `cpu`, or the optional `cuda` backend.
-CUDA is experimental and is not covered by the current Vulkan compatibility
-results. Building it does not establish parity with the versioned host routes.
-
-```sh
-cargo build --locked --release -p spektrafilm-cli --bin spektrafilm \
-    --features spektrafilm-gpu/cuda-backend
-```
-
-CUDA requires the NVIDIA driver and CUDA 12 NVRTC runtime libraries. Select a
-zero-based device with `SPEKTRAFILM_CUDA_DEVICE` when needed.
+`SPEKTRAFILM_BACKEND` accepts `wgpu` or `cpu`. By default the engine tries Vulkan
+through wgpu and uses CPU if a GPU backend is unavailable. The former `cuda`
+setting logs a warning and follows the same default selection.
 
 ## Embed the engine
 
 Start with the [host integration contract](maintenance/HOST_GPU_INTEGRATION_CONTRACT.md)
-and [public example](../crates/spektrafilm-core/examples/fpw_host_contract.rs).
+and [public example](../crates/spektrafilm-core/examples/host_gpu_contract.rs).
 The example uses bundled profiles and the engine's public APIs:
 
 ```sh
-cargo run --locked -p spektrafilm-core --example fpw_host_contract
+cargo run --locked -p spektrafilm-core --example host_gpu_contract
 ```
 
 Keep the engine revision, resource identity and output route together when
@@ -177,7 +168,7 @@ for what has been tested and what requires application-specific acceptance.
 
 In the GUI select `arctic2026beta04` under **RGB→raw upsampling**. CLI recipes select the same ID in `settings.rgb_to_raw_method`. An explicit `arctic2026alpha02` recipe now reports an unsupported method. Change its ID to adopt the new look, or use RS at `43763e7` with the corresponding resources to reproduce the old look.
 
-RS ships Andrea Volpato's beta04 reflectance table and descriptor unchanged from [experimental revision 28bf883](https://github.com/andreavolpato/spektrafilm/tree/28bf883/src/spektrafilm/data/luts/spectral_upsampling). It keeps the RS D65 projection, film-illuminant relighting, exposure calibration and neutral print filters. This corresponds to the table-only beta row of the [photographic study](ENGINE_STUDIES.md#arctic-alpha02-and-beta04-batch-13). The five inactive alpha files remain in the pinned FPW v1 physical resource inventory.
+RS ships Andrea Volpato's beta04 reflectance table and descriptor unchanged from [experimental revision 28bf883](https://github.com/andreavolpato/spektrafilm/tree/28bf883/src/spektrafilm/data/luts/spectral_upsampling). It keeps the RS D65 projection, film-illuminant relighting, exposure calibration and neutral print filters. This corresponds to the table-only beta row of the [photographic study](ENGINE_STUDIES.md#arctic-alpha02-and-beta04-batch-13).
 
 FPW main at `e1d0759` builds both new and saved film recipes through [the FPW adapter](https://github.com/ye602a/fursuit-photo-workflow/blob/e1d0759/native/crates/fpw-runtime/src/film.rs). It starts from the [RS defaults at the host pin](https://github.com/ye602a/spektrafilm-rs/blob/1947ee8/crates/spektrafilm-core/src/params.rs), with no method override. FPW uses Hanatos 2025. The bundled FPW table, RS table and Python experimental Hanatos 2025 irradiance table share Git blob `7b81b9d23f8f4c599c6b2ae3d949e9a2d6f3c38a`. Python main and experimental default to Hanatos 2025. The Linux OFX v0.3.12 manual (pp. 21, 38) specifies Hanatos 2026 as its default. This RS update leaves the host pin and resources unchanged.
 
@@ -201,7 +192,7 @@ On a color print, **Print bleach bypass** sets the retained-silver look from 0 (
 
 ### Cinema film and viewing illuminants
 
-The ordinary spectral pipeline now uses the lights specified by each material. Vision3 200T and 500T use the measured incandescent spectrum (`T`); Kodak 2383 and 2393 are viewed under the Kinoton 75P projector spectrum (`K75P`). This changes renders and newly baked cubes involving those materials. Earlier versions silently used D55 for the film or D50 for the print. Start with the stock neutral pack, including when using Arctic beta04. Recheck any manual Y/M shifts fitted to older renders. The explicit `FpwV1` constructor retains its accepted daylight substitutions, and the published FPW dependency has not changed. [Measured comparisons](ENGINE_STUDIES.md#cinema-illuminants-and-shipping-engine-comparisons)
+The ordinary spectral pipeline now uses the lights specified by each material. Vision3 200T and 500T use the measured incandescent spectrum (`T`); Kodak 2383 and 2393 are viewed under the Kinoton 75P projector spectrum (`K75P`). This changes renders and newly baked cubes involving those materials. Earlier versions silently used D55 for the film or D50 for the print. Start with the stock neutral pack, including when using Arctic beta04. Recheck any manual Y/M shifts fitted to older renders. The opt-in physical stock defaults retain the v1 daylight substitutions. [Measured comparisons](ENGINE_STUDIES.md#cinema-illuminants-and-shipping-engine-comparisons)
 
 For half-frame, XPan and configurable 120 roll-film gates, including a frame/date imprint or local light leak, see the [resident recipe example](135_FILM_BORDER.md#explicit-roll-formats-and-latent-exposures).
 

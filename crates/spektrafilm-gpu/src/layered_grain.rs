@@ -48,6 +48,7 @@ pub(super) struct LayeredGrainState {
 }
 
 impl LayeredGrainState {
+    #[allow(clippy::too_many_arguments, reason = "The pass takes the device, image geometry and GPU buffers directly.")]
     pub(super) fn new(
         device: &wgpu::Device,
         gp: &crate::GrainGpuParams,
@@ -205,11 +206,11 @@ impl LayeredGrainState {
         let values = [0.0, 0.0, 0.0, gp.monochrome as u32 as f32];
         if let Some(dye_sigmas) = blur_plan.dye {
             let acc = alloc();
-            for sl in 0..3 {
+            for (sl, &sigmas) in dye_sigmas.iter().enumerate() {
                 add(&mut jobs, 1, sl as u32, values, &g.packed, a, b);
                 blur(
                     &mut jobs,
-                    dye_sigmas[sl],
+                    sigmas,
                     b,
                     tmp.as_ref().unwrap(),
                 );
@@ -401,8 +402,8 @@ mod tests {
             let original = render_size(&backend, &gp, [32, 32]);
             backend.configure_grain_reference(Some(reference.in_canvas([8, 0], 48)));
             let expanded = render_size(&backend, &gp, [48, 32]);
-            for (old_row, new_row) in original.chunks_exact(32*3).zip(expanded.chunks_exact(48*3)) {
-                assert_eq!(old_row, &new_row[8*3..40*3]);
+            for (old_row, new_row) in original.as_chunks::<{ 32*3 }>().0.iter().zip(expanded.as_chunks::<{ 48*3 }>().0) {
+                assert_eq!(old_row.as_slice(), &new_row[8*3..40*3]);
             }
             for x in [0, 46] {
                 assert!((0..32).any(|y| {
@@ -628,7 +629,7 @@ mod tests {
         for (a,b) in half.iter().zip(&original) {assert!((*a-(1.5+0.5*(*b-1.5))).abs()<1e-6);}
         gp.layers.as_mut().unwrap().output_sampling=Some([2.,1.]);
         let scaled=render(&backend,&gp);assert_ne!(scaled,original);
-        let diff=|a:&[f32]|a.chunks_exact(3).take(65535).zip(a.chunks_exact(3).skip(1)).map(|(a,b)|(a[0]-b[0]).powi(2) as f64).sum::<f64>();
+        let diff=|a:&[f32]|a.as_chunks::<3>().0.iter().take(65535).zip(a.as_chunks::<3>().0.iter().skip(1)).map(|(a,b)|(a[0]-b[0]).powi(2) as f64).sum::<f64>();
         assert!(diff(&scaled)<diff(&original)*0.75,"scale changes spatial correlation");
         gp.layers.as_mut().unwrap().output_sampling=None;
         assert_eq!(original,render(&backend,&gp),"off restores pinned route");

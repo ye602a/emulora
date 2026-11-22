@@ -1,6 +1,4 @@
-//! Constructor parity with the stock-setup statements extracted from FPW
-//! ae3428acd98e39c48784a79dc8f3369ab1236cb1, fpw-runtime/src/film.rs.
-//! This does not claim a complete FPW recipe mapping or six-photo acceptance.
+//! Public constructor and refresh regressions for physical stock defaults.
 
 use std::path::{Path, PathBuf};
 
@@ -8,7 +6,7 @@ use spektrafilm_core::{
     params::RuntimeParams,
     pipeline::Pipeline,
     profile::{self, Profile},
-    stock_setup::{AcceptedStockSetup, FPW_STOCK_SETUP_V1_ID, StockRoute},
+    stock_setup::{StockDefaults, PHYSICAL_STOCK_DEFAULTS_V1_ID, StockRoute},
 };
 
 fn data_dir() -> PathBuf {
@@ -38,7 +36,7 @@ fn parameters(route: StockRoute) -> RuntimeParams {
 
 // Frozen adapter statements, intentionally independent of stock_setup.rs.
 // Preserve their original pre-constructor / post-constructor placement.
-fn pinned_adapter(
+fn reference_pipeline(
     stock: &str,
     route: StockRoute,
     mut film: Profile,
@@ -71,7 +69,7 @@ fn pinned_adapter(
         let scale = match stock {
             "fujifilm_provia_100f" => 1.3,
             "fujifilm_velvia_100" => 0.9,
-            _ => panic!("unaccepted slide in frozen reference"),
+            _ => panic!("slide lacks a stock-specific DIR override"),
         };
         let dir = &mut pipeline.params.film_render.dir_couplers;
         dir.gamma_samelayer_rgb = [0.12 * scale, 0.08 * scale, 0.06 * scale];
@@ -111,7 +109,7 @@ fn assert_calibration_equal(actual: &Pipeline, expected: &Pipeline) {
 }
 
 #[test]
-fn accepted_stock_constructor_matches_the_extracted_adapter_and_calibration() {
+fn physical_stock_defaults_preserve_calibration_and_parameters() {
     for (stock, route) in [
         ("kodak_portra_400", StockRoute::Paper),
         ("kodak_gold_200", StockRoute::Paper),
@@ -123,9 +121,9 @@ fn accepted_stock_constructor_matches_the_extracted_adapter_and_calibration() {
     ] {
         let (film, paper) = profiles(stock);
         let params = parameters(route);
-        let expected = pinned_adapter(stock, route, film.clone(), paper.clone(), params.clone());
-        let selection = AcceptedStockSetup::FpwV1(route);
-        let actual = Pipeline::new_with_spectral_and_stock_setup(
+        let expected = reference_pipeline(stock, route, film.clone(), paper.clone(), params.clone());
+        let selection = StockDefaults::Physical(route);
+        let actual = Pipeline::new_with_spectral_and_stock_defaults(
             film,
             paper,
             params,
@@ -133,30 +131,30 @@ fn accepted_stock_constructor_matches_the_extracted_adapter_and_calibration() {
             selection,
         )
         .unwrap();
-        assert_eq!(actual.accepted_stock_setup(), Some(selection));
-        assert_eq!(selection.id(), FPW_STOCK_SETUP_V1_ID);
+        assert_eq!(actual.stock_defaults(), Some(selection));
+        assert_eq!(selection.id(), PHYSICAL_STOCK_DEFAULTS_V1_ID);
         assert_eq!(
             serde_json::to_value(&actual.params).unwrap(),
             serde_json::to_value(&expected.params).unwrap(),
-            "accepted stock setup differed from pinned FPW for {stock} / {route:?}"
+            "physical stock defaults differed from the v1 reference for {stock} / {route:?}"
         );
         assert_calibration_equal(&actual, &expected);
     }
 }
 
 #[test]
-fn ordinary_constructors_and_defaults_do_not_select_fpw_stock_setup() {
+fn ordinary_constructors_leave_physical_defaults_opt_in() {
     let params = RuntimeParams::default();
     assert!(!params.film_render.grain.gpu_multilayer);
     let (film, paper) = profiles("kodak_vision3_500t");
     let plain = Pipeline::new(film.clone(), paper.clone(), params.clone());
-    assert_eq!(plain.accepted_stock_setup(), None);
+    assert_eq!(plain.stock_defaults(), None);
     assert_eq!(
         serde_json::to_value(&plain.params).unwrap(),
         serde_json::to_value(&params).unwrap()
     );
     let spectral = Pipeline::new_with_spectral(film, paper, params, &data_dir()).unwrap();
-    assert_eq!(spectral.accepted_stock_setup(), None);
+    assert_eq!(spectral.stock_defaults(), None);
     assert_eq!(
         spectral.params.film_render.halation.halation_first_sigma_um,
         [65.0; 3]
@@ -169,7 +167,7 @@ fn ordinary_constructors_and_defaults_do_not_select_fpw_stock_setup() {
     let legacy =
         Pipeline::new_with_spectral(slide, paper, parameters(StockRoute::Slide), &data_dir())
             .unwrap();
-    assert_eq!(legacy.accepted_stock_setup(), None);
+    assert_eq!(legacy.stock_defaults(), None);
     assert_eq!(
         legacy.params.film_render.dir_couplers.gamma_samelayer_rgb,
         [0.12, 0.08, 0.06]
@@ -177,7 +175,7 @@ fn ordinary_constructors_and_defaults_do_not_select_fpw_stock_setup() {
 }
 
 #[test]
-fn runtime_refresh_keeps_accepted_slide_controls_and_bw_broadcast() {
+fn runtime_refresh_keeps_slide_controls_and_bw_broadcast() {
     for (stock, route) in [
         ("fujifilm_provia_100f", StockRoute::Slide),
         ("fujifilm_velvia_100", StockRoute::Slide),
@@ -185,8 +183,8 @@ fn runtime_refresh_keeps_accepted_slide_controls_and_bw_broadcast() {
     ] {
         let (film, paper) = profiles(stock);
         let original = parameters(route);
-        let selection = AcceptedStockSetup::FpwV1(route);
-        let pipeline = Pipeline::new_with_spectral_and_stock_setup(
+        let selection = StockDefaults::Physical(route);
+        let pipeline = Pipeline::new_with_spectral_and_stock_defaults(
             film.clone(),
             paper.clone(),
             original.clone(),
@@ -200,8 +198,8 @@ fn runtime_refresh_keeps_accepted_slide_controls_and_bw_broadcast() {
         changed.enlarger.print_exposure = 0.8;
         changed.scanner.unsharp_mask = [0.4, 0.5];
         let refreshed = pipeline.refreshed(changed.clone()).unwrap();
-        let expected = pinned_adapter(stock, route, film, paper, changed);
-        assert_eq!(refreshed.accepted_stock_setup(), Some(selection));
+        let expected = reference_pipeline(stock, route, film, paper, changed);
+        assert_eq!(refreshed.stock_defaults(), Some(selection));
         assert_eq!(refreshed.print_exposure_factor().to_bits(), factor);
         assert_eq!(
             serde_json::to_value(&refreshed.params).unwrap(),
@@ -217,28 +215,52 @@ fn runtime_refresh_keeps_accepted_slide_controls_and_bw_broadcast() {
 }
 
 #[test]
-fn unsupported_stock_and_route_fail_before_spectral_resource_loading() {
-    let missing_data = data_dir().join("not-a-resource-directory");
-    for stock in ["kodak_ektachrome_100", "kodak_kodachrome_64", "kodak_trix"] {
-        let (film, paper) = profiles(stock);
-        let result = Pipeline::new_with_spectral_and_stock_setup(
-            film,
-            paper,
-            parameters(StockRoute::Slide),
-            &missing_data,
-            AcceptedStockSetup::FpwV1(StockRoute::Slide),
-        );
-        assert!(result.err().unwrap().contains("FPW v1 slide controls"));
+fn bundled_filming_profiles_accept_exactly_their_physical_routes() {
+    let mut profiles_checked = 0;
+    let mut slides_checked = 0;
+    let data = data_dir();
+    let paper = profile::load_profile_by_name(&data, "kodak_portra_endura").unwrap();
+    let missing_data = data.join("not-a-resource-directory");
+    for entry in std::fs::read_dir(data.join("profiles")).unwrap() {
+        let path = entry.unwrap().path();
+        if path.extension().is_none_or(|extension| extension != "json") {
+            continue;
+        }
+        let stock = path.file_stem().unwrap().to_str().unwrap();
+        let film = profile::load_profile_by_name(&data, stock).unwrap();
+        profiles_checked += 1;
+        slides_checked += usize::from(film.is_filming() && film.is_positive());
+        for route in [StockRoute::Paper, StockRoute::Slide, StockRoute::NegativeScan] {
+            let preset = StockDefaults::Physical(route);
+            let params = parameters(route);
+            if film.is_printing() || film.is_positive() != (route == StockRoute::Slide) {
+                let error = Pipeline::new_with_spectral_and_stock_defaults(
+                    film.clone(), paper.clone(), params, &missing_data, preset,
+                ).err().unwrap();
+                assert!(error.contains("does not match route"), "{stock}/{route:?}: {error}");
+                continue;
+            }
+            let pipeline = Pipeline::new_with_spectral_and_stock_defaults(
+                film.clone(), paper.clone(), params.clone(), &data, preset,
+            ).unwrap_or_else(|error| panic!("{stock}/{route:?}: {error}"));
+            let radius = if film.info.usage == "cine" { 50.0 } else { 65.0 };
+            assert_eq!(pipeline.params.film_render.halation.halation_first_sigma_um, [radius; 3]);
+            assert_eq!(pipeline.stock_defaults(), Some(preset));
+            if route == StockRoute::Slide
+                && !matches!(stock, "fujifilm_provia_100f" | "fujifilm_velvia_100")
+            {
+                let plain = Pipeline::new_with_spectral(film.clone(), paper.clone(), params, &data)
+                    .unwrap();
+                assert_eq!(
+                    serde_json::to_value(&pipeline.params.film_render.dir_couplers).unwrap(),
+                    serde_json::to_value(&plain.params.film_render.dir_couplers).unwrap(),
+                    "{stock} must retain its ordinary slide DIR defaults"
+                );
+            }
+        }
     }
-    let (film, paper) = profiles("kodak_portra_400");
-    let result = Pipeline::new_with_spectral_and_stock_setup(
-        film,
-        paper,
-        parameters(StockRoute::Slide),
-        &missing_data,
-        AcceptedStockSetup::FpwV1(StockRoute::Slide),
-    );
-    assert!(result.err().unwrap().contains("does not match route"));
+    assert_eq!(profiles_checked, 36);
+    assert_eq!(slides_checked, 5);
 }
 
 #[test]
@@ -274,7 +296,7 @@ fn cinema_prints_use_the_film_reference_and_print_viewing_lights() {
 }
 
 #[test]
-fn accepted_cinema_print_preserves_both_daylight_substitutions() {
+fn physical_cinema_defaults_preserve_both_daylight_substitutions() {
     use spektrafilm_gpu::cpu_backend::CpuBackend;
     use spektrafilm_math::{image::ImageBuf, precision::from_f64};
 
@@ -285,9 +307,9 @@ fn accepted_cinema_print_preserves_both_daylight_substitutions() {
     p.camera.auto_exposure = false;
     p.film_render.grain.active = false;
     p.print_render.glare.active = false;
-    let expected = pinned_adapter(stock, StockRoute::Paper, film.clone(), paper.clone(), p.clone());
-    let actual = Pipeline::new_with_spectral_and_stock_setup(
-        film, paper, p, &data_dir(), AcceptedStockSetup::FpwV1(StockRoute::Paper),
+    let expected = reference_pipeline(stock, StockRoute::Paper, film.clone(), paper.clone(), p.clone());
+    let actual = Pipeline::new_with_spectral_and_stock_defaults(
+        film, paper, p, &data_dir(), StockDefaults::Physical(StockRoute::Paper),
     ).unwrap();
     let input = ImageBuf::from_data(2, 1, [0.184, 0.184, 0.184, 0.08, 0.26, 0.72]
         .into_iter().map(from_f64).collect());

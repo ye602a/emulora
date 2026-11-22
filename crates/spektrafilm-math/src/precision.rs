@@ -19,6 +19,7 @@ pub fn from_f64(v: f64) -> Scalar {
 
 /// Convert Scalar to f64 (no-op in f64 mode, promotion in f32 mode).
 #[inline(always)]
+#[allow(clippy::unnecessary_cast, reason = "Scalar resolves to f32 or f64 depending on the feature.")]
 pub fn to_f64(v: Scalar) -> f64 {
     v as f64
 }
@@ -31,6 +32,7 @@ pub fn from_f32(v: f32) -> Scalar {
 
 /// Convert Scalar to f32.
 #[inline(always)]
+#[allow(clippy::unnecessary_cast, reason = "Scalar resolves to f32 or f64 depending on the feature.")]
 pub fn to_f32(v: Scalar) -> f32 {
     v as f32
 }

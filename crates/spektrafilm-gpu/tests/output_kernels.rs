@@ -173,9 +173,9 @@ fn packed_rgb16_matches_f64_rounding_at_every_half_code_and_pads_odd_tail() {
         [groups_x, groups_y],
     );
     let actual: Vec<u16> = bytes
-        .chunks_exact(4)
+        .as_chunks::<4>().0.iter()
         .flat_map(|word| {
-            let word = u32::from_le_bytes(word.try_into().unwrap());
+            let word = u32::from_le_bytes(*word);
             [word as u16, (word >> 16) as u16]
         })
         .collect();
@@ -217,8 +217,8 @@ fn display(
         [view.width.div_ceil(16), view.height.div_ceil(16)],
     );
     bytes
-        .chunks_exact(4)
-        .map(|word| f32::from_le_bytes(word.try_into().unwrap()))
+        .as_chunks::<4>().0.iter()
+        .map(|word| f32::from_le_bytes(*word))
         .collect()
 }
 

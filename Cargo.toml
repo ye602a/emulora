@@ -13,8 +13,11 @@ members = [
 [workspace.package]
 version = "0.1.2"
 edition = "2024"
-license = "GPL-3.0"
+license = "GPL-3.0-only"
 rust-version = "1.99"
+
+[workspace.lints.clippy]
+all = "warn"
 
 [workspace.dependencies]
 spektrafilm-photo-input = { path = "crates/spektrafilm-photo-input" }
@@ -29,7 +32,6 @@ rayon = "1.10"
 rand = "0.9"
 rand_distr = "0.5"
 image = { version = "0.25", default-features = false, features = ["tiff", "png", "jpeg"] }
-exr = "1.73"
 wgpu = { version = "=30.0.1", default-features = false, features = ["std", "wgsl", "vulkan"] }
 clap = { version = "4", features = ["derive"] }
 eframe = { version = "=0.37.0", default-features = false, features = ["wgpu", "glow", "default_fonts", "wayland", "x11"] }
@@ -38,7 +40,6 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 thiserror = "2"
 anyhow = "1"
-byteorder = "1"
 libm = "0.2"
 rustfft = "6"
 

@@ -35,5 +35,4 @@ Profile-derived data retains Andrea Volpato's CC BY-SA 4.0 attribution and
 share-alike terms. See the full
 [upstream data license](../../SPEKTRAFILM_DATA_LICENSE.txt) and
 [calibrated output contract](../../docs/maintenance/CALIBRATED_OUTPUT_V1.md).
-`python scripts/verify_calibrated_output_sources.py` verifies these files and
-the frozen shader/reference sources offline.
+`python tools/verify_data_manifest.py` checks the bundled data offline.

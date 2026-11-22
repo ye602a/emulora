@@ -181,8 +181,8 @@ impl NegativeKey {
             // source-size and enabled fields without duplicating its layout.
             let bytes = bytemuck::bytes_of(r);
             k.usize(bytes.len());
-            for word in bytes.chunks_exact(4) {
-                k.u32(u32::from_ne_bytes(word.try_into().unwrap()));
+            for word in bytes.as_chunks::<4>().0 {
+                k.u32(u32::from_ne_bytes(*word));
             }
         });
     }
@@ -537,12 +537,11 @@ impl<T: Clone> NegativeCache<T> {
                 self.latest_ticket = 1;
             }
         }
-        if let Some(entry) = self.entry.as_ref() {
-            if entry.bytes == required_bytes && matches(&entry.key, &key) {
+        if let Some(entry) = self.entry.as_ref()
+            && entry.bytes == required_bytes && matches(&entry.key, &key) {
                 self.stats.hits = self.stats.hits.saturating_add(1);
                 return NegativeLookup::Hit(entry.value.clone());
             }
-        }
         self.entry = None;
         self.stats.misses = self.stats.misses.saturating_add(1);
         NegativeLookup::Miss(NegativePublication {
