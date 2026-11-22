@@ -443,14 +443,20 @@ pub(crate) fn apply_camera_cuts(
     ir: [f32; 3],
     normalize: bool,
 ) -> Result<(), String> {
-    if wavelengths.len() != white.len() || response.len() != white.len()
-        || wavelengths.iter().enumerate().any(|(i, &nm)| nm != 380. + 5. * i as f64)
+    if wavelengths.len() != white.len()
+        || response.len() != white.len()
+        || wavelengths
+            .iter()
+            .enumerate()
+            .any(|(i, &nm)| nm != 380. + 5. * i as f64)
     {
         return Err("UV/IR cuts require the 380-780 nm film grid at 5 nm intervals".into());
     }
     let transmission = |nm: f64, cut: [f32; 3], sign: f64| {
         let [amount, center, width] = cut.map(f64::from);
-        if amount == 0. { return 1.; }
+        if amount == 0. {
+            return 1.;
+        }
         1. - amount * 0.5 * libm::erfc(sign * (nm - center) / width)
     };
     let mut before = [0.; 3];
@@ -469,12 +475,13 @@ pub(crate) fn apply_camera_cuts(
     }
     if normalize {
         for row in response {
-            for c in 0..3 { row[c] *= gain[c]; }
+            for c in 0..3 {
+                row[c] *= gain[c];
+            }
         }
     }
     Ok(())
 }
-
 
 /// f64 erf via libm — matches scipy.special.erf at full f64 precision.
 #[inline]
@@ -492,10 +499,21 @@ mod camera_cut_tests {
         let white: Vec<_> = wl.iter().map(|nm| nm / 500.).collect();
         let bare: Vec<_> = wl.iter().map(|nm| [1., nm / 500., 500. / nm]).collect();
         let integral = |rows: &[[f64; 3]], c: usize| -> f64 {
-            rows.iter().zip(&white).map(|(row, light)| row[c] * light).sum()
+            rows.iter()
+                .zip(&white)
+                .map(|(row, light)| row[c] * light)
+                .sum()
         };
         let mut response = bare.clone();
-        apply_camera_cuts(&mut response, &wl, &white, [1., 430., 10.], [0.5, 650., 10.], true).unwrap();
+        apply_camera_cuts(
+            &mut response,
+            &wl,
+            &white,
+            [1., 430., 10.],
+            [0.5, 650., 10.],
+            true,
+        )
+        .unwrap();
         for c in 0..3 {
             assert!((integral(&response, c) - integral(&bare, c)).abs() < 1e-10);
             let t = |i: usize| response[i][c] / bare[i][c];

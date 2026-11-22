@@ -13,7 +13,10 @@ pub mod cinema;
 
 pub const N_WAVELENGTHS: usize = 81;
 
-#[allow(clippy::excessive_precision, reason = "Preserve upstream spectral and white-point values verbatim.")]
+#[allow(
+    clippy::excessive_precision,
+    reason = "Preserve upstream spectral and white-point values verbatim."
+)]
 pub const CMF_X: [f32; N_WAVELENGTHS] = [
     0.001368, 0.002236, 0.004243, 0.007650, 0.014310, 0.023190, 0.043510, 0.077630, 0.134380,
     0.214770, 0.283900, 0.328500, 0.348280, 0.348060, 0.336200, 0.318700, 0.290800, 0.251100,
@@ -291,7 +294,10 @@ pub const CMF_Z_F64: [f64; N_WAVELENGTHS] = [
     0.0,
 ];
 
-#[allow(clippy::excessive_precision, reason = "Preserve upstream spectral and white-point values verbatim.")]
+#[allow(
+    clippy::excessive_precision,
+    reason = "Preserve upstream spectral and white-point values verbatim."
+)]
 pub const CMF_Z: [f32; N_WAVELENGTHS] = [
     0.006450, 0.010550, 0.020050, 0.036210, 0.067850, 0.110200, 0.207400, 0.371300, 0.645600,
     1.039050, 1.385600, 1.622960, 1.747060, 1.782600, 1.772110, 1.744100, 1.669200, 1.528100,
@@ -306,7 +312,10 @@ pub const CMF_Z: [f32; N_WAVELENGTHS] = [
 
 /// Illuminant SPDs normalized to match Python colour-science `standard_illuminant()`.
 /// These are the exact values returned by spektrafilm's Python illuminant loader.
-#[allow(clippy::excessive_precision, reason = "Preserve upstream spectral and white-point values verbatim.")]
+#[allow(
+    clippy::excessive_precision,
+    reason = "Preserve upstream spectral and white-point values verbatim."
+)]
 pub const ILLUMINANT_D55: [f32; N_WAVELENGTHS] = [
     0.37928266, 0.41130471, 0.44333841, 0.57639697, 0.70945552, 0.75371138, 0.79797887, 0.81556713,
     0.83316704, 0.81185393, 0.79052917, 0.89349794, 0.99645507, 1.06855416, 1.14065325, 1.15502884,
@@ -320,7 +329,10 @@ pub const ILLUMINANT_D55: [f32; N_WAVELENGTHS] = [
     0.98933130, 0.91301847, 0.83669401, 0.72561205, 0.61451846, 0.74916008, 0.88380170, 0.85988119,
     0.83597232,
 ];
-#[allow(clippy::excessive_precision, reason = "Preserve upstream spectral and white-point values verbatim.")]
+#[allow(
+    clippy::excessive_precision,
+    reason = "Preserve upstream spectral and white-point values verbatim."
+)]
 pub const ILLUMINANT_D65: [f32; N_WAVELENGTHS] = [
     0.57072795, 0.59740886, 0.62409091, 0.78458177, 0.94507378, 0.99492846, 1.04478429, 1.05589496,
     1.06700563, 1.02846489, 0.98992529, 1.09374935, 1.19757455, 1.26690631, 1.33624949, 1.34084039,
@@ -334,7 +346,10 @@ pub const ILLUMINANT_D65: [f32; N_WAVELENGTHS] = [
     0.85750517, 0.79187126, 0.72623849, 0.62817019, 0.53010303, 0.64651553, 0.76292802, 0.74338471,
     0.72384139,
 ];
-#[allow(clippy::excessive_precision, reason = "Preserve upstream spectral and white-point values verbatim.")]
+#[allow(
+    clippy::excessive_precision,
+    reason = "Preserve upstream spectral and white-point values verbatim."
+)]
 pub const ILLUMINANT_D50: [f32; N_WAVELENGTHS] = [
     0.28500907, 0.31632887, 0.34766031, 0.46076543, 0.57388219, 0.61580487, 0.65773919, 0.67822334,
     0.69871914, 0.68582343, 0.67292773, 0.77189179, 0.87086750, 0.94315561, 1.01544372, 1.03503170,
@@ -658,11 +673,20 @@ const D65_ILLUMINANT_XYZ: [f32; 3] = [0.950456, 1.0, 1.089058]; // from sRGB whi
 
 /// f64 pre-computed illuminant XYZ. Exactly matches Python's `_illuminant_to_xy`
 /// → `(x/y, 1, (1-x-y)/y)` chain, computed at full f64 precision.
-#[allow(clippy::excessive_precision, reason = "Preserve upstream spectral and white-point values verbatim.")]
+#[allow(
+    clippy::excessive_precision,
+    reason = "Preserve upstream spectral and white-point values verbatim."
+)]
 const D50_ILLUMINANT_XYZ_F64: [f64; 3] = [0.96419686124892201, 1.0, 0.82512259200404314];
-#[allow(clippy::excessive_precision, reason = "Preserve upstream spectral and white-point values verbatim.")]
+#[allow(
+    clippy::excessive_precision,
+    reason = "Preserve upstream spectral and white-point values verbatim."
+)]
 const D55_ILLUMINANT_XYZ_F64: [f64; 3] = [0.9567908993343901, 1.0, 0.92136745658606822];
-#[allow(clippy::excessive_precision, reason = "Preserve upstream spectral and white-point values verbatim.")]
+#[allow(
+    clippy::excessive_precision,
+    reason = "Preserve upstream spectral and white-point values verbatim."
+)]
 const D65_ILLUMINANT_XYZ_F64: [f64; 3] = [0.95042966940215057, 1.0, 1.0888005470297513];
 
 /// Get the native white point XYZ for a named colorspace.

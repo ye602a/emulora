@@ -6,7 +6,7 @@ use spektrafilm_core::{
     params::RuntimeParams,
     pipeline::Pipeline,
     profile::{self, Profile},
-    stock_setup::{StockDefaults, PHYSICAL_STOCK_DEFAULTS_V1_ID, StockRoute},
+    stock_setup::{PHYSICAL_STOCK_DEFAULTS_V1_ID, StockDefaults, StockRoute},
 };
 
 fn data_dir() -> PathBuf {
@@ -121,7 +121,8 @@ fn physical_stock_defaults_preserve_calibration_and_parameters() {
     ] {
         let (film, paper) = profiles(stock);
         let params = parameters(route);
-        let expected = reference_pipeline(stock, route, film.clone(), paper.clone(), params.clone());
+        let expected =
+            reference_pipeline(stock, route, film.clone(), paper.clone(), params.clone());
         let selection = StockDefaults::Physical(route);
         let actual = Pipeline::new_with_spectral_and_stock_defaults(
             film,
@@ -230,21 +231,46 @@ fn bundled_filming_profiles_accept_exactly_their_physical_routes() {
         let film = profile::load_profile_by_name(&data, stock).unwrap();
         profiles_checked += 1;
         slides_checked += usize::from(film.is_filming() && film.is_positive());
-        for route in [StockRoute::Paper, StockRoute::Slide, StockRoute::NegativeScan] {
+        for route in [
+            StockRoute::Paper,
+            StockRoute::Slide,
+            StockRoute::NegativeScan,
+        ] {
             let preset = StockDefaults::Physical(route);
             let params = parameters(route);
             if film.is_printing() || film.is_positive() != (route == StockRoute::Slide) {
                 let error = Pipeline::new_with_spectral_and_stock_defaults(
-                    film.clone(), paper.clone(), params, &missing_data, preset,
-                ).err().unwrap();
-                assert!(error.contains("does not match route"), "{stock}/{route:?}: {error}");
+                    film.clone(),
+                    paper.clone(),
+                    params,
+                    &missing_data,
+                    preset,
+                )
+                .err()
+                .unwrap();
+                assert!(
+                    error.contains("does not match route"),
+                    "{stock}/{route:?}: {error}"
+                );
                 continue;
             }
             let pipeline = Pipeline::new_with_spectral_and_stock_defaults(
-                film.clone(), paper.clone(), params.clone(), &data, preset,
-            ).unwrap_or_else(|error| panic!("{stock}/{route:?}: {error}"));
-            let radius = if film.info.usage == "cine" { 50.0 } else { 65.0 };
-            assert_eq!(pipeline.params.film_render.halation.halation_first_sigma_um, [radius; 3]);
+                film.clone(),
+                paper.clone(),
+                params.clone(),
+                &data,
+                preset,
+            )
+            .unwrap_or_else(|error| panic!("{stock}/{route:?}: {error}"));
+            let radius = if film.info.usage == "cine" {
+                50.0
+            } else {
+                65.0
+            };
+            assert_eq!(
+                pipeline.params.film_render.halation.halation_first_sigma_um,
+                [radius; 3]
+            );
             assert_eq!(pipeline.stock_defaults(), Some(preset));
             if route == StockRoute::Slide
                 && !matches!(stock, "fujifilm_provia_100f" | "fujifilm_velvia_100")
@@ -266,7 +292,10 @@ fn bundled_filming_profiles_accept_exactly_their_physical_routes() {
 #[test]
 fn cinema_prints_use_the_film_reference_and_print_viewing_lights() {
     use spektrafilm_gpu::cpu_backend::CpuBackend;
-    use spektrafilm_math::{image::ImageBuf, precision::{from_f64, srgb_decode}};
+    use spektrafilm_math::{
+        image::ImageBuf,
+        precision::{from_f64, srgb_decode},
+    };
 
     // Full-tier SpektraLab Windows 1.3.4-beta.3, native Vulkan, shared
     // linear ProPhoto TIFF. Each cross-pair independently exercises one lamp.
@@ -279,18 +308,30 @@ fn cinema_prints_use_the_film_reference_and_print_viewing_lights() {
     params.print_render.glare.active = false;
     let level = srgb_decode(from_f64(118.0 / 255.0));
     for (film, paper, reference) in [
-        ("kodak_vision3_500t", "kodak_portra_endura", [115.70, 116.25, 118.56]),
+        (
+            "kodak_vision3_500t",
+            "kodak_portra_endura",
+            [115.70, 116.25, 118.56],
+        ),
         ("kodak_portra_400", "kodak_2383", [113.63, 115.36, 118.44]),
         ("kodak_vision3_200t", "kodak_2393", [109.31, 110.63, 112.50]),
     ] {
         let pipeline = Pipeline::new_with_spectral(
             profile::load_profile_by_name(&data_dir(), film).unwrap(),
             profile::load_profile_by_name(&data_dir(), paper).unwrap(),
-            params.clone(), &data_dir(),
-        ).unwrap();
-        let out = pipeline.try_process(ImageBuf::from_data(1, 1, vec![level; 3]), &CpuBackend).unwrap();
+            params.clone(),
+            &data_dir(),
+        )
+        .unwrap();
+        let out = pipeline
+            .try_process(ImageBuf::from_data(1, 1, vec![level; 3]), &CpuBackend)
+            .unwrap();
         for (value, target) in out.data.iter().zip(reference) {
-            assert!((*value as f64 * 255.0 - target).abs() < 0.25, "{film}/{paper}: {:?}", out.data);
+            assert!(
+                (*value as f64 * 255.0 - target).abs() < 0.25,
+                "{film}/{paper}: {:?}",
+                out.data
+            );
         }
     }
 }
@@ -307,12 +348,29 @@ fn physical_cinema_defaults_preserve_both_daylight_substitutions() {
     p.camera.auto_exposure = false;
     p.film_render.grain.active = false;
     p.print_render.glare.active = false;
-    let expected = reference_pipeline(stock, StockRoute::Paper, film.clone(), paper.clone(), p.clone());
+    let expected = reference_pipeline(
+        stock,
+        StockRoute::Paper,
+        film.clone(),
+        paper.clone(),
+        p.clone(),
+    );
     let actual = Pipeline::new_with_spectral_and_stock_defaults(
-        film, paper, p, &data_dir(), StockDefaults::Physical(StockRoute::Paper),
-    ).unwrap();
-    let input = ImageBuf::from_data(2, 1, [0.184, 0.184, 0.184, 0.08, 0.26, 0.72]
-        .into_iter().map(from_f64).collect());
+        film,
+        paper,
+        p,
+        &data_dir(),
+        StockDefaults::Physical(StockRoute::Paper),
+    )
+    .unwrap();
+    let input = ImageBuf::from_data(
+        2,
+        1,
+        [0.184, 0.184, 0.184, 0.08, 0.26, 0.72]
+            .into_iter()
+            .map(from_f64)
+            .collect(),
+    );
     assert_eq!(
         actual.try_process(input.clone(), &CpuBackend).unwrap().data,
         expected.try_process(input, &CpuBackend).unwrap().data,

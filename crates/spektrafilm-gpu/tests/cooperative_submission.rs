@@ -23,7 +23,11 @@ fn backend() -> Option<WgpuBackend> {
 }
 
 fn image(width: u32, height: u32) -> ImageBuf {
-    ImageBuf::from_data(width, height, vec![from_f32(0.18); width as usize * height as usize * 3])
+    ImageBuf::from_data(
+        width,
+        height,
+        vec![from_f32(0.18); width as usize * height as usize * 3],
+    )
 }
 
 fn params(image: &ImageBuf) -> FilmChainParams<'_> {
@@ -117,22 +121,42 @@ fn detailed_halation_and_dir_checkpoints_preserve_complete_output_bits() {
     };
     let expected = backend.run_film_chain_with_options(&p, options).unwrap();
     assert!(expected.data.iter().all(|value| value.is_finite()));
-    assert!(expected.data.as_chunks::<3>().0.iter().any(|pixel| {
-        pixel[0].to_bits() != expected.data[0].to_bits()
-    }), "fixture must retain spatial detail rather than saturating to one value");
+    assert!(
+        expected
+            .data
+            .as_chunks::<3>()
+            .0
+            .iter()
+            .any(|pixel| { pixel[0].to_bits() != expected.data[0].to_bits() }),
+        "fixture must retain spatial detail rather than saturating to one value"
+    );
 
     // No source identity and no grain: after the detailed DIR checkpoint there
     // is neither a snapshot copy nor new negative work, so the otherwise empty
     // after-negative submission must be skipped before printing continues.
-    let actual = backend.run_film_chain_with_options(&p, FilmRenderOptions {
-        submission_policy: FilmSubmissionPolicy::CooperativeStages,
-        ..options
-    }).unwrap();
-    assert_eq!((actual.width, actual.height), (expected.width, expected.height));
+    let actual = backend
+        .run_film_chain_with_options(
+            &p,
+            FilmRenderOptions {
+                submission_policy: FilmSubmissionPolicy::CooperativeStages,
+                ..options
+            },
+        )
+        .unwrap();
+    assert_eq!(
+        (actual.width, actual.height),
+        (expected.width, expected.height)
+    );
     assert_eq!(actual.data.len(), expected.data.len());
-    let first_difference = actual.data.iter().zip(&expected.data)
+    let first_difference = actual
+        .data
+        .iter()
+        .zip(&expected.data)
         .position(|(actual, expected)| actual.to_bits() != expected.to_bits());
-    assert_eq!(first_difference, None, "internal stage submissions changed an output channel");
+    assert_eq!(
+        first_difference, None,
+        "internal stage submissions changed an output channel"
+    );
     assert_eq!(backend.negative_cache_stats().resident_bytes, 0);
 }
 
@@ -178,21 +202,38 @@ fn cancellation_preserves_only_completed_negative_and_skips_consumer_then_recove
         assert!(!called.get(), "cancellation reached final output encoding");
         let completed_negative = width == small.width && height == small.height;
         let after_cancel = backend.negative_cache_stats();
-        assert_eq!(after_cancel.stores, before.stores + u64::from(completed_negative));
+        assert_eq!(
+            after_cancel.stores,
+            before.stores + u64::from(completed_negative)
+        );
         assert_eq!(
             after_cancel.resident_bytes,
-            if completed_negative { width as u64 * height as u64 * 12 } else { 0 },
+            if completed_negative {
+                width as u64 * height as u64 * 12
+            } else {
+                0
+            },
         );
         assert_eq!(backend.work_image_bytes(), 0);
 
         stop.store(false, Ordering::Release);
-        let recovered = backend.run_film_chain_with_options(&params(&small), options).unwrap();
+        let recovered = backend
+            .run_film_chain_with_options(&params(&small), options)
+            .unwrap();
         assert_eq!(recovered.data, expected.data);
         let before_hit = backend.negative_cache_stats();
         assert_eq!(before_hit.stores, before.stores + 1);
-        assert_eq!(before_hit.hits, after_cancel.hits + u64::from(completed_negative));
-        assert_eq!(before_hit.misses, after_cancel.misses + u64::from(!completed_negative));
-        let repeated = backend.run_film_chain_with_options(&params(&small), options).unwrap();
+        assert_eq!(
+            before_hit.hits,
+            after_cancel.hits + u64::from(completed_negative)
+        );
+        assert_eq!(
+            before_hit.misses,
+            after_cancel.misses + u64::from(!completed_negative)
+        );
+        let repeated = backend
+            .run_film_chain_with_options(&params(&small), options)
+            .unwrap();
         assert_eq!(repeated.data, expected.data);
         assert_eq!(backend.negative_cache_stats().hits, before_hit.hits + 1);
     }
@@ -212,7 +253,11 @@ fn consumer_failure_keeps_completed_negative_without_submitting_output() {
         usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
         mapped_at_creation: true,
     });
-    marker.slice(..).get_mapped_range_mut().unwrap().copy_from_slice(&[0x55; 16]);
+    marker
+        .slice(..)
+        .get_mapped_range_mut()
+        .unwrap()
+        .copy_from_slice(&[0x55; 16]);
     marker.unmap();
     let read_marker = || {
         let slice = marker.slice(..);
@@ -220,10 +265,12 @@ fn consumer_failure_keeps_completed_negative_without_submitting_output() {
         slice.map_async(wgpu::MapMode::Read, move |result| {
             let _ = tx.send(result);
         });
-        device.poll(wgpu::PollType::Wait {
-            submission_index: None,
-            timeout: None,
-        }).unwrap();
+        device
+            .poll(wgpu::PollType::Wait {
+                submission_index: None,
+                timeout: None,
+            })
+            .unwrap();
         rx.recv().unwrap().unwrap();
         let mapped = slice.get_mapped_range().unwrap();
         let data = mapped.to_vec();
@@ -251,21 +298,29 @@ fn consumer_failure_keeps_completed_negative_without_submitting_output() {
                 Err(OutputError::GpuFailure)
             }
         });
-        assert_eq!(result, Err(if cancel_in_consumer {
-            OutputError::Cancelled
-        } else {
-            OutputError::GpuFailure
-        }));
+        assert_eq!(
+            result,
+            Err(if cancel_in_consumer {
+                OutputError::Cancelled
+            } else {
+                OutputError::GpuFailure
+            })
+        );
         // Only the negative stage was submitted. A failed consumer cannot
         // mutate the host's output destination or publish a completed frame.
         assert_eq!(read_marker(), [0x55; 16]);
         let retained = backend.negative_cache_stats();
         assert_eq!(retained.stores, before.stores + 1);
-        assert_eq!(retained.resident_bytes, input.width as u64 * input.height as u64 * 12);
+        assert_eq!(
+            retained.resident_bytes,
+            input.width as u64 * input.height as u64 * 12
+        );
         assert_eq!(backend.work_image_bytes(), 0);
 
         stop.store(false, Ordering::Release);
-        let recovered = backend.run_film_chain_with_options(&params(&input), options).unwrap();
+        let recovered = backend
+            .run_film_chain_with_options(&params(&input), options)
+            .unwrap();
         assert_eq!(recovered.data, expected.data);
         let after = backend.negative_cache_stats();
         assert_eq!(after.hits, retained.hits + 1);
@@ -309,31 +364,38 @@ fn cleared_or_disabled_stage_snapshot_cannot_reappear_after_final_output() {
                 });
                 assert!(!invalidated.load(Ordering::Acquire));
             }
-            backend.with_film_output(&params(&input), options, None, |_, _, _| {
-                if invalidate_at_completion {
-                    assert!(invalidated.load(Ordering::Acquire));
-                    assert_eq!(backend.negative_cache_stats().stores, before.stores);
-                } else {
-                    // Also invalidate a snapshot that was already published
-                    // at the negative boundary, before final output succeeds.
-                    assert_eq!(backend.negative_cache_stats().stores, before.stores + 1);
-                    if disable {
-                        backend.configure_negative_cache(false);
+            backend
+                .with_film_output(&params(&input), options, None, |_, _, _| {
+                    if invalidate_at_completion {
+                        assert!(invalidated.load(Ordering::Acquire));
+                        assert_eq!(backend.negative_cache_stats().stores, before.stores);
                     } else {
-                        backend.clear_negative_cache();
+                        // Also invalidate a snapshot that was already published
+                        // at the negative boundary, before final output succeeds.
+                        assert_eq!(backend.negative_cache_stats().stores, before.stores + 1);
+                        if disable {
+                            backend.configure_negative_cache(false);
+                        } else {
+                            backend.clear_negative_cache();
+                        }
                     }
-                }
-                Ok(())
-            }).unwrap();
+                    Ok(())
+                })
+                .unwrap();
             let after = backend.negative_cache_stats();
-            assert_eq!(after.stores, before.stores + u64::from(!invalidate_at_completion));
+            assert_eq!(
+                after.stores,
+                before.stores + u64::from(!invalidate_at_completion)
+            );
             assert_eq!(after.resident_bytes, 0);
 
             // Re-enabling cannot restore the discarded snapshot. A fresh
             // request has to miss and produce a new, numerically equal one.
             backend.configure_negative_cache(true);
             assert_eq!(backend.negative_cache_stats().resident_bytes, 0);
-            let recovered = backend.run_film_chain_with_options(&params(&input), options).unwrap();
+            let recovered = backend
+                .run_film_chain_with_options(&params(&input), options)
+                .unwrap();
             assert_eq!(recovered.data, expected.data);
             let recovered_stats = backend.negative_cache_stats();
             assert_eq!(recovered_stats.misses, after.misses + 1);
@@ -351,12 +413,20 @@ fn whole_chain_no_signal_and_cached_cooperative_encode_before_any_submission() {
     let input = image(17, 11);
     let stop = AtomicBool::new(false);
     let source = Some(SourceIdentity(81));
-    let cached = FilmRenderOptions { source, ..Default::default() };
-    backend.run_film_chain_with_options(&params(&input), cached).unwrap();
+    let cached = FilmRenderOptions {
+        source,
+        ..Default::default()
+    };
+    backend
+        .run_film_chain_with_options(&params(&input), cached)
+        .unwrap();
     let (_, queue) = backend.compute_device();
     let cases = [
         // Cancellation alone must not opt an existing caller into more waits.
-        FilmRenderOptions { cancellation: Some(&stop), ..Default::default() },
+        FilmRenderOptions {
+            cancellation: Some(&stop),
+            ..Default::default()
+        },
         FilmRenderOptions {
             submission_policy: FilmSubmissionPolicy::CooperativeStages,
             ..Default::default()
@@ -372,11 +442,19 @@ fn whole_chain_no_signal_and_cached_cooperative_encode_before_any_submission() {
         let submitted = Arc::new(AtomicBool::new(false));
         let callback = submitted.clone();
         queue.on_submitted_work_done(move || callback.store(true, Ordering::Release));
-        backend.with_film_output(&params(&input), options, None, |_, _, _| {
-            assert!(!submitted.load(Ordering::Acquire), "case {index} submitted before output encoding");
-            Ok(())
-        }).unwrap();
-        assert!(submitted.load(Ordering::Acquire), "render never completed its submission");
+        backend
+            .with_film_output(&params(&input), options, None, |_, _, _| {
+                assert!(
+                    !submitted.load(Ordering::Acquire),
+                    "case {index} submitted before output encoding"
+                );
+                Ok(())
+            })
+            .unwrap();
+        assert!(
+            submitted.load(Ordering::Acquire),
+            "render never completed its submission"
+        );
     }
     assert_eq!(backend.negative_cache_stats().hits, 1);
 }

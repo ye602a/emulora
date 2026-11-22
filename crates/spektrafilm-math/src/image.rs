@@ -52,12 +52,18 @@ impl ImageBuf {
         self.data[i + 2] = rgb[2];
     }
 
-    #[allow(clippy::chunks_exact_to_as_chunks, reason = "The public pixel iterator yields RGB slices.")]
+    #[allow(
+        clippy::chunks_exact_to_as_chunks,
+        reason = "The public pixel iterator yields RGB slices."
+    )]
     pub fn pixels(&self) -> impl Iterator<Item = &[Scalar]> {
         self.data.chunks_exact(3)
     }
 
-    #[allow(clippy::chunks_exact_to_as_chunks, reason = "The public pixel iterator yields mutable RGB slices.")]
+    #[allow(
+        clippy::chunks_exact_to_as_chunks,
+        reason = "The public pixel iterator yields mutable RGB slices."
+    )]
     pub fn pixels_mut(&mut self) -> impl Iterator<Item = &mut [Scalar]> {
         self.data.chunks_exact_mut(3)
     }

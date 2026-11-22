@@ -100,7 +100,10 @@ mod integration_tests {
     /// dumped from upstream `origin/main` (= 0.3.4) with the stochastic /
     /// spatial effects off and linear sRGB in/out.
     #[test]
-    #[allow(clippy::excessive_precision, reason = "Preserve the original reference samples verbatim.")]
+    #[allow(
+        clippy::excessive_precision,
+        reason = "Preserve the original reference samples verbatim."
+    )]
     fn full_chain_matches_python_0_3_4_defaults() {
         let dir = data_dir();
         let film = profile::load_profile_by_name(&dir, "kodak_portra_400").unwrap();
@@ -235,13 +238,10 @@ mod integration_tests {
 
         let pipeline = Pipeline::new_with_spectral(film, print, params.clone(), &dir)
             .unwrap()
-            .refreshed(params).unwrap();
+            .refreshed(params)
+            .unwrap();
         assert_eq!(
-            pipeline
-                .params
-                .film_render
-                .dir_couplers
-                .gamma_samelayer_rgb,
+            pipeline.params.film_render.dir_couplers.gamma_samelayer_rgb,
             [0.12, 0.08, 0.06],
             "GUI refresh must preserve positive-film DIR parameters"
         );
@@ -315,8 +315,16 @@ mod debug_tests {
         eprintln!("Input: {:?}", img.get(0, 0));
 
         let ref_illuminant = stages::filming::select_illuminant(&film.info.reference_illuminant);
-        let log_raw =
-            stages::filming::expose(&img, &film, &params, &backend, None, None, ref_illuminant, 1.0);
+        let log_raw = stages::filming::expose(
+            &img,
+            &film,
+            &params,
+            &backend,
+            None,
+            None,
+            ref_illuminant,
+            1.0,
+        );
         eprintln!("log_raw: {:?}", log_raw.get(0, 0));
 
         let density_cmy = stages::filming::develop(&log_raw, &film, &params, &backend);

@@ -294,10 +294,7 @@ struct ExportJob {
 }
 
 impl App {
-    fn new(
-        backend: Arc<dyn ComputeBackend>,
-        initial_image: Option<PathBuf>,
-    ) -> Self {
+    fn new(backend: Arc<dyn ComputeBackend>, initial_image: Option<PathBuf>) -> Self {
         let data_dir = pick_data_dir();
         let (films, papers) = scan_profiles(&data_dir);
         let film_name = pick_default_stock(&films, "kodak_gold_200");
@@ -464,11 +461,12 @@ impl App {
                 let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                     let t_total = Instant::now();
                     let t_scale = Instant::now();
-                    let scaled_image = if working_factor <= 0.0 || (working_factor - 1.0).abs() < 1e-6 {
-                        None
-                    } else {
-                        Some(rescale_preview_input_fast(image.clone(), working_factor))
-                    };
+                    let scaled_image =
+                        if working_factor <= 0.0 || (working_factor - 1.0).abs() < 1e-6 {
+                            None
+                        } else {
+                            Some(rescale_preview_input_fast(image.clone(), working_factor))
+                        };
                     let scale_ms = t_scale.elapsed().as_secs_f32() * 1000.0;
                     let t = Instant::now();
                     let output = match scaled_image {
@@ -477,7 +475,11 @@ impl App {
                             pipeline.try_process((*image).clone(), backend.as_ref())
                         }
                         None => match pipeline
-                            .process_resident_with_options(image.as_ref(), backend.as_ref(), Default::default())
+                            .process_resident_with_options(
+                                image.as_ref(),
+                                backend.as_ref(),
+                                Default::default(),
+                            )
                             .map_err(|e| e.to_string())?
                         {
                             Some(output) => Ok(output),
@@ -838,9 +840,9 @@ impl App {
                     .add_filter("Images", spektrafilm_photo_input::RASTER_EXTENSIONS)
                     .add_filter("Camera RAW", spektrafilm_photo_input::RAW_EXTENSIONS)
                     .pick_file()
-                {
-                    self.load_image_from_path(&path);
-                }
+            {
+                self.load_image_from_path(&path);
+            }
             let save_enabled = self.output_image.is_some();
             if ui
                 .add_enabled(save_enabled, egui::Button::new("Save…"))
@@ -1073,15 +1075,30 @@ impl App {
                         ("UV", &mut camera.filter_uv, 380.0..=450.0),
                         ("IR", &mut camera.filter_ir, 600.0..=780.0),
                     ] {
-                        changed |= ui.add(egui::Slider::new(&mut cut[0], 0.0..=1.0)
-                            .text(format!("{name} strength"))).changed();
+                        changed |= ui
+                            .add(
+                                egui::Slider::new(&mut cut[0], 0.0..=1.0)
+                                    .text(format!("{name} strength")),
+                            )
+                            .changed();
                         if cut[0] > 0.0 {
-                            changed |= ui.add(egui::Slider::new(&mut cut[1], range)
-                                .clamping(egui::SliderClamping::Edits)
-                                .text(format!("{name} cutoff (nm)"))).changed();
-                            changed |= ui.add(egui::DragValue::new(&mut cut[2])
-                                .range(0.1..=f32::MAX).clamp_existing_to_range(false).speed(0.5)
-                                .prefix(format!("{name} transition ")).suffix(" nm")).changed();
+                            changed |= ui
+                                .add(
+                                    egui::Slider::new(&mut cut[1], range)
+                                        .clamping(egui::SliderClamping::Edits)
+                                        .text(format!("{name} cutoff (nm)")),
+                                )
+                                .changed();
+                            changed |= ui
+                                .add(
+                                    egui::DragValue::new(&mut cut[2])
+                                        .range(0.1..=f32::MAX)
+                                        .clamp_existing_to_range(false)
+                                        .speed(0.5)
+                                        .prefix(format!("{name} transition "))
+                                        .suffix(" nm"),
+                                )
+                                .changed();
                         }
                     }
                 });
@@ -1452,9 +1469,17 @@ impl App {
                         }
                     });
                 if method == "hanatos2025" {
-                    if self.films.iter().any(|f| f.stock == self.film_name && f.hanatos_surface) {
-                        changed |= ui.checkbox(&mut self.params.settings.apply_hanatos2025_adaptation_surface,
-                            "Stock colour correction").changed();
+                    if self
+                        .films
+                        .iter()
+                        .any(|f| f.stock == self.film_name && f.hanatos_surface)
+                    {
+                        changed |= ui
+                            .checkbox(
+                                &mut self.params.settings.apply_hanatos2025_adaptation_surface,
+                                "Stock colour correction",
+                            )
+                            .changed();
                     }
                 } else {
                     self.params.settings.apply_hanatos2025_adaptation_surface = false;
@@ -1574,10 +1599,7 @@ impl App {
             "clone/scale:   {:>6.1} / {:>5.1} ms",
             self.last_input_clone_ms, self.last_scale_ms
         ));
-        ui.monospace(format!(
-            "preview pack:  {:>6.1} ms",
-            self.last_preview_ms
-        ));
+        ui.monospace(format!("preview pack:  {:>6.1} ms", self.last_preview_ms));
         ui.monospace(format!(
             "worker total:  {:>6.1} ms",
             self.last_worker_total_ms
@@ -1750,23 +1772,35 @@ fn scan_profiles(data_dir: &Path) -> (Vec<ProfileEntry>, Vec<ProfileEntry>) {
         // Cheap probe: just deserialize the file's `info` field. We
         // could skip the rest of the profile but `Profile` already does
         // the right thing — and we pay this once at startup.
-        let (display, is_paper, monochrome, color_paper, graded_paper, hue_material, hanatos_surface) =
-            match profile::load_profile_by_name(data_dir, &stock) {
-                Ok(p) => {
-                    let display = p.info.name.clone().unwrap_or_else(|| stock.clone());
-                    let is_paper = p.info.support == "paper" || p.info.stage == "printing";
-                    (
-                        display,
-                        is_paper,
-                        p.is_bw(),
-                        is_paper && p.is_color(),
-                        p.data.paper_grades.is_some(),
-                        p.is_color() && if is_paper { !p.is_positive() } else { p.is_negative() },
-                        p.has_hanatos_surface(),
-                    )
-                }
-                Err(_) => (stock.clone(), false, false, false, false, false, false),
-            };
+        let (
+            display,
+            is_paper,
+            monochrome,
+            color_paper,
+            graded_paper,
+            hue_material,
+            hanatos_surface,
+        ) = match profile::load_profile_by_name(data_dir, &stock) {
+            Ok(p) => {
+                let display = p.info.name.clone().unwrap_or_else(|| stock.clone());
+                let is_paper = p.info.support == "paper" || p.info.stage == "printing";
+                (
+                    display,
+                    is_paper,
+                    p.is_bw(),
+                    is_paper && p.is_color(),
+                    p.data.paper_grades.is_some(),
+                    p.is_color()
+                        && if is_paper {
+                            !p.is_positive()
+                        } else {
+                            p.is_negative()
+                        },
+                    p.has_hanatos_surface(),
+                )
+            }
+            Err(_) => (stock.clone(), false, false, false, false, false, false),
+        };
         let entry = ProfileEntry {
             hanatos_surface,
             hue_material,
@@ -1884,12 +1918,8 @@ fn rescale_preview_input_fast(image: Arc<ImageBuf>, factor: f32) -> ImageBuf {
     }
 
     let f32buf: Vec<f32> = image.data.par_iter().map(|&v| to_f32(v)).collect();
-    let src = image::ImageBuffer::<image::Rgb<f32>, _>::from_raw(
-        image.width,
-        image.height,
-        f32buf,
-    )
-    .expect("ImageBuf dims match its data length");
+    let src = image::ImageBuffer::<image::Rgb<f32>, _>::from_raw(image.width, image.height, f32buf)
+        .expect("ImageBuf dims match its data length");
     let dst = image::imageops::resize(&src, new_w, new_h, image::imageops::FilterType::CatmullRom);
     let data: Vec<Scalar> = dst.into_raw().into_par_iter().map(from_f32).collect();
     ImageBuf::from_data(new_w, new_h, data)
@@ -2110,7 +2140,10 @@ impl Drop for TempPath {
 /// `cancel` is set the child is SIGKILLed and `Err("cancelled")` is
 /// returned — this prevents the orphan-process / system-freeze bug
 /// where closing the GUI mid-export left the CPU pipeline running.
-#[allow(clippy::too_many_arguments, reason = "Pass the selected export route and worker paths through the existing CLI boundary.")]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "Pass the selected export route and worker paths through the existing CLI boundary."
+)]
 fn run_f64_export(
     cli_path: &Path,
     input: &Path,
@@ -2357,7 +2390,12 @@ mod tests {
             (true, "kodak_gold_200", false, "kodak_portra_endura"),
             (false, "kodak_gold_200", false, "kodak_portra_endura"),
             (false, "fujifilm_provia_100f", false, "kodak_portra_endura"),
-            (false, "ilford_hp5_plus_400", false, "ilford_multigrade_iv_rc"),
+            (
+                false,
+                "ilford_hp5_plus_400",
+                false,
+                "ilford_multigrade_iv_rc",
+            ),
         ] {
             app.print_name = paper.into();
             app.film_name = stock.into();
@@ -2377,9 +2415,15 @@ mod tests {
                     _ => None,
                 })
                 .collect();
-            assert_eq!(labels.contains(&"Print bleach bypass"), !scan_film && paper == "kodak_portra_endura");
+            assert_eq!(
+                labels.contains(&"Print bleach bypass"),
+                !scan_film && paper == "kodak_portra_endura"
+            );
             assert!(labels.contains(&"UV / IR cut"));
-            assert_eq!(labels.contains(&"Camera filter"), matches!(stock, "kodak_doublex" | "ilford_hp5_plus_400"));
+            assert_eq!(
+                labels.contains(&"Camera filter"),
+                matches!(stock, "kodak_doublex" | "ilford_hp5_plus_400")
+            );
             assert_eq!(labels.contains(&"Compensate filter exposure"), filtered);
             assert_eq!(
                 labels.contains(&"Hue from negative"),

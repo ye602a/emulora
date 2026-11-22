@@ -62,10 +62,17 @@ fn work_images_simultaneous_checkouts_own_distinct_buffers() {
     let first = first.expect("the first caller must receive the idle pair");
     assert_eq!(first.a, original_a);
     assert_eq!(first.b, original_b);
-    assert_eq!(backend.work_image_bytes(), 0, "checked-out bytes are not idle");
+    assert_eq!(
+        backend.work_image_bytes(),
+        0,
+        "checked-out bytes are not idle"
+    );
 
     let (second, second_generation) = backend.checkout_work_images(image_bytes, false);
-    assert!(second.is_none(), "an active pair cannot be checked out twice");
+    assert!(
+        second.is_none(),
+        "an active pair cannot be checked out twice"
+    );
     let second = allocate_pair(&backend, image_bytes);
     assert_ne!(first.a, second.a);
     assert_ne!(first.a, second.b);
@@ -115,7 +122,11 @@ fn work_images_disable_and_reenable_rejects_late_generation() {
 
     backend.configure_work_images(false);
     release(&backend, retained, generation);
-    assert_eq!(backend.work_image_bytes(), 0, "disabled cache cannot be restored");
+    assert_eq!(
+        backend.work_image_bytes(),
+        0,
+        "disabled cache cannot be restored"
+    );
 }
 
 #[test]
@@ -140,13 +151,21 @@ fn work_images_budget_changes_reject_late_returns_and_evict_oversize() {
     release(&backend, current, generation);
     assert_eq!(backend.work_image_bytes(), image_bytes * 2);
     backend.configure_work_image_budget_bytes(image_bytes * 2 - 1);
-    assert_eq!(backend.work_image_bytes(), 0, "shrinking evicts an idle pair");
+    assert_eq!(
+        backend.work_image_bytes(),
+        0,
+        "shrinking evicts an idle pair"
+    );
 
     backend.configure_work_image_budget_bytes(image_bytes * 2);
     let (late, generation) = acquire(&backend, image_bytes);
     backend.configure_work_image_budget_bytes(0);
     release(&backend, late, generation);
-    assert_eq!(backend.work_image_bytes(), 0, "late oversize pair stays evicted");
+    assert_eq!(
+        backend.work_image_bytes(),
+        0,
+        "late oversize pair stays evicted"
+    );
 
     // An allocation completed under the current zero budget also cannot enter.
     let (over_budget, generation) = acquire(&backend, image_bytes);
@@ -166,17 +185,30 @@ fn work_images_size_change_evicts_idle_pair_and_mappable_bypasses_reuse() {
     release(&backend, small, generation);
 
     let (mismatched, _) = backend.checkout_work_images(large_bytes, false);
-    assert!(mismatched.is_none(), "work-plane byte size must match exactly");
+    assert!(
+        mismatched.is_none(),
+        "work-plane byte size must match exactly"
+    );
     assert_eq!(backend.work_image_bytes(), 0);
     let (evicted, _) = backend.checkout_work_images(small_bytes, false);
-    assert!(evicted.is_none(), "a size mismatch must discard the previous pair");
+    assert!(
+        evicted.is_none(),
+        "a size mismatch must discard the previous pair"
+    );
 
     let (large, generation) = acquire(&backend, large_bytes);
     release(&backend, large, generation);
     let (mappable, generation) = backend.checkout_work_images(large_bytes, true);
-    assert!(mappable.is_none(), "direct mapping keeps its dedicated allocations");
+    assert!(
+        mappable.is_none(),
+        "direct mapping keeps its dedicated allocations"
+    );
     assert_eq!(backend.work_image_bytes(), 0);
     let direct = allocate_pair(&backend, large_bytes);
     backend.release_work_images(direct.a, direct.b, generation, true);
-    assert_eq!(backend.work_image_bytes(), 0, "direct-mapped path is never retained");
+    assert_eq!(
+        backend.work_image_bytes(),
+        0,
+        "direct-mapped path is never retained"
+    );
 }

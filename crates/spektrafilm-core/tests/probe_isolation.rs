@@ -108,7 +108,9 @@ fn render_at_consumer<T>(
         .get_mapped_range()
         .map_err(|_| OutputError::GpuFailure)?;
     let pixels = mapped
-        .as_chunks::<4>().0.iter()
+        .as_chunks::<4>()
+        .0
+        .iter()
         .map(|bytes| from_f32(f32::from_le_bytes(*bytes)))
         .collect();
     drop(mapped);

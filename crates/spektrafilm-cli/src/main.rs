@@ -205,8 +205,12 @@ fn cmd_process(
         .map_err(anyhow::Error::msg)
         .context("initializing spectral photo pipeline")?;
     let diagnostic = if latitude {
-        let medium = pipeline.measure_latitude(backend.as_ref()).map_err(anyhow::Error::msg)?;
-        let placement = medium.place_scene(&image, &pipeline.params).map_err(anyhow::Error::msg)?;
+        let medium = pipeline
+            .measure_latitude(backend.as_ref())
+            .map_err(anyhow::Error::msg)?;
+        let placement = medium
+            .place_scene(&image, &pipeline.params)
+            .map_err(anyhow::Error::msg)?;
         Some((medium, placement))
     } else {
         None
@@ -235,19 +239,26 @@ fn cmd_process(
     };
 
     if let Some((medium, scene)) = diagnostic {
-        let output = medium.measure_output(&result, &pipeline.params).map_err(anyhow::Error::msg)?;
+        let output = medium
+            .measure_output(&result, &pipeline.params)
+            .map_err(anyhow::Error::msg)?;
         if output.sampled > 0 {
             let percent = 100.0 / output.sampled as f64;
             eprintln!(
                 "Film latitude {:+.2} to {:+.2} EV. Rendered samples near black: {:.2}%, near white: {:.2}%.",
-                medium.shadow_ev, medium.highlight_ev,
-                output.below_shadow as f64 * percent, output.above_highlight as f64 * percent,
+                medium.shadow_ev,
+                medium.highlight_ev,
+                output.below_shadow as f64 * percent,
+                output.above_highlight as f64 * percent,
             );
         }
-        eprintln!("Latitude: {}", serde_json::json!({
-            "shadow_ev": medium.shadow_ev, "highlight_ev": medium.highlight_ev,
-            "black_y": medium.black_y, "white_y": medium.white_y, "scene": scene, "output": output,
-        }));
+        eprintln!(
+            "Latitude: {}",
+            serde_json::json!({
+                "shadow_ev": medium.shadow_ev, "highlight_ev": medium.highlight_ev,
+                "black_y": medium.black_y, "white_y": medium.white_y, "scene": scene, "output": output,
+            })
+        );
     }
     // Save output
     let t = Instant::now();

@@ -117,7 +117,13 @@ fn resident_filter_changes_density_once_and_preserves_fog() {
             .map(|(&a, &b)| (a - b).abs())
             .fold(0.0 as Scalar, Scalar::max);
         println!("{method} CPU/resident print max linear error {max_error}");
-        assert!(reference.data.iter().chain(&resident.data).all(|v| v.is_finite()));
+        assert!(
+            reference
+                .data
+                .iter()
+                .chain(&resident.data)
+                .all(|v| v.is_finite())
+        );
         assert!(max_error < 0.0001, "{method}: {max_error}");
     }
     gpu.configure_negative_cache(true);
@@ -257,9 +263,19 @@ fn spectral_cuts_change_the_resident_negative_on_all_three_front_ends() {
         p.camera.photographic_filter = CameraFilter::Off;
         p.settings.rgb_to_raw_method = method.into();
         let bare = build("kodak_portra_400", p.clone()).unwrap();
-        let render = |pipe: &Pipeline| pipe.process_resident_with_options(&chart(), &gpu,
-            FilmRenderOptions {source: Some(SourceIdentity(410)), ..Default::default()})
-            .unwrap().unwrap().data;
+        let render = |pipe: &Pipeline| {
+            pipe.process_resident_with_options(
+                &chart(),
+                &gpu,
+                FilmRenderOptions {
+                    source: Some(SourceIdentity(410)),
+                    ..Default::default()
+                },
+            )
+            .unwrap()
+            .unwrap()
+            .data
+        };
         let original = render(&bare);
         let baseline = gpu.negative_cache_stats();
         p.camera.filter_uv = [1., 450., 12.];
@@ -267,12 +283,27 @@ fn spectral_cuts_change_the_resident_negative_on_all_three_front_ends() {
         assert!(bare.refreshed(p.clone()).is_none());
         let filtered = build("kodak_portra_400", p.clone()).unwrap();
         let actual = render(&filtered);
-        assert!(actual.iter().zip(&original).any(|(x,y)| (x-y).abs()>0.001), "{method}");
+        assert!(
+            actual
+                .iter()
+                .zip(&original)
+                .any(|(x, y)| (x - y).abs() > 0.001),
+            "{method}"
+        );
         let cpu = filtered.try_process(chart(), &CpuBackend).unwrap();
-        assert!(cpu.data.iter().zip(&actual).all(|(x,y)| (x-y).abs()<0.0001), "{method}");
-        assert_eq!(render(&filtered),actual);
+        assert!(
+            cpu.data
+                .iter()
+                .zip(&actual)
+                .all(|(x, y)| (x - y).abs() < 0.0001),
+            "{method}"
+        );
+        assert_eq!(render(&filtered), actual);
         let after = gpu.negative_cache_stats();
-        assert_eq!((after.hits-baseline.hits,after.misses-baseline.misses),(1,1));
+        assert_eq!(
+            (after.hits - baseline.hits, after.misses - baseline.misses),
+            (1, 1)
+        );
         p.camera.normalize_camera_cuts = false;
         assert!(filtered.refreshed(p.clone()).is_none());
         let transmitted = build("kodak_portra_400", p.clone()).unwrap();
@@ -291,7 +322,13 @@ fn spectral_cuts_change_the_resident_negative_on_all_three_front_ends() {
             let fixed = build("kodak_portra_400", p).unwrap();
             assert_ne!(render(&fixed), print);
             let stats = gpu.negative_cache_stats();
-            assert_eq!((stats.hits - before_edit.hits, stats.misses - before_edit.misses), (1, 0));
+            assert_eq!(
+                (
+                    stats.hits - before_edit.hits,
+                    stats.misses - before_edit.misses
+                ),
+                (1, 0)
+            );
         }
     }
 }

@@ -1,15 +1,15 @@
 #[cfg(feature = "wgpu-backend")]
-#[path = "layered_grain.rs"]
-mod layered_grain;
-#[cfg(feature = "wgpu-backend")]
-#[path = "grain_iir.rs"]
-mod grain_iir;
+#[path = "border_135_shaders.rs"]
+mod border_135_shaders;
 #[cfg(feature = "wgpu-backend")]
 #[path = "film_output.rs"]
 mod film_output;
 #[cfg(feature = "wgpu-backend")]
-#[path = "border_135_shaders.rs"]
-mod border_135_shaders;
+#[path = "grain_iir.rs"]
+mod grain_iir;
+#[cfg(feature = "wgpu-backend")]
+#[path = "layered_grain.rs"]
+mod layered_grain;
 #[cfg(all(test, feature = "wgpu-backend"))]
 #[path = "work_image_tests.rs"]
 mod work_image_tests;
@@ -127,8 +127,14 @@ impl GrainReference {
     /// matrix = [a, b, tx, c, d, ty]; width is the rendered image width.
     /// When absent, the GPU shader preserves legacy local-index RNG exactly.
     pub fn new(matrix: [f32; 6], source: [u32; 2], width: u32) -> Self {
-        assert!(width > 0 && source[0] > 0 && source[1] > 0, "empty grain reference");
-        assert!(matrix.iter().all(|v| v.is_finite()), "nonfinite grain transform");
+        assert!(
+            width > 0 && source[0] > 0 && source[1] > 0,
+            "empty grain reference"
+        );
+        assert!(
+            matrix.iter().all(|v| v.is_finite()),
+            "nonfinite grain transform"
+        );
         Self {
             row_x: [matrix[0], matrix[1], matrix[2], 0.0],
             row_y: [matrix[3], matrix[4], matrix[5], 0.0],
@@ -210,14 +216,13 @@ impl WgpuBackend {
             compatible_surface: None,
             force_fallback_adapter: false,
             ..Default::default()
-        })).ok()?;
+        }))
+        .ok()?;
 
         // Use the same requirements for internally and externally created devices.
         let adapter_info = adapter.get_info();
-        let (device, queue) = pollster::block_on(
-            adapter.request_device(&Self::device_descriptor(&adapter)),
-        )
-        .ok()?;
+        let (device, queue) =
+            pollster::block_on(adapter.request_device(&Self::device_descriptor(&adapter))).ok()?;
 
         tracing::info!(
             adapter = adapter_info.name,
@@ -272,11 +277,12 @@ impl WgpuBackend {
             wgpu::Features::empty()
         };
         // Wide grain requires the validated NoContraction Vulkan SPIR-V kernel.
-        let opt_feats = opt_feats | if adapter_info.backend == wgpu::Backend::Vulkan {
-            wgpu::Features::PASSTHROUGH_SHADERS & adapter.features()
-        } else {
-            wgpu::Features::empty()
-        };
+        let opt_feats = opt_feats
+            | if adapter_info.backend == wgpu::Backend::Vulkan {
+                wgpu::Features::PASSTHROUGH_SHADERS & adapter.features()
+            } else {
+                wgpu::Features::empty()
+            };
         wgpu::DeviceDescriptor {
             label: Some("spektrafilm"),
             required_features: opt_feats,
@@ -343,7 +349,10 @@ impl WgpuBackend {
         commands: impl IntoIterator<Item = wgpu::CommandBuffer>,
         options: FilmRenderOptions<'_>,
     ) -> Result<wgpu::SubmissionIndex, OutputError> {
-        let _submission = self.submission_lock.as_ref().map(|lock| lock.lock().unwrap());
+        let _submission = self
+            .submission_lock
+            .as_ref()
+            .map(|lock| lock.lock().unwrap());
         // This check belongs after acquisition: a host may have cancelled the
         // request while surface reconfiguration kept the submission waiting.
         options.check_cancelled()?;
@@ -431,9 +440,10 @@ impl WgpuBackend {
             cache.available = None;
             return (None, generation);
         }
-        let pair = cache.available.take().filter(|v| {
-            v.a.size() == image_bytes && v.b.size() == image_bytes
-        });
+        let pair = cache
+            .available
+            .take()
+            .filter(|v| v.a.size() == image_bytes && v.b.size() == image_bytes);
         (pair, generation)
     }
 
@@ -508,9 +518,9 @@ impl WgpuBackend {
                     cache: None,
                 });
             CachedPipeline {
-                    bind_group_layout,
-                    pipeline,
-                }
+                bind_group_layout,
+                pipeline,
+            }
         });
         cache
     }
@@ -610,7 +620,12 @@ impl WgpuBackend {
         slice.map_async(wgpu::MapMode::Read, move |r| {
             tx.send(r).unwrap();
         });
-        self.device.poll(wgpu::PollType::Wait { submission_index: None, timeout: None }).expect("GPU work completion");
+        self.device
+            .poll(wgpu::PollType::Wait {
+                submission_index: None,
+                timeout: None,
+            })
+            .expect("GPU work completion");
         rx.recv().unwrap().unwrap();
 
         let data = slice.get_mapped_range().expect("completed buffer mapping");
@@ -791,7 +806,12 @@ impl WgpuBackend {
         slice.map_async(wgpu::MapMode::Read, move |r| {
             tx.send(r).unwrap();
         });
-        self.device.poll(wgpu::PollType::Wait { submission_index: None, timeout: None }).expect("GPU work completion");
+        self.device
+            .poll(wgpu::PollType::Wait {
+                submission_index: None,
+                timeout: None,
+            })
+            .expect("GPU work completion");
         rx.recv().unwrap().unwrap();
         let data = slice.get_mapped_range().expect("completed buffer mapping");
         let out_f32: Vec<f32> = bytemuck::cast_slice(&data).to_vec();
@@ -1018,7 +1038,12 @@ impl WgpuBackend {
             let slice = rb.slice(..);
             slice.map_async(wgpu::MapMode::Read, |r| r.unwrap());
         }
-        self.device.poll(wgpu::PollType::Wait { submission_index: None, timeout: None }).expect("GPU work completion");
+        self.device
+            .poll(wgpu::PollType::Wait {
+                submission_index: None,
+                timeout: None,
+            })
+            .expect("GPU work completion");
 
         let mut out_imgs = Vec::with_capacity(sigmas.len());
         for rb in &readbacks {
@@ -1051,16 +1076,20 @@ impl WgpuBackend {
         p: &crate::FilmChainParams<'_>,
         options: FilmRenderOptions<'_>,
         region: Option<DisplayRegion>,
-        consume: impl FnOnce(&wgpu::Device, &mut wgpu::CommandEncoder, FilmOutput<'_>)
-            -> Result<Encoded, OutputError>,
+        consume: impl FnOnce(
+            &wgpu::Device,
+            &mut wgpu::CommandEncoder,
+            FilmOutput<'_>,
+        ) -> Result<Encoded, OutputError>,
         finish: impl FnOnce(Encoded) -> Result<R, OutputError>,
     ) -> Result<R, OutputError> {
         use border_135_shaders as shaders;
         use wgpu::util::DeviceExt;
         options.check_cancelled()?;
-        let [width, height] = p.border_135.as_ref().map_or(
-            [p.image.width, p.image.height], |border| border.canvas,
-        );
+        let [width, height] = p
+            .border_135
+            .as_ref()
+            .map_or([p.image.width, p.image.height], |border| border.canvas);
         if let Some(region) = region {
             region.validate(width, height)?;
         }
@@ -1102,10 +1131,7 @@ impl WgpuBackend {
             return Err(OutputError::DeviceLimitExceeded);
         }
         if p.grain.as_ref().is_some_and(layered_grain::requires_iir)
-            && !grain_iir::supported_by(
-                self.device.adapter_info().backend,
-                self.device.features(),
-            )
+            && !grain_iir::supported_by(self.device.adapter_info().backend, self.device.features())
         {
             // Reject unsupported rendering before changing cache state or
             // encoding work. The narrow FIR and legacy grain paths need no IIR.
@@ -1128,7 +1154,10 @@ impl WgpuBackend {
             NegativeLookup::Bypass
         } else {
             self.negative_cache.lock().unwrap().begin_prepared(
-                p, options.source, grain_reference.as_ref(), img_bytes as u64,
+                p,
+                options.source,
+                grain_reference.as_ref(),
+                img_bytes as u64,
             )
         };
         let (negative_hit, mut negative_publication) = match lookup {
@@ -1136,7 +1165,6 @@ impl WgpuBackend {
             NegativeLookup::Hit(buffer) => (Some(buffer), None),
             NegativeLookup::Miss(publication) => (None, Some(publication)),
         };
-
 
         // Ping-pong image buffers (each holds H*W*3 f32 values).
         let make_img_buf = |label: &str| {
@@ -1173,7 +1201,8 @@ impl WgpuBackend {
             let buf = pair.a.clone();
             // A reused buffer must be fully overwritten for each new image.
             if let Some(input) = input_f32.as_ref() {
-                self.queue.write_buffer(&buf, 0, bytemuck::cast_slice(input));
+                self.queue
+                    .write_buffer(&buf, 0, bytemuck::cast_slice(input));
             }
             buf
         } else if mappable {
@@ -1198,7 +1227,8 @@ impl WgpuBackend {
         } else {
             let buf = make_img_buf("img_a");
             if let Some(input) = input_f32.as_ref() {
-                self.queue.write_buffer(&buf, 0, bytemuck::cast_slice(input));
+                self.queue
+                    .write_buffer(&buf, 0, bytemuck::cast_slice(input));
             }
             buf
         };
@@ -1240,9 +1270,10 @@ impl WgpuBackend {
                     usage: wgpu::BufferUsages::UNIFORM,
                 })
         };
-        let border_uniform = p.border_135.as_ref().map(|layout| {
-            mk_uniform("film_border_135", bytemuck::bytes_of(layout))
-        });
+        let border_uniform = p
+            .border_135
+            .as_ref()
+            .map(|layout| mk_uniform("film_border_135", bytemuck::bytes_of(layout)));
         let has_border = border_uniform.is_some();
         let print_border = has_border && !p.scan_film;
         let scan_border = has_border && p.scan_film;
@@ -1480,7 +1511,8 @@ impl WgpuBackend {
                 .iter()
                 .flat_map(|r| r.iter().map(|&v| if v.is_nan() { 0.0 } else { v as f32 }))
                 .collect();
-            let film_log_exp_buf = mk_storage("film_log_exp", bytemuck::cast_slice(&film_log_exp_f32));
+            let film_log_exp_buf =
+                mk_storage("film_log_exp", bytemuck::cast_slice(&film_log_exp_f32));
             let film_curves_buf = mk_storage("film_curves", bytemuck::cast_slice(&film_curves_f32));
 
             // Front pass (hanatos LUT lookup or mallett matmul). Both shaders
@@ -1610,9 +1642,13 @@ impl WgpuBackend {
             // reads buf_b → buf_a.
 
             let bg_log10 = {
-                let has_latent = p.border_135.as_ref().is_some_and(|b| b.leak_shape[2] > 0. || b.imprint_shape[2] > 0.);
+                let has_latent = p
+                    .border_135
+                    .as_ref()
+                    .is_some_and(|b| b.leak_shape[2] > 0. || b.imprint_shape[2] > 0.);
                 let pipe = self.cached_border_pipeline(
-                    shaders::LOG_RAW, shaders::LATENT_LOG_RAW,
+                    shaders::LOG_RAW,
+                    shaders::LATENT_LOG_RAW,
                     &[
                         wgpu::BufferBindingType::Uniform,
                         wgpu::BufferBindingType::Storage { read_only: false },
@@ -1680,7 +1716,13 @@ impl WgpuBackend {
                     }, // density_cmy
                 ],
             });
-            (front_pipe, bg_front, _front_tc_lut, bg_log10, bg_density_film)
+            (
+                front_pipe,
+                bg_front,
+                _front_tc_lut,
+                bg_log10,
+                bg_density_film,
+            )
         });
         let bg_print = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("bg_print"),
@@ -1862,46 +1904,47 @@ impl WgpuBackend {
         // buffers `buf_a` / `buf_b` are reused as blur input/mid; the new
         // `buf_c` and `buf_d` hold the scatter outputs and the halation
         // accumulator. None of this is touched when `p.halation` is `None`.
-        let halation_state = p.halation.as_ref().filter(|_| negative_hit.is_none()).map(|hp| {
-            build_halation_state(
-                &self.device,
-                hp,
-                width,
-                height,
-                &buf_a,
-                &buf_b,
-                self,
-            )
-        });
+        let halation_state = p
+            .halation
+            .as_ref()
+            .filter(|_| negative_hit.is_none())
+            .map(|hp| build_halation_state(&self.device, hp, width, height, &buf_a, &buf_b, self));
 
         // ── Highlight boost state ────────────────────────────────────────
         // Runs on raw film exposure immediately after the front pass.
-        let highlight_state = p.highlight_boost.as_ref().filter(|_| negative_hit.is_none()).map(|hp| {
-            build_highlight_boost_state(&self.device, hp, n_pixels, &buf_b, self)
-        });
+        let highlight_state = p
+            .highlight_boost
+            .as_ref()
+            .filter(|_| negative_hit.is_none())
+            .map(|hp| build_highlight_boost_state(&self.device, hp, n_pixels, &buf_b, self));
 
         // ── Camera diffusion filter state ────────────────────────────────
         // Applied on the raw film exposure (buf_b) right after hanatos and
         // before halation, matching the CPU filming order. Owns its own
         // downsampled scratch buffers.
-        let diffusion_state = p.diffusion.as_ref().filter(|_| negative_hit.is_none()).map(|plan| {
-            build_diffusion_state(&self.device, plan, width, height, &buf_b, self)
-        });
+        let diffusion_state = p
+            .diffusion
+            .as_ref()
+            .filter(|_| negative_hit.is_none())
+            .map(|plan| build_diffusion_state(&self.device, plan, width, height, &buf_b, self));
 
-        let camera_lens_blur_state = p.camera_lens_blur_px.filter(|_| negative_hit.is_none()).and_then(|sigma| {
-            (sigma > 0.0).then(|| {
-                build_simple_blur_state(
-                    &self.device,
-                    sigma,
-                    width,
-                    height,
-                    &buf_b,
-                    &buf_a,
-                    "camera_lens",
-                    self,
-                )
-            })
-        });
+        let camera_lens_blur_state = p
+            .camera_lens_blur_px
+            .filter(|_| negative_hit.is_none())
+            .and_then(|sigma| {
+                (sigma > 0.0).then(|| {
+                    build_simple_blur_state(
+                        &self.device,
+                        sigma,
+                        width,
+                        height,
+                        &buf_b,
+                        &buf_a,
+                        "camera_lens",
+                        self,
+                    )
+                })
+            });
 
         // A host can opt into the retained cooperative boundaries. Ordinary
         // renders keep one command buffer, with no intermediate queue waits.
@@ -1918,10 +1961,12 @@ impl WgpuBackend {
                 self.device.create_command_encoder(&Default::default()),
             );
             let submitted = self.submit_with_options([completed.finish()], options)?;
-            self.device.poll(wgpu::PollType::Wait {
-                submission_index: Some(submitted),
-                timeout: None,
-            }).map_err(|_| OutputError::GpuFailure)?;
+            self.device
+                .poll(wgpu::PollType::Wait {
+                    submission_index: Some(submitted),
+                    timeout: None,
+                })
+                .map_err(|_| OutputError::GpuFailure)?;
             Ok(start.elapsed().as_secs_f32() * 1000.0)
         };
         let mut encoder = self.device.create_command_encoder(&Default::default());
@@ -1966,13 +2011,19 @@ impl WgpuBackend {
             //     scatter outputs and halation accumulator.
             if let Some(hs) = halation_state.as_ref() {
                 let wg_xy = (width.div_ceil(16), height.div_ceil(16));
-                hs.encode_passes(&mut encoder, n_pixels, workgroup_size, wg_xy, &mut |encoder| {
-                    if detailed {
-                        stage_wait_ms += checkpoint(encoder)?;
-                        options.check_cancelled()?;
-                    }
-                    Ok(())
-                })?;
+                hs.encode_passes(
+                    &mut encoder,
+                    n_pixels,
+                    workgroup_size,
+                    wg_xy,
+                    &mut |encoder| {
+                        if detailed {
+                            stage_wait_ms += checkpoint(encoder)?;
+                            options.check_cancelled()?;
+                        }
+                        Ok(())
+                    },
+                )?;
             }
             if detailed {
                 stage_wait_ms += checkpoint(&mut encoder)?;
@@ -1987,17 +2038,11 @@ impl WgpuBackend {
             // reused as blur mid since density_cmy is no longer needed once
             // the matmul has consumed it (the final density_curve_interp
             // overwrites buf_a anyway).
-            let dir_state = p.dir_couplers.as_ref().filter(|_| negative_hit.is_none()).map(|dp| {
-                build_dir_state(
-                    &self.device,
-                    dp,
-                    width,
-                    height,
-                    &buf_a,
-                    &buf_b,
-                    self,
-                )
-            });
+            let dir_state = p
+                .dir_couplers
+                .as_ref()
+                .filter(|_| negative_hit.is_none())
+                .map(|dp| build_dir_state(&self.device, dp, width, height, &buf_a, &buf_b, self));
             // 2. log10 in-place on buf_b: raw → log_raw (3 channels per thread).
             let (log10_pipe, log10_bg, _keepalive) = bg_log10;
             dispatch(&mut encoder, &log10_pipe.pipeline, log10_bg, n_pixels);
@@ -2012,13 +2057,19 @@ impl WgpuBackend {
             //     re-interps density curve back into buf_a).
             if let Some(ds) = dir_state.as_ref() {
                 let wg_xy = (width.div_ceil(16), height.div_ceil(16));
-                ds.encode_passes(&mut encoder, n_pixels, workgroup_size, wg_xy, &mut |encoder| {
-                    if detailed {
-                        stage_wait_ms += checkpoint(encoder)?;
-                        options.check_cancelled()?;
-                    }
-                    Ok(())
-                })?;
+                ds.encode_passes(
+                    &mut encoder,
+                    n_pixels,
+                    workgroup_size,
+                    wg_xy,
+                    &mut |encoder| {
+                        if detailed {
+                            stage_wait_ms += checkpoint(encoder)?;
+                            options.check_cancelled()?;
+                        }
+                        Ok(())
+                    },
+                )?;
             }
             if detailed {
                 stage_wait_ms += checkpoint(&mut encoder)?;
@@ -2029,18 +2080,22 @@ impl WgpuBackend {
             // before print_spectral. Optionally followed by a Gaussian
             // post-blur (uses buf_b as mid, since log_raw_corrected in buf_b
             // is no longer needed after DIR's final density_curve_0).
-            let grain_state = p.grain.as_ref().filter(|_| negative_hit.is_none()).map(|gp| {
-                build_grain_state(
-                    &self.device,
-                    gp,
-                    width,
-                    height,
-                    &buf_a,
-                    &buf_b,
-                    self,
-                    grain_reference.unwrap_or_default(),
-                )
-            });
+            let grain_state = p
+                .grain
+                .as_ref()
+                .filter(|_| negative_hit.is_none())
+                .map(|gp| {
+                    build_grain_state(
+                        &self.device,
+                        gp,
+                        width,
+                        height,
+                        &buf_a,
+                        &buf_b,
+                        self,
+                        grain_reference.unwrap_or_default(),
+                    )
+                });
             // 3c. Grain (in-place on buf_a, optional post-blur via buf_b mid).
             if let Some(gs) = grain_state.as_ref() {
                 let wg_xy = (width.div_ceil(16), height.div_ceil(16));
@@ -2067,7 +2122,11 @@ impl WgpuBackend {
             if let (Some(publication), Some(snapshot)) =
                 (negative_publication.take(), negative_snapshot.take())
             {
-                self.negative_cache.lock().unwrap().publish(publication, snapshot, img_bytes as u64);
+                self.negative_cache.lock().unwrap().publish(
+                    publication,
+                    snapshot,
+                    img_bytes as u64,
+                );
             }
             options.check_cancelled()?;
         }
@@ -2078,17 +2137,10 @@ impl WgpuBackend {
         // then combines: buf_b_out = (1+amount)*buf_b - amount*buf_c.
         // Since the combine writes back to buf_b in-place we need to
         // route via a temporary buffer to satisfy wgpu aliasing rules.
-        let unsharp_state = p.unsharp.as_ref().map(|up| {
-            build_unsharp_state(
-                &self.device,
-                up,
-                width,
-                height,
-                &buf_a,
-                &buf_b,
-                self,
-            )
-        });
+        let unsharp_state = p
+            .unsharp
+            .as_ref()
+            .map(|up| build_unsharp_state(&self.device, up, width, height, &buf_a, &buf_b, self));
 
         // ── Output gamut compression state ───────────────────────────────
         // Single per-pixel dispatch in place on buf_b, after glare and
@@ -2105,17 +2157,10 @@ impl WgpuBackend {
         // buffer, optionally blurs it, then adds `g * rgb_offset[c]` to
         // the image. Uses buf_a (free after scan_spectral consumed
         // density_cmy) and one fresh scratch buffer.
-        let glare_state = p.glare.as_ref().map(|gp| {
-            build_glare_state(
-                &self.device,
-                gp,
-                width,
-                height,
-                &buf_a,
-                &buf_b,
-                self,
-            )
-        });
+        let glare_state = p
+            .glare
+            .as_ref()
+            .map(|gp| build_glare_state(&self.device, gp, width, height, &buf_a, &buf_b, self));
 
         let scanner_lens_blur_state = p.scanner_lens_blur_px.and_then(|sigma| {
             (sigma > 0.0).then(|| {
@@ -2135,9 +2180,10 @@ impl WgpuBackend {
         let enlarger_log_to_linear_state = p.enlarger_diffusion.as_ref().map(|_| {
             build_log_to_linear_state(&self.device, n_pixels, print_exposure_scale, &buf_b, self)
         });
-        let enlarger_diffusion_state = p.enlarger_diffusion.as_ref().map(|plan| {
-            build_diffusion_state(&self.device, plan, width, height, &buf_b, self)
-        });
+        let enlarger_diffusion_state = p
+            .enlarger_diffusion
+            .as_ref()
+            .map(|plan| build_diffusion_state(&self.device, plan, width, height, &buf_b, self));
         let enlarger_linear_to_log_state = p
             .enlarger_diffusion
             .as_ref()
@@ -2208,23 +2254,30 @@ impl WgpuBackend {
 
         // Region extraction is strictly downstream of the complete physical
         // result. Consumers record copies/compute on this same encoder.
-        let region_output = region.map(|region| {
-            self.encode_display_region(&mut encoder, &buf_b, width, height, region)
-        }).transpose()?;
+        let region_output = region
+            .map(|region| self.encode_display_region(&mut encoder, &buf_b, width, height, region))
+            .transpose()?;
         let (width, height) = region.map_or((width, height), |r| (r.width, r.height));
         options.check_cancelled()?;
-        let encoded = consume(&self.device, &mut encoder, FilmOutput {
-            buffer: region_output.as_ref().unwrap_or(&buf_b),
-            width,
-            height,
-            cctf_encoding: p.output_cctf_encoding,
-        })?;
+        let encoded = consume(
+            &self.device,
+            &mut encoder,
+            FilmOutput {
+                buffer: region_output.as_ref().unwrap_or(&buf_b),
+                width,
+                height,
+                cctf_encoding: p.output_cctf_encoding,
+            },
+        )?;
         options.check_cancelled()?;
         let cpu_setup_ms = t_start.elapsed().as_secs_f32() * 1000.0 - stage_wait_ms;
         let submitted = self.submit_with_options(Some(encoder.finish()), options)?;
-        self.device.poll(wgpu::PollType::Wait {
-            submission_index: Some(submitted), timeout: None,
-        }).map_err(|_| OutputError::GpuFailure)?;
+        self.device
+            .poll(wgpu::PollType::Wait {
+                submission_index: Some(submitted),
+                timeout: None,
+            })
+            .map_err(|_| OutputError::GpuFailure)?;
         let gpu_wait_ms = t_start.elapsed().as_secs_f32() * 1000.0 - cpu_setup_ms;
         options.check_cancelled()?;
         let out = finish(encoded)?;
@@ -2232,7 +2285,10 @@ impl WgpuBackend {
         // cancellation does not retroactively invalidate a successful result.
         options.check_cancelled()?;
         if let (Some(publication), Some(snapshot)) = (negative_publication, negative_snapshot) {
-            self.negative_cache.lock().unwrap().publish(publication, snapshot, img_bytes as u64);
+            self.negative_cache
+                .lock()
+                .unwrap()
+                .publish(publication, snapshot, img_bytes as u64);
         }
         // GPU consumers and any requested readback have finished before reuse.
         if let Some(generation) = work_generation {
@@ -3686,7 +3742,10 @@ struct SimpleBlurState {
 }
 
 #[cfg(feature = "wgpu-backend")]
-#[allow(clippy::too_many_arguments, reason = "Keep the dispatch buffers and geometry explicit at the call site.")]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "Keep the dispatch buffers and geometry explicit at the call site."
+)]
 fn build_simple_blur_state(
     device: &wgpu::Device,
     sigma: f32,
@@ -5474,7 +5533,10 @@ struct SimpleGrainState {
 }
 
 #[cfg(feature = "wgpu-backend")]
-#[allow(clippy::too_many_arguments, reason = "Keep the dispatch buffers and geometry explicit at the call site.")]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "Keep the dispatch buffers and geometry explicit at the call site."
+)]
 fn build_grain_state(
     device: &wgpu::Device,
     gp: &crate::GrainGpuParams,

@@ -23,7 +23,10 @@
 
 /// sRGB Mallett2019 reflectance basis functions, aligned to 380–780 nm step 5.
 /// Baked from `colour.recovery.MSDS_BASIS_FUNCTIONS_sRGB_MALLETT2019`.
-#[allow(clippy::excessive_precision, reason = "Preserve the reference upsampling coefficients verbatim.")]
+#[allow(
+    clippy::excessive_precision,
+    reason = "Preserve the reference upsampling coefficients verbatim."
+)]
 pub const MALLETT2019_BASIS: [[f64; 3]; 81] = [
     [0.3274574138270549, 0.33186171308587414, 0.34068079154805275],
     [
@@ -457,7 +460,10 @@ pub(crate) fn compute_camera_matrix(
 /// precision, so composing the higher-precision Rust matrices would diverge by
 /// ~1e-4 from upstream's actual `RGB_to_RGB`. Even sRGB→sRGB is not exactly the
 /// identity for the same reason.
-#[allow(clippy::excessive_precision, reason = "Preserve the reference upsampling coefficients verbatim.")]
+#[allow(
+    clippy::excessive_precision,
+    reason = "Preserve the reference upsampling coefficients verbatim."
+)]
 const M_CS_SRGB: [[f64; 3]; 3] = [
     [
         0.99999173999999968,
@@ -471,7 +477,10 @@ const M_CS_SRGB: [[f64; 3]; 3] = [
     ],
     [3.7999999999427381e-07, 1.1920000000026354e-05, 1.00000355],
 ];
-#[allow(clippy::excessive_precision, reason = "Preserve the reference upsampling coefficients verbatim.")]
+#[allow(
+    clippy::excessive_precision,
+    reason = "Preserve the reference upsampling coefficients verbatim."
+)]
 const M_CS_PROPHOTO: [[f64; 3]; 3] = [
     [
         2.036491724209688,
@@ -489,7 +498,10 @@ const M_CS_PROPHOTO: [[f64; 3]; 3] = [
         1.1452101524691205,
     ],
 ];
-#[allow(clippy::excessive_precision, reason = "Preserve the reference upsampling coefficients verbatim.")]
+#[allow(
+    clippy::excessive_precision,
+    reason = "Preserve the reference upsampling coefficients verbatim."
+)]
 const M_CS_REC2020: [[f64; 3]; 3] = [
     [
         1.6603034854214438,
@@ -507,7 +519,10 @@ const M_CS_REC2020: [[f64; 3]; 3] = [
         1.118770326157098,
     ],
 ];
-#[allow(clippy::excessive_precision, reason = "Preserve the reference upsampling coefficients verbatim.")]
+#[allow(
+    clippy::excessive_precision,
+    reason = "Preserve the reference upsampling coefficients verbatim."
+)]
 const M_CS_ACES2065_1: [[f64; 3]; 3] = [
     [
         2.5216494298433045,
@@ -587,7 +602,10 @@ mod parity_tests {
     /// inverses, so even sRGB→sRGB carries a ~2e-5 off-identity term — hence the
     /// sRGB case must also go through `film_matrix`, not the bare `core`.
     #[test]
-    #[allow(clippy::excessive_precision, reason = "Preserve the original reference samples verbatim.")]
+    #[allow(
+        clippy::excessive_precision,
+        reason = "Preserve the original reference samples verbatim."
+    )]
     fn mallett_rgb_to_raw_matches_python() {
         let dir = data_dir();
         let film = crate::profile::load_profile_by_name(&dir, "kodak_portra_400").unwrap();

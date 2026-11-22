@@ -5,16 +5,16 @@
 //! data/negative_scan_ap0_v1/PROVENANCE.md for the frozen data and reference.
 
 use std::sync::{
-    atomic::{AtomicBool, Ordering},
     Mutex, OnceLock,
+    atomic::{AtomicBool, Ordering},
 };
 
 use serde::Deserialize;
 use spektrafilm_gpu::{
-    output::{output_channel_count, DisplayRegion, FilmOutput, OutputError},
+    FilmChainParams, FilmRenderOptions,
+    output::{DisplayRegion, FilmOutput, OutputError, output_channel_count},
     wgpu::{self, util::DeviceExt},
     wgpu_backend::WgpuBackend,
-    FilmChainParams, FilmRenderOptions,
 };
 
 pub const NEGATIVE_SCAN_AP0_V1: &str = "negative_scan_ap0_v1";
@@ -176,7 +176,10 @@ pub fn positive_scan_v1(
 
 // Keep the conversion's scalar order aligned with the independent frozen
 // reference. No resampling or fitting of calibration nodes is performed.
-#[allow(clippy::chunks_exact_to_as_chunks, reason = "Keep the v1 scalar RGB slice loop as qualified.")]
+#[allow(
+    clippy::chunks_exact_to_as_chunks,
+    reason = "Keep the v1 scalar RGB slice loop as qualified."
+)]
 fn convert_positive(
     scan: &[f32],
     output: &mut [f32],

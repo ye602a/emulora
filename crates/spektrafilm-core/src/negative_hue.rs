@@ -241,7 +241,9 @@ pub(crate) fn faces(curves: &[[f64; 3]]) -> Result<ImageBuf, String> {
 fn build_gamut(k: &mut NegativeHue, faces: &ImageBuf) -> Result<(), String> {
     let lab: Vec<_> = faces
         .data
-        .as_chunks::<3>().0.iter()
+        .as_chunks::<3>()
+        .0
+        .iter()
         .map(|p| {
             xyz_to_oklab(mat_vec(
                 &SRGB_TO_XYZ_F64,

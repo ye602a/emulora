@@ -83,7 +83,9 @@ fn four_films_print_monotonic_wedges_and_filter_colors_on_graded_silver() {
                 assert!((red[10] - green[3]).abs() < 0.001);
                 assert!(red[22] > green[7] + 0.02 && red[25] < green[8] - 0.02);
                 assert!(
-                    y.as_chunks::<3>().0.iter()
+                    y.as_chunks::<3>()
+                        .0
+                        .iter()
                         .all(|v| (v[0] - v[1]).abs() < 0.002 && (v[2] - v[1]).abs() < 0.002)
                 );
                 let default = build(stock, recipe());

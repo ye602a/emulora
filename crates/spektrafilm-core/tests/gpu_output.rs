@@ -5,10 +5,10 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use spektrafilm_core::{params::RuntimeParams, pipeline::Pipeline, profile};
 use spektrafilm_gpu::{
+    FilmRenderOptions, SourceIdentity,
     output::{DisplayRegion, OutputError},
     wgpu,
     wgpu_backend::WgpuBackend,
-    FilmRenderOptions, SourceIdentity,
 };
 use spektrafilm_math::{
     image::ImageBuf,
@@ -482,7 +482,9 @@ fn scoped_same_device_texture_survives_the_next_render_and_work_buffer_reuse() {
     let (device, queue) = backend.compute_device();
     let captured = read_texture(device, queue, &texture);
     let expected_rgba: Vec<[f32; 4]> = f32_values(&expected)
-        .as_chunks::<3>().0.iter()
+        .as_chunks::<3>()
+        .0
+        .iter()
         .map(|rgb| [rgb[0], rgb[1], rgb[2], 1.])
         .collect();
     assert_eq!(captured, expected_rgba);

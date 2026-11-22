@@ -18,7 +18,8 @@ impl GrainBlurPlan {
         let scale = g.output_sampling.map_or(1.0, |v| v[0]);
         Some(Self {
             dye: g.dye_sigma.iter().flatten().any(|s| *s > 0.4).then(|| {
-                g.dye_sigma.map(|row| row.map(|s| if s > 0.4 { s * scale } else { 0.0 }))
+                g.dye_sigma
+                    .map(|row| row.map(|s| if s > 0.4 { s * scale } else { 0.0 }))
             }),
             micro: (g.micro_sigma > 0.05 && g.micro_blur > 0.4)
                 .then_some([g.micro_blur * scale; 3]),
@@ -27,7 +28,9 @@ impl GrainBlurPlan {
     }
 
     fn requires_iir(&self) -> bool {
-        self.dye.as_ref().is_some_and(|rows| rows.iter().any(uses_iir))
+        self.dye
+            .as_ref()
+            .is_some_and(|rows| rows.iter().any(uses_iir))
             || self.micro.as_ref().is_some_and(uses_iir)
             || uses_iir(&self.grain)
     }
@@ -48,7 +51,10 @@ pub(super) struct LayeredGrainState {
 }
 
 impl LayeredGrainState {
-    #[allow(clippy::too_many_arguments, reason = "The pass takes the device, image geometry and GPU buffers directly.")]
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "The pass takes the device, image geometry and GPU buffers directly."
+    )]
     pub(super) fn new(
         device: &wgpu::Device,
         gp: &crate::GrainGpuParams,
@@ -62,7 +68,10 @@ impl LayeredGrainState {
         let g = gp.layers.as_ref().expect("layered grain parameters");
         let blur_plan = GrainBlurPlan::new(gp).expect("layered grain parameters");
         let shader = backend.cached_pipeline(
-            concat!(include_str!("../../spektrafilm-shaders/wgsl/grain_reference.wgsl"), include_str!("../../spektrafilm-shaders/wgsl/grain_layers.wgsl")),
+            concat!(
+                include_str!("../../spektrafilm-shaders/wgsl/grain_reference.wgsl"),
+                include_str!("../../spektrafilm-shaders/wgsl/grain_layers.wgsl")
+            ),
             &[
                 wgpu::BufferBindingType::Uniform,
                 wgpu::BufferBindingType::Storage { read_only: false },
@@ -97,7 +106,7 @@ impl LayeredGrainState {
                 shape: [n, width, height, gp.base_seed],
                 control: [g.curve_len, g.positive as u32, op, layer],
                 values,
-                sampling: g.output_sampling.map_or([0.;4], |v| [v[0],v[1],1.,0.]),
+                sampling: g.output_sampling.map_or([0.; 4], |v| [v[0], v[1], 1., 0.]),
             };
             let pb = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("layered_grain_params"),
@@ -193,7 +202,7 @@ impl LayeredGrainState {
         // Copy exact post-DIR density before generating one grain realization.
         let baseline = g.output_sampling.map(|_| {
             let buffer = alloc();
-            add(&mut jobs, 7, 0, [0.;4], &[0.], a, &buffer);
+            add(&mut jobs, 7, 0, [0.; 4], &[0.], a, &buffer);
             buffer
         });
         let cloud = blur_plan.dye.is_some();
@@ -208,12 +217,7 @@ impl LayeredGrainState {
             let acc = alloc();
             for (sl, &sigmas) in dye_sigmas.iter().enumerate() {
                 add(&mut jobs, 1, sl as u32, values, &g.packed, a, b);
-                blur(
-                    &mut jobs,
-                    sigmas,
-                    b,
-                    tmp.as_ref().unwrap(),
-                );
+                blur(&mut jobs, sigmas, b, tmp.as_ref().unwrap());
                 add(&mut jobs, 5, 0, [0.0; 4], &[0.0], &acc, b);
             }
             add(&mut jobs, 7, 0, [0.0; 4], &[0.0], &acc, a);
@@ -251,8 +255,14 @@ impl LayeredGrainState {
             b,
         );
         blur(&mut jobs, blur_plan.grain, a, b);
-        if let Some(original) = &baseline { add(&mut jobs, 8, 0, [0.;4], &[0.], original, a); }
-        Self { jobs, accumulator, _baseline: baseline }
+        if let Some(original) = &baseline {
+            add(&mut jobs, 8, 0, [0.; 4], &[0.], original, a);
+        }
+        Self {
+            jobs,
+            accumulator,
+            _baseline: baseline,
+        }
     }
     pub(super) fn encode(&self, encoder: &mut wgpu::CommandEncoder) {
         // Cached state is reused across photos; creation-time zeroing alone
@@ -275,8 +285,14 @@ impl LayeredGrainState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    fn render(backend: &WgpuBackend, gp: &crate::GrainGpuParams) -> Vec<f32> { render_size(backend,gp,[256,256]) }
-    fn render_size(backend: &WgpuBackend, gp: &crate::GrainGpuParams, [width,height]:[u32;2]) -> Vec<f32> {
+    fn render(backend: &WgpuBackend, gp: &crate::GrainGpuParams) -> Vec<f32> {
+        render_size(backend, gp, [256, 256])
+    }
+    fn render_size(
+        backend: &WgpuBackend,
+        gp: &crate::GrainGpuParams,
+        [width, height]: [u32; 2],
+    ) -> Vec<f32> {
         let n = (width * height) as usize;
         let input = vec![1.5f32; n * 3];
         let bytes = (n * 12) as u64;
@@ -302,7 +318,13 @@ mod tests {
             mapped_at_creation: false,
         });
         let state = super::super::build_grain_state(
-            &backend.device, gp, width, height, &a, &b, backend,
+            &backend.device,
+            gp,
+            width,
+            height,
+            &a,
+            &b,
+            backend,
             backend.grain_reference.unwrap_or_default(),
         );
         let mut first: Option<Vec<f32>> = None;
@@ -311,13 +333,24 @@ mod tests {
                 .queue
                 .write_buffer(&a, 0, bytemuck::cast_slice(&input));
             let mut encoder = backend.device.create_command_encoder(&Default::default());
-            state.encode_passes(&mut encoder,n as u32,width,(width.div_ceil(16),height.div_ceil(16)));
+            state.encode_passes(
+                &mut encoder,
+                n as u32,
+                width,
+                (width.div_ceil(16), height.div_ceil(16)),
+            );
             encoder.copy_buffer_to_buffer(&a, 0, &output, 0, bytes);
             backend.queue.submit(Some(encoder.finish()));
             let slice = output.slice(..);
             let (tx, rx) = std::sync::mpsc::channel();
             slice.map_async(wgpu::MapMode::Read, move |result| tx.send(result).unwrap());
-            backend.device.poll(wgpu::PollType::Wait { submission_index: None, timeout: None }).expect("GPU work completion");
+            backend
+                .device
+                .poll(wgpu::PollType::Wait {
+                    submission_index: None,
+                    timeout: None,
+                })
+                .expect("GPU work completion");
             rx.recv().unwrap().unwrap();
             let mapped = slice.get_mapped_range().expect("completed buffer mapping");
             let result: Vec<f32> = bytemuck::cast_slice(&mapped).to_vec();
@@ -402,13 +435,18 @@ mod tests {
             let original = render_size(&backend, &gp, [32, 32]);
             backend.configure_grain_reference(Some(reference.in_canvas([8, 0], 48)));
             let expanded = render_size(&backend, &gp, [48, 32]);
-            for (old_row, new_row) in original.as_chunks::<{ 32*3 }>().0.iter().zip(expanded.as_chunks::<{ 48*3 }>().0) {
-                assert_eq!(old_row.as_slice(), &new_row[8*3..40*3]);
+            for (old_row, new_row) in original
+                .as_chunks::<{ 32 * 3 }>()
+                .0
+                .iter()
+                .zip(expanded.as_chunks::<{ 48 * 3 }>().0)
+            {
+                assert_eq!(old_row.as_slice(), &new_row[8 * 3..40 * 3]);
             }
             for x in [0, 46] {
                 assert!((0..32).any(|y| {
-                    let i = (y*48+x)*3;
-                    expanded[i..i+3] != expanded[i+3..i+6]
+                    let i = (y * 48 + x) * 3;
+                    expanded[i..i + 3] != expanded[i + 3..i + 6]
                 }));
             }
         }
@@ -420,12 +458,15 @@ mod tests {
             backends: wgpu::Backends::VULKAN,
             ..wgpu::InstanceDescriptor::new_without_display_handle()
         });
-        let adapter = match pollster::block_on(instance.request_adapter(
-            &wgpu::RequestAdapterOptions::default(),
-        )) {
+        let adapter = match pollster::block_on(
+            instance.request_adapter(&wgpu::RequestAdapterOptions::default()),
+        ) {
             Ok(adapter) => adapter,
             Err(error) => {
-                assert!(std::env::var_os("SPEKTRAFILM_REQUIRE_GPU").is_none(), "{error}");
+                assert!(
+                    std::env::var_os("SPEKTRAFILM_REQUIRE_GPU").is_none(),
+                    "{error}"
+                );
                 eprintln!("SKIP: no Vulkan adapter for grain capability test: {error}");
                 return;
             }
@@ -488,7 +529,8 @@ mod tests {
             print_exposure_scale: 1.,
             output_cctf_encoding: false,
         };
-        let baseline = backend.run_film_chain_with_options(&chain(parameters()), options)
+        let baseline = backend
+            .run_film_chain_with_options(&chain(parameters()), options)
             .expect("unblurred multilayer grain needs no IIR capability");
         assert!(baseline.data.iter().all(|v| v.is_finite()));
         let before_cache = backend.negative_cache_stats();
@@ -525,7 +567,10 @@ mod tests {
                 Ok(())
             });
             assert_eq!(result, Err(OutputError::UnsupportedGrainIir), "case {case}");
-            assert!(!called.get(), "unsupported grain must not invoke the consumer");
+            assert!(
+                !called.get(),
+                "unsupported grain must not invoke the consumer"
+            );
             assert_eq!(backend.negative_cache_stats(), before_cache);
             assert_eq!(backend.work_image_bytes(), before_work);
         }
@@ -557,7 +602,8 @@ mod tests {
                 }
                 _ => unreachable!(),
             }
-            let out = backend.run_film_chain_with_options(&chain(gp), options)
+            let out = backend
+                .run_film_chain_with_options(&chain(gp), options)
                 .expect("narrow and legacy grain remain available");
             assert_eq!((out.width, out.height), (2, 2));
             assert!(out.data.iter().all(|v| v.is_finite()), "case {case}");
@@ -566,41 +612,74 @@ mod tests {
 
     #[test]
     fn actual_gpu_grain_follows_source_coordinates() {
-        let mut backend=WgpuBackend::new().expect("real GPU required");
+        let mut backend = WgpuBackend::new().expect("real GPU required");
         for mode in 0..4 {
-            let mut gp=parameters();
-            if mode==0 {gp.layers=None;}
-            if mode==2 {gp.layers.as_mut().unwrap().output_sampling=Some([2.,1.]);}
-            if mode==3 {gp.layers.as_mut().unwrap().micro_sigma=0.3;}
-            backend.configure_grain_reference(None);
-            let full=render(&backend,&gp);
-            let original=full.clone();
-            // Integer translations, 90-degree rotation and reduced input all
-            // select independently known original pixel coordinates.
-            for (matrix,size,kind) in [([1.,0.,37.,0.,1.,23.],[64,48],0),
-                ([0.,1.,37.,-1.,0.,87.],[64,48],1),
-                ([2.,0.,0.,0.,2.,0.],[128,128],2),
-                ([0.6,0.8,40.,-0.8,0.6,120.],[64,48],3)] {
-                backend.configure_grain_reference(Some(GrainReference::new(matrix,[256,256],size[0])));
-                let actual=render_size(&backend,&gp,size);
-                for y in 0..size[1] {for x in 0..size[0] {
-                    let (sx,sy)=match kind {0=>(x+37,y+23),1=>(y+37,86-x),2=>(2*x+1,2*y+1),_=>
-                        ((0.6*(x as f32+0.5)+0.8*(y as f32+0.5)+40.).floor() as u32,
-                         (-0.8*(x as f32+0.5)+0.6*(y as f32+0.5)+120.).floor() as u32)};
-                    let i=((y*size[0]+x)*3) as usize;let j=((sy*256+sx)*3) as usize;
-                    // Continuous enlarged-grain sampling uses subpixel positions,
-                    // so the reduced case is not a nearest-pixel reference.
-                    if !(mode==2 && kind>=2) {assert_eq!(&actual[i..i+3],&full[j..j+3],"mode {mode}, kind {kind}, {x},{y}");}
-                }}
+            let mut gp = parameters();
+            if mode == 0 {
+                gp.layers = None;
+            }
+            if mode == 2 {
+                gp.layers.as_mut().unwrap().output_sampling = Some([2., 1.]);
+            }
+            if mode == 3 {
+                gp.layers.as_mut().unwrap().micro_sigma = 0.3;
             }
             backend.configure_grain_reference(None);
-            assert_eq!(render(&backend,&gp),original,"later legacy dispatch must reset reference coordinates");
+            let full = render(&backend, &gp);
+            let original = full.clone();
+            // Integer translations, 90-degree rotation and reduced input all
+            // select independently known original pixel coordinates.
+            for (matrix, size, kind) in [
+                ([1., 0., 37., 0., 1., 23.], [64, 48], 0),
+                ([0., 1., 37., -1., 0., 87.], [64, 48], 1),
+                ([2., 0., 0., 0., 2., 0.], [128, 128], 2),
+                ([0.6, 0.8, 40., -0.8, 0.6, 120.], [64, 48], 3),
+            ] {
+                backend.configure_grain_reference(Some(GrainReference::new(
+                    matrix,
+                    [256, 256],
+                    size[0],
+                )));
+                let actual = render_size(&backend, &gp, size);
+                for y in 0..size[1] {
+                    for x in 0..size[0] {
+                        let (sx, sy) = match kind {
+                            0 => (x + 37, y + 23),
+                            1 => (y + 37, 86 - x),
+                            2 => (2 * x + 1, 2 * y + 1),
+                            _ => (
+                                (0.6 * (x as f32 + 0.5) + 0.8 * (y as f32 + 0.5) + 40.).floor()
+                                    as u32,
+                                (-0.8 * (x as f32 + 0.5) + 0.6 * (y as f32 + 0.5) + 120.).floor()
+                                    as u32,
+                            ),
+                        };
+                        let i = ((y * size[0] + x) * 3) as usize;
+                        let j = ((sy * 256 + sx) * 3) as usize;
+                        // Continuous enlarged-grain sampling uses subpixel positions,
+                        // so the reduced case is not a nearest-pixel reference.
+                        if !(mode == 2 && kind >= 2) {
+                            assert_eq!(
+                                &actual[i..i + 3],
+                                &full[j..j + 3],
+                                "mode {mode}, kind {kind}, {x},{y}"
+                            );
+                        }
+                    }
+                }
+            }
+            backend.configure_grain_reference(None);
+            assert_eq!(
+                render(&backend, &gp),
+                original,
+                "later legacy dispatch must reset reference coordinates"
+            );
         }
     }
     #[test]
     fn actual_gpu_multilayer_moments_and_controls() {
         let backend = WgpuBackend::new().expect("real GPU required; no skipped success");
-        let mut gp=parameters();
+        let mut gp = parameters();
         let original = render(&backend, &gp);
         let (m, v) = stats(&original);
         // Independent analytic mean and variance of a sum of thinned Poisson
@@ -622,17 +701,31 @@ mod tests {
         );
         assert_eq!(original, render(&backend, &gp), "same seed must reproduce");
         // Independent density-residual oracle, not a second noise layer.
-        gp.layers.as_mut().unwrap().output_sampling=Some([2.,0.]);
-        assert!(render(&backend,&gp).iter().all(|v|*v==1.5));
-        gp.layers.as_mut().unwrap().output_sampling=Some([1.,0.5]);
-        let half=render(&backend,&gp);
-        for (a,b) in half.iter().zip(&original) {assert!((*a-(1.5+0.5*(*b-1.5))).abs()<1e-6);}
-        gp.layers.as_mut().unwrap().output_sampling=Some([2.,1.]);
-        let scaled=render(&backend,&gp);assert_ne!(scaled,original);
-        let diff=|a:&[f32]|a.as_chunks::<3>().0.iter().take(65535).zip(a.as_chunks::<3>().0.iter().skip(1)).map(|(a,b)|(a[0]-b[0]).powi(2) as f64).sum::<f64>();
-        assert!(diff(&scaled)<diff(&original)*0.75,"scale changes spatial correlation");
-        gp.layers.as_mut().unwrap().output_sampling=None;
-        assert_eq!(original,render(&backend,&gp),"off restores pinned route");
+        gp.layers.as_mut().unwrap().output_sampling = Some([2., 0.]);
+        assert!(render(&backend, &gp).iter().all(|v| *v == 1.5));
+        gp.layers.as_mut().unwrap().output_sampling = Some([1., 0.5]);
+        let half = render(&backend, &gp);
+        for (a, b) in half.iter().zip(&original) {
+            assert!((*a - (1.5 + 0.5 * (*b - 1.5))).abs() < 1e-6);
+        }
+        gp.layers.as_mut().unwrap().output_sampling = Some([2., 1.]);
+        let scaled = render(&backend, &gp);
+        assert_ne!(scaled, original);
+        let diff = |a: &[f32]| {
+            a.as_chunks::<3>()
+                .0
+                .iter()
+                .take(65535)
+                .zip(a.as_chunks::<3>().0.iter().skip(1))
+                .map(|(a, b)| (a[0] - b[0]).powi(2) as f64)
+                .sum::<f64>()
+        };
+        assert!(
+            diff(&scaled) < diff(&original) * 0.75,
+            "scale changes spatial correlation"
+        );
+        gp.layers.as_mut().unwrap().output_sampling = None;
+        assert_eq!(original, render(&backend, &gp), "off restores pinned route");
         gp.base_seed = 1;
         assert_ne!(
             original,

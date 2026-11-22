@@ -326,7 +326,9 @@ pub(crate) fn scan_with_negative(
                 px.copy_from_slice(&d.map(from_f64));
             });
             &dyes
-        } else { density_cmy };
+        } else {
+            density_cmy
+        };
         let mut scanned = backend.scan_spectral(
             scan_input,
             &channel_density,
@@ -337,11 +339,21 @@ pub(crate) fn scan_with_negative(
             &base_xyz_to_rgb,
         );
         if bleach > 0.0 || negative_bleach.is_some() {
-            scanned.data.par_chunks_exact_mut(3).zip(density_cmy.data.par_chunks_exact(3)).for_each(|(rgb, d)| {
-                let (_, silver) = bypass_density([d[0] as f64, d[1] as f64, d[2] as f64], bleach, negative_bleach);
-                let transmittance = from_f64(10.0f64.powf(-silver));
-                for v in rgb { *v *= transmittance; }
-            });
+            scanned
+                .data
+                .par_chunks_exact_mut(3)
+                .zip(density_cmy.data.par_chunks_exact(3))
+                .for_each(|(rgb, d)| {
+                    let (_, silver) = bypass_density(
+                        [d[0] as f64, d[1] as f64, d[2] as f64],
+                        bleach,
+                        negative_bleach,
+                    );
+                    let transmittance = from_f64(10.0f64.powf(-silver));
+                    for v in rgb {
+                        *v *= transmittance;
+                    }
+                });
         }
         scanned
     };

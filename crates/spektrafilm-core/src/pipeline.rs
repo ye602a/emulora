@@ -56,7 +56,7 @@ use crate::profile::Profile;
 use crate::spectral_service;
 use crate::stages;
 use crate::stages::filming::select_illuminant;
-use crate::stock_setup::{StockDefaults, ResolvedStockSetup};
+use crate::stock_setup::{ResolvedStockSetup, StockDefaults};
 
 fn validate_spectral_recipe(params: &RuntimeParams) -> Result<(), String> {
     if !(0.0..=2.0).contains(&params.film_render.leuco_cyan_coupling) {
@@ -85,7 +85,10 @@ fn validate_spectral_recipe(params: &RuntimeParams) -> Result<(), String> {
         return Err("encoded spectral output requires sRGB primaries; select linear output for other primaries".into());
     }
     if params.io.input_cctf_decoding {
-        return Err("spectral input must be linear (decode the input transfer function before rendering)".into());
+        return Err(
+            "spectral input must be linear (decode the input transfer function before rendering)"
+                .into(),
+        );
     }
     for (name, [strength, center, width]) in [
         ("filter_uv", params.camera.filter_uv),
@@ -94,10 +97,14 @@ fn validate_spectral_recipe(params: &RuntimeParams) -> Result<(), String> {
         if !(0.0..=1.0).contains(&strength)
             || (strength > 0.0 && (!center.is_finite() || !width.is_finite() || width <= 0.0))
         {
-            return Err(format!("{name} requires strength 0..1, a finite centre and positive width in nm"));
+            return Err(format!(
+                "{name} requires strength 0..1, a finite centre and positive width in nm"
+            ));
         }
     }
-    if params.settings.apply_hanatos2025_adaptation_surface && params.settings.rgb_to_raw_method != "hanatos2025" {
+    if params.settings.apply_hanatos2025_adaptation_surface
+        && params.settings.rgb_to_raw_method != "hanatos2025"
+    {
         return Err("Hanatos adaptation surface requires hanatos2025".into());
     }
     if params.settings.spectral_gaussian_blur != 0.0 {
@@ -446,11 +453,17 @@ impl Pipeline {
     ) -> Result<Self, String> {
         let resolved = setup.resolve(&film).map_err(|error| error.to_string())?;
         // Use the v1 daylight fallbacks consistently throughout the pipeline.
-        if !matches!(film.info.reference_illuminant.as_str(), "D50" | "D55" | "D65") {
+        if !matches!(
+            film.info.reference_illuminant.as_str(),
+            "D50" | "D55" | "D65"
+        ) {
             film.info.reference_illuminant = "D55".into();
         }
         for material in [&mut film, &mut print] {
-            if !matches!(material.info.viewing_illuminant.as_str(), "D50" | "D55" | "D65") {
+            if !matches!(
+                material.info.viewing_illuminant.as_str(),
+                "D50" | "D55" | "D65"
+            ) {
                 material.info.viewing_illuminant = "D50".into();
             }
         }
@@ -563,8 +576,15 @@ impl Pipeline {
                 .collect()
         };
 
-        let (_, ref_illuminant_f64) = crate::profile_illuminant::spectrum(&film.info.reference_illuminant)
-            .ok_or_else(|| format!("unknown film reference illuminant {:?}", film.info.reference_illuminant))?;
+        let (_, ref_illuminant_f64) = crate::profile_illuminant::spectrum(
+            &film.info.reference_illuminant,
+        )
+        .ok_or_else(|| {
+            format!(
+                "unknown film reference illuminant {:?}",
+                film.info.reference_illuminant
+            )
+        })?;
         if params.camera.filter_uv[0] != 0. || params.camera.filter_ir[0] != 0. {
             spectral_service::apply_camera_cuts(
                 &mut sensitivity,
@@ -623,10 +643,14 @@ impl Pipeline {
                 spectral_service::compute_tc_lut(spectra, response)
             };
             if params.settings.apply_hanatos2025_adaptation_surface {
-                let (x, y) = spektrafilm_math::spectral::illuminant_to_xy(select_illuminant(&front_illuminant));
-                spectral_service::apply_hanatos_surface(&mut lut,
+                let (x, y) = spektrafilm_math::spectral::illuminant_to_xy(select_illuminant(
+                    &front_illuminant,
+                ));
+                spectral_service::apply_hanatos_surface(
+                    &mut lut,
                     &film.data.hanatos2025_adaptation_surface_params,
-                    spektrafilm_math::spectral::xy_to_tc(x, y));
+                    spektrafilm_math::spectral::xy_to_tc(x, y),
+                );
             }
             let compression = crate::input_gamut::InputGamutCompress::build(
                 &params.io.input_gamut_compress.algorithm,
@@ -958,7 +982,8 @@ impl Pipeline {
     /// Convenience for callers that treat render errors as fatal.
     /// Interactive and file-output callers should use `try_process`.
     pub fn process(&self, image: ImageBuf, backend: &dyn ComputeBackend) -> ImageBuf {
-        self.try_process(image, backend).expect("film render failed")
+        self.try_process(image, backend)
+            .expect("film render failed")
     }
 
     /// Render at the requested working scale. A backend without a resident
@@ -1417,7 +1442,8 @@ impl Pipeline {
         } else {
             &self.print
         };
-        let viewing_illu_f32 = stages::scanning::select_illuminant(&scan_profile.info.viewing_illuminant);
+        let viewing_illu_f32 =
+            stages::scanning::select_illuminant(&scan_profile.info.viewing_illuminant);
         let viewing_illu: Vec<f64> = viewing_illu_f32.iter().map(|&v| v as f64).collect();
         let n_wl = if self.params.io.scan_film {
             film_channel_density.len()
@@ -1453,11 +1479,16 @@ impl Pipeline {
             }
         }
 
-        let pix_um = border_135.as_ref().and_then(|border| {
-            (border.gate_pitch_um > 0.).then_some(border.gate_pitch_um)
-        }).unwrap_or_else(|| stages::filming::pixel_size_um(
-            self.params.camera.film_format_mm, image.width, image.height,
-        ));
+        let pix_um = border_135
+            .as_ref()
+            .and_then(|border| (border.gate_pitch_um > 0.).then_some(border.gate_pitch_um))
+            .unwrap_or_else(|| {
+                stages::filming::pixel_size_um(
+                    self.params.camera.film_format_mm,
+                    image.width,
+                    image.height,
+                )
+            });
 
         // print_exposure_factor × print_exposure, with the B&W printing
         // exposure correction folded in (CPU applies it as a further raw
@@ -1753,9 +1784,7 @@ impl Pipeline {
             };
 
         let params = spektrafilm_gpu::FilmChainParams {
-            negative_bleach: self
-                .film
-                .negative_bleach(&self.params.film_render),
+            negative_bleach: self.film.negative_bleach(&self.params.film_render),
             print_bleach_bypass: if !self.params.io.scan_film && self.print.is_color() {
                 self.params.print_render.bleach_bypass
             } else {

@@ -253,7 +253,10 @@ impl KeyWriter<'_> {
             Self::Match { remaining, equal } => {
                 if *equal {
                     if let Some((next, rest)) = remaining.split_at_checked(values.len()) {
-                        *equal = next.iter().zip(values).all(|(&a, b)| a == b.to_bits() as u64);
+                        *equal = next
+                            .iter()
+                            .zip(values)
+                            .all(|(&a, b)| a == b.to_bits() as u64);
                         *remaining = rest;
                     } else {
                         *equal = false;
@@ -538,10 +541,12 @@ impl<T: Clone> NegativeCache<T> {
             }
         }
         if let Some(entry) = self.entry.as_ref()
-            && entry.bytes == required_bytes && matches(&entry.key, &key) {
-                self.stats.hits = self.stats.hits.saturating_add(1);
-                return NegativeLookup::Hit(entry.value.clone());
-            }
+            && entry.bytes == required_bytes
+            && matches(&entry.key, &key)
+        {
+            self.stats.hits = self.stats.hits.saturating_add(1);
+            return NegativeLookup::Hit(entry.value.clone());
+        }
         self.entry = None;
         self.stats.misses = self.stats.misses.saturating_add(1);
         NegativeLookup::Miss(NegativePublication {
@@ -895,8 +900,7 @@ mod tests {
             data: vec![f64::from_bits(0x7ff8_0000_0000_0001), -0.0, 0.3],
         };
         let mut p = fixture(&image, &lut);
-        p.grain.as_mut().unwrap().layers.as_mut().unwrap().packed[0] =
-            f32::from_bits(0x7fc0_0001);
+        p.grain.as_mut().unwrap().layers.as_mut().unwrap().packed[0] = f32::from_bits(0x7fc0_0001);
         let baseline = NegativeKey::new(&p, SOURCE, None);
         assert!(
             baseline.matches(&p, SOURCE, None),
@@ -929,11 +933,9 @@ mod tests {
             tc_lut: &lut,
             rgb_to_adapted_xyz: MATRIX,
         };
-        p.grain.as_mut().unwrap().layers.as_mut().unwrap().packed[0] =
-            f32::from_bits(0x7fc0_0002);
+        p.grain.as_mut().unwrap().layers.as_mut().unwrap().packed[0] = f32::from_bits(0x7fc0_0002);
         assert!(!baseline.matches(&p, SOURCE, None));
-        p.grain.as_mut().unwrap().layers.as_mut().unwrap().packed[0] =
-            f32::from_bits(0x7fc0_0001);
+        p.grain.as_mut().unwrap().layers.as_mut().unwrap().packed[0] = f32::from_bits(0x7fc0_0001);
 
         let reference = GrainReference::new([1., 0., 1., 0., 1., 0.], [4, 4], 2);
         let referenced = NegativeKey::new(&p, SOURCE, Some(&reference));

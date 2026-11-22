@@ -677,7 +677,10 @@ mod tests {
     /// Regression guard: oklch reference rows from `compress_rgb_oklch_chroma`
     /// (knee (0,1,6), lightness (0.7,1,2.2)) — in-gamut, super-red, super-cyan.
     #[test]
-    #[allow(clippy::excessive_precision, reason = "Preserve the original reference samples verbatim.")]
+    #[allow(
+        clippy::excessive_precision,
+        reason = "Preserve the original reference samples verbatim."
+    )]
     fn oklch_matches_python_reference() {
         check_reference(
             "oklch",
@@ -701,7 +704,10 @@ mod tests {
     /// Regression guard: cam16ucs reference rows from
     /// `compress_rgb_cam16ucs_chroma` (same knee/lightness).
     #[test]
-    #[allow(clippy::excessive_precision, reason = "Preserve the original reference samples verbatim.")]
+    #[allow(
+        clippy::excessive_precision,
+        reason = "Preserve the original reference samples verbatim."
+    )]
     fn cam16ucs_matches_python_reference() {
         check_reference(
             "cam16ucs",
@@ -732,7 +738,10 @@ mod tests {
 
     /// Regression guard: oklrab reference rows from `compress_rgb_oklrab_chroma`.
     #[test]
-    #[allow(clippy::excessive_precision, reason = "Preserve the original reference samples verbatim.")]
+    #[allow(
+        clippy::excessive_precision,
+        reason = "Preserve the original reference samples verbatim."
+    )]
     fn oklrab_matches_python_reference() {
         check_reference(
             "oklrab",
@@ -760,7 +769,10 @@ mod tests {
     /// Regression guard: aces_rgc reference rows from `compress_rgb_aces_rgc`
     /// (per-channel knee, no lightness/table).
     #[test]
-    #[allow(clippy::excessive_precision, reason = "Preserve the original reference samples verbatim.")]
+    #[allow(
+        clippy::excessive_precision,
+        reason = "Preserve the original reference samples verbatim."
+    )]
     fn aces_rgc_matches_python_reference() {
         check_reference(
             "aces_rgc",

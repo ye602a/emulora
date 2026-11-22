@@ -43,7 +43,9 @@ pub enum OutputError {
     DeviceLimitExceeded,
     #[error("GPU submission, completion, or buffer mapping failed")]
     GpuFailure,
-    #[error("wide multilayer grain requires a device with the validated Vulkan IIR shader capability")]
+    #[error(
+        "wide multilayer grain requires a device with the validated Vulkan IIR shader capability"
+    )]
     UnsupportedGrainIir,
     #[error("source, crop and output dimensions must all be positive")]
     EmptyDimensions,

@@ -1,11 +1,11 @@
 // Stochastic grain generation.
 // Poisson-binomial particle model with dye cloud blur and lognormal micro-structure.
 
+use rayon::prelude::*;
 use spektrafilm_gpu::ComputeBackend;
 use spektrafilm_math::gaussian;
 use spektrafilm_math::image::ImageBuf;
 use spektrafilm_math::precision::{Scalar, ZERO, from_f64};
-use rayon::prelude::*;
 use std::time::Instant;
 
 fn stage_timings_enabled() -> bool {
@@ -22,7 +22,10 @@ fn print_stage_timing(enabled: bool, stage: &str, start: Instant) {
 ///
 /// Port of Python `layer_particle_model`. Density values flow through in `Scalar`
 /// (full f64 precision in `precision-f64` mode); RNG sampling uses f64 directly.
-#[allow(clippy::too_many_arguments, reason = "Keep the particle model inputs explicit at the numerical boundary.")]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "Keep the particle model inputs explicit at the numerical boundary."
+)]
 pub fn layer_particle_model(
     density: &[Scalar],
     width: u32,
@@ -137,8 +140,7 @@ pub fn apply_grain_to_density(
             // Add density_min to input (kept in Scalar precision)
             let dmin_s = from_f64(density_min[ch]);
             let t = Instant::now();
-            let density_ch: Vec<Scalar> =
-                density_cmy.pixels().map(|px| px[ch] + dmin_s).collect();
+            let density_ch: Vec<Scalar> = density_cmy.pixels().map(|px| px[ch] + dmin_s).collect();
             print_stage_timing(stage_timings, "grain.extract_channel", t);
 
             let mut grain_sum = vec![ZERO; density_ch.len()];

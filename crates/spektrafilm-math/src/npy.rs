@@ -64,7 +64,9 @@ pub fn load_npy_f32<R: Read>(mut reader: R) -> Result<(Vec<usize>, Vec<f32>), Np
             // float16, little-endian
             let mut raw = vec![0u8; total_elements * 2];
             reader.read_exact(&mut raw)?;
-            raw.as_chunks::<2>().0.iter()
+            raw.as_chunks::<2>()
+                .0
+                .iter()
                 .map(|chunk| f16::from_le_bytes(*chunk).to_f32())
                 .collect()
         }
@@ -72,7 +74,9 @@ pub fn load_npy_f32<R: Read>(mut reader: R) -> Result<(Vec<usize>, Vec<f32>), Np
             // float32, little-endian
             let mut raw = vec![0u8; total_elements * 4];
             reader.read_exact(&mut raw)?;
-            raw.as_chunks::<4>().0.iter()
+            raw.as_chunks::<4>()
+                .0
+                .iter()
                 .map(|chunk| f32::from_le_bytes(*chunk))
                 .collect()
         }
@@ -80,7 +84,9 @@ pub fn load_npy_f32<R: Read>(mut reader: R) -> Result<(Vec<usize>, Vec<f32>), Np
             // float64, little-endian
             let mut raw = vec![0u8; total_elements * 8];
             reader.read_exact(&mut raw)?;
-            raw.as_chunks::<8>().0.iter()
+            raw.as_chunks::<8>()
+                .0
+                .iter()
                 .map(|chunk| f64::from_le_bytes(*chunk) as f32)
                 .collect()
         }
@@ -110,9 +116,7 @@ fn extract_field(header: &str, key: &str) -> Option<String> {
     }
 
     // Handle bare values: True, False, etc.
-    let end = rest
-        .find([',', '}'])
-        .unwrap_or(rest.len());
+    let end = rest.find([',', '}']).unwrap_or(rest.len());
     Some(rest[..end].trim().to_string())
 }
 

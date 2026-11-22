@@ -106,9 +106,14 @@ fn render(
         let _ = tx.send(result);
     });
     device
-        .poll(wgpu::PollType::Wait { submission_index: None, timeout: None })
+        .poll(wgpu::PollType::Wait {
+            submission_index: None,
+            timeout: None,
+        })
         .expect("grain submission");
-    rx.recv().expect("grain mapping callback").expect("grain map");
+    rx.recv()
+        .expect("grain mapping callback")
+        .expect("grain map");
     let mapped = slice.get_mapped_range().expect("grain mapped view");
     let output: Vec<f32> = bytemuck::cast_slice(&mapped).to_vec();
     drop(mapped);
@@ -134,14 +139,23 @@ fn source_anchored_grain_matches_full_frame_after_crop_and_rotation() {
 
     // Opting into identity source mapping must reproduce the old seed field.
     let identity = render(
-        device, queue, 4, 4,
+        device,
+        queue,
+        4,
+        4,
         GrainReference::new([1., 0., 0., 0., 1., 0.], [4, 4], 4),
     );
-    assert_eq!(full, identity, "identity source reference must not change grain");
+    assert_eq!(
+        full, identity,
+        "identity source reference must not change grain"
+    );
 
     // Crop [1..3, 1..3] keeps original indices rather than resetting at zero.
     let cropped = render(
-        device, queue, 2, 2,
+        device,
+        queue,
+        2,
+        2,
         GrainReference::new([1., 0., 1., 0., 1., 1.], [4, 4], 2),
     );
     for y in 0..2 {
@@ -156,7 +170,10 @@ fn source_anchored_grain_matches_full_frame_after_crop_and_rotation() {
 
     // 90° orientation: dest (x,y) samples source (3-y,x).
     let rotated = render(
-        device, queue, 4, 4,
+        device,
+        queue,
+        4,
+        4,
         GrainReference::new([0., -1., 4., 1., 0., 0.], [4, 4], 4),
     );
     for y in 0..4 {

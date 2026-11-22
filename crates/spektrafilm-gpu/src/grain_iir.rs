@@ -8,14 +8,18 @@ pub(super) type GrainJob = (DispatchJob, (u32, u32));
 pub(super) fn supported_by(backend: wgpu::Backend, features: wgpu::Features) -> bool {
     // Passthrough is shared by several backends, but this checked-in kernel
     // contains only Vulkan SPIR-V, not Metal MSL, DX12 DXIL or browser WGSL.
-    backend == wgpu::Backend::Vulkan
-        && features.contains(wgpu::Features::PASSTHROUGH_SHADERS)
+    backend == wgpu::Backend::Vulkan && features.contains(wgpu::Features::PASSTHROUGH_SHADERS)
 }
 
 fn pipeline(backend: &WgpuBackend) -> CachedPipelineRef {
     const SPIRV: &[u8] = include_bytes!("../../spektrafilm-shaders/vulkan/grain_iir.spv");
-    assert!(supported_by(backend.device.adapter_info().backend, backend.device.features()),
-        "wide grain IIR requires validated Vulkan SPIR-V; narrow FIR remains available on other backends");
+    assert!(
+        supported_by(
+            backend.device.adapter_info().backend,
+            backend.device.features()
+        ),
+        "wide grain IIR requires validated Vulkan SPIR-V; narrow FIR remains available on other backends"
+    );
     let mut cache = backend.pipeline_cache.lock().unwrap();
     let key = SPIRV.as_ptr() as usize;
     let item = cache.entry(key).or_insert_with(|| {
@@ -49,17 +53,20 @@ fn pipeline(backend: &WgpuBackend) -> CachedPipelineRef {
         // four bindings match the layout, complete line ownership prevents
         // races, and every invocation checks its line bounds before indexing.
         let module = unsafe {
-            backend
-                .device
-                .create_shader_module_passthrough(wgpu::ShaderModuleDescriptorPassthrough {
+            backend.device.create_shader_module_passthrough(
+                wgpu::ShaderModuleDescriptorPassthrough {
                     label: Some("grain_iir_precise"),
                     // wgpu 30 validates passthrough entry points from this metadata.
-                    entry_points: std::borrow::Cow::Borrowed(&[wgpu::PassthroughShaderEntryPoint {
-                        name: std::borrow::Cow::Borrowed("main"), workgroup_size: (256,1,1),
-                    }]),
+                    entry_points: std::borrow::Cow::Borrowed(&[
+                        wgpu::PassthroughShaderEntryPoint {
+                            name: std::borrow::Cow::Borrowed("main"),
+                            workgroup_size: (256, 1, 1),
+                        },
+                    ]),
                     spirv: Some(wgpu::util::make_spirv_raw(SPIRV)),
                     ..Default::default()
-                })
+                },
+            )
         };
         let pl = backend
             .device
@@ -104,7 +111,10 @@ fn coefficients(sigma: f64) -> [f64; 4] {
     [1.0 - (b1 + b2 + b3) / b0, b1 / b0, b2 / b0, b3 / b0]
 }
 
-#[allow(clippy::too_many_arguments, reason = "The IIR pass binds the two buffers and takes axis, geometry and radii directly.")]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "The IIR pass binds the two buffers and takes axis, geometry and radii directly."
+)]
 pub(super) fn append_pass(
     jobs: &mut Vec<GrainJob>,
     backend: &WgpuBackend,
@@ -189,7 +199,10 @@ mod tests {
     #[test]
     fn precise_iir_requires_vulkan_even_when_passthrough_is_available() {
         for backend in wgpu::Backend::ALL {
-            assert!(!supported_by(backend, wgpu::Features::empty()), "{backend:?}");
+            assert!(
+                !supported_by(backend, wgpu::Features::empty()),
+                "{backend:?}"
+            );
             assert_eq!(
                 supported_by(backend, wgpu::Features::PASSTHROUGH_SHADERS),
                 backend == wgpu::Backend::Vulkan,
@@ -301,7 +314,13 @@ mod tests {
         let slice = output.slice(..);
         let (tx, rx) = std::sync::mpsc::channel();
         slice.map_async(wgpu::MapMode::Read, move |r| tx.send(r).unwrap());
-        backend.device.poll(wgpu::PollType::Wait { submission_index: None, timeout: None }).expect("GPU work completion");
+        backend
+            .device
+            .poll(wgpu::PollType::Wait {
+                submission_index: None,
+                timeout: None,
+            })
+            .expect("GPU work completion");
         rx.recv().unwrap().unwrap();
         bytemuck::cast_slice(&slice.get_mapped_range().expect("completed buffer mapping")).to_vec()
     }
@@ -361,8 +380,10 @@ mod tests {
                                 max_error = max_error.max(error);
                                 let tolerance =
                                     4.0 * f32::EPSILON as f64 * (*e as f64).abs().max(1.0);
-                                assert!(a.is_finite() && error<=tolerance,
-                                    "{w}x{h}, sigma={sigma}, mask={mask}, pattern={pattern}, axes={axes:?}, i={i}: GPU={a}, f64={e}, error={error}, tolerance={tolerance}");
+                                assert!(
+                                    a.is_finite() && error <= tolerance,
+                                    "{w}x{h}, sigma={sigma}, mask={mask}, pattern={pattern}, axes={axes:?}, i={i}: GPU={a}, f64={e}, error={error}, tolerance={tolerance}"
+                                );
                                 if mask & (1 << (i % 3)) == 0 {
                                     assert_eq!(*a, input[i], "inactive channel must be exact");
                                 }
@@ -373,6 +394,8 @@ mod tests {
                 }
             }
         }
-        println!("real GPU IIR: {count} cases passed, max absolute error {max_error}; Lab tolerance 4*f32::EPSILON*max(1,abs(reference))");
+        println!(
+            "real GPU IIR: {count} cases passed, max absolute error {max_error}; Lab tolerance 4*f32::EPSILON*max(1,abs(reference))"
+        );
     }
 }

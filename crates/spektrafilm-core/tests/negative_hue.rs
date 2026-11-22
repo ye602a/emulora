@@ -272,13 +272,24 @@ fn print_bleach_reuses_negative_and_restores_optical_print() {
         params.print_render.bleach_bypass = amount;
         assert!(pipe.refresh_in_place(params.clone()));
         let cpu = pipe.try_process(input.clone(), &CpuBackend).unwrap();
-        let resident = pipe.process_resident_with_options(
-            &input, &gpu, FilmRenderOptions { source: Some(SourceIdentity(922)), ..Default::default() },
-        ).unwrap().unwrap();
+        let resident = pipe
+            .process_resident_with_options(
+                &input,
+                &gpu,
+                FilmRenderOptions {
+                    source: Some(SourceIdentity(922)),
+                    ..Default::default()
+                },
+            )
+            .unwrap()
+            .unwrap();
         let stats = gpu.negative_cache_stats();
-        assert_eq!((stats.misses, stats.hits, stats.stores), (1, index as u64, 1));
-        for (a,b) in cpu.data.iter().zip(&resident.data) {
-            assert!((a-b).abs() < 0.002, "amount {amount}: {a} vs {b}");
+        assert_eq!(
+            (stats.misses, stats.hits, stats.stores),
+            (1, index as u64, 1)
+        );
+        for (a, b) in cpu.data.iter().zip(&resident.data) {
+            assert!((a - b).abs() < 0.002, "amount {amount}: {a} vs {b}");
         }
         if index == 0 {
             baseline = resident.data;
@@ -302,7 +313,10 @@ fn print_bleach_is_inactive_for_film_scans_and_silver_paper() {
         let baseline = pipe.try_process(patches(), &CpuBackend).unwrap();
         p.print_render.bleach_bypass = 1.0;
         assert!(pipe.refresh_in_place(p));
-        assert_eq!(pipe.try_process(patches(), &CpuBackend).unwrap().data, baseline.data);
+        assert_eq!(
+            pipe.try_process(patches(), &CpuBackend).unwrap().data,
+            baseline.data
+        );
     }
 }
 
@@ -381,7 +395,10 @@ fn retained_negative_silver_changes_print_and_scan_and_invalidates_only_the_nega
         source: Some(SourceIdentity(923)),
         ..Default::default()
     };
-    let idle = pipe.process_resident_with_options(&input, &gpu, render_options).unwrap().unwrap();
+    let idle = pipe
+        .process_resident_with_options(&input, &gpu, render_options)
+        .unwrap()
+        .unwrap();
     assert_eq!(idle.data, baseline);
     assert_eq!(gpu.negative_cache_stats().hits, 4);
     p.film_render.bleach_bypass = 1.0;
@@ -391,10 +408,23 @@ fn retained_negative_silver_changes_print_and_scan_and_invalidates_only_the_nega
         assert!(!pipe.refresh_in_place(p.clone()));
         pipe = make(p.clone());
         let cpu = pipe.try_process(input.clone(), &CpuBackend).unwrap();
-        let gpu_print = pipe.process_resident_with_options(
-            &input, &gpu, FilmRenderOptions { source: Some(SourceIdentity(923)), ..Default::default() },
-        ).unwrap().unwrap();
-        assert!(cpu.data.iter().zip(&gpu_print.data).all(|(a,b)| (a-b).abs() < 0.002));
+        let gpu_print = pipe
+            .process_resident_with_options(
+                &input,
+                &gpu,
+                FilmRenderOptions {
+                    source: Some(SourceIdentity(923)),
+                    ..Default::default()
+                },
+            )
+            .unwrap()
+            .unwrap();
+        assert!(
+            cpu.data
+                .iter()
+                .zip(&gpu_print.data)
+                .all(|(a, b)| (a - b).abs() < 0.002)
+        );
         assert_ne!(gpu_print.data, prior);
         prior = gpu_print.data;
         assert_eq!(gpu.negative_cache_stats().misses, 4 + i as u64);

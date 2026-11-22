@@ -150,7 +150,9 @@ impl WgpuBackend {
         // Native poll completes this submission's mapping callbacks before
         // returning. A concurrent polling thread may be delivering the tiny
         // callback; receive its result without waiting for unrelated GPU work.
-        readback.mapping.recv()
+        readback
+            .mapping
+            .recv()
             .map_err(|_| OutputError::GpuFailure)?
             .map_err(|_| OutputError::GpuFailure)?;
         let buffer = &readback.buffer;
@@ -246,7 +248,11 @@ impl WgpuBackend {
         let mut usage = wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC;
         // Match the backend's existing primary-buffer mapping policy. Devices
         // without this optional feature retain their ordinary staging path.
-        if self.device.features().contains(wgpu::Features::MAPPABLE_PRIMARY_BUFFERS) {
+        if self
+            .device
+            .features()
+            .contains(wgpu::Features::MAPPABLE_PRIMARY_BUFFERS)
+        {
             usage |= wgpu::BufferUsages::MAP_READ;
         }
         self.device.create_buffer(&wgpu::BufferDescriptor {
@@ -317,7 +323,10 @@ mod tests {
         ) {
             Ok(adapter) => adapter,
             Err(error) => {
-                assert!(std::env::var_os("SPEKTRAFILM_REQUIRE_GPU").is_none(), "{error}");
+                assert!(
+                    std::env::var_os("SPEKTRAFILM_REQUIRE_GPU").is_none(),
+                    "{error}"
+                );
                 eprintln!("SKIP: no Vulkan adapter for output mapping test: {error}");
                 return;
             }
@@ -334,14 +343,20 @@ mod tests {
                 .expect("output mapping device");
             let backend = WgpuBackend::from_device(device, queue);
             let source = backend.output_storage("output mapping fixture", 20);
-            assert_eq!(source.usage().contains(wgpu::BufferUsages::MAP_READ), direct);
+            assert_eq!(
+                source.usage().contains(wgpu::BufferUsages::MAP_READ),
+                direct
+            );
 
             // Abandoning an encoded output must not map the buffer early and
             // prevent a later GPU request from using it.
             {
                 let mut encoder = backend.device.create_command_encoder(&Default::default());
                 let abandoned = backend.stage_output_readback(&mut encoder, &source);
-                assert!(matches!(abandoned.mapping.try_recv(), Err(std::sync::mpsc::TryRecvError::Empty)));
+                assert!(matches!(
+                    abandoned.mapping.try_recv(),
+                    Err(std::sync::mpsc::TryRecvError::Empty)
+                ));
                 drop(encoder);
                 drop(abandoned);
             }
@@ -354,22 +369,27 @@ mod tests {
                      result[p.x] = 1048577u + p.x; }".into(),
                 ),
             });
-            let pipeline = backend.device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-                label: Some("output mapping fixture"),
-                layout: None,
-                module: &shader,
-                entry_point: Some("main"),
-                compilation_options: Default::default(),
-                cache: None,
-            });
-            let bindings = backend.device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("output mapping fixture"),
-                layout: &pipeline.get_bind_group_layout(0),
-                entries: &[wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: source.as_entire_binding(),
-                }],
-            });
+            let pipeline =
+                backend
+                    .device
+                    .create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+                        label: Some("output mapping fixture"),
+                        layout: None,
+                        module: &shader,
+                        entry_point: Some("main"),
+                        compilation_options: Default::default(),
+                        cache: None,
+                    });
+            let bindings = backend
+                .device
+                .create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("output mapping fixture"),
+                    layout: &pipeline.get_bind_group_layout(0),
+                    entries: &[wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: source.as_entire_binding(),
+                    }],
+                });
             let mut encoder = backend.device.create_command_encoder(&Default::default());
             {
                 let mut pass = encoder.begin_compute_pass(&Default::default());
@@ -378,17 +398,29 @@ mod tests {
                 pass.dispatch_workgroups(5, 1, 1);
             }
             let readback = backend.stage_output_readback(&mut encoder, &source);
-            assert_eq!(readback.buffer == source, direct, "direct mapping must not allocate a staging copy");
+            assert_eq!(
+                readback.buffer == source,
+                direct,
+                "direct mapping must not allocate a staging copy"
+            );
             let submitted = backend.submit([encoder.finish()]);
-            backend.device.poll(wgpu::PollType::Wait {
-                submission_index: Some(submitted),
-                timeout: Some(std::time::Duration::from_secs(30)),
-            }).expect("one output submission wait");
-            readback.mapping.try_recv()
+            backend
+                .device
+                .poll(wgpu::PollType::Wait {
+                    submission_index: Some(submitted),
+                    timeout: Some(std::time::Duration::from_secs(30)),
+                })
+                .expect("one output submission wait");
+            readback
+                .mapping
+                .try_recv()
                 .expect("this submission's mapping callback must already have run")
                 .expect("output mapping");
             let mapped = readback.buffer.slice(..).get_mapped_range().unwrap();
-            assert_eq!(bytemuck::cast_slice::<u8, u32>(&mapped), &[1048577, 1048578, 1048579, 1048580, 1048581]);
+            assert_eq!(
+                bytemuck::cast_slice::<u8, u32>(&mapped),
+                &[1048577, 1048578, 1048579, 1048580, 1048581]
+            );
             drop(mapped);
             readback.buffer.unmap();
         }

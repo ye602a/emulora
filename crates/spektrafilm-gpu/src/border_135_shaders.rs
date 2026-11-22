@@ -67,7 +67,6 @@ pub(super) fn uniform_entry<'a>(
     }
 }
 
-
 pub(super) const LOG_RAW: &str = concat!(
     include_str!("../../spektrafilm-shaders/wgsl/log10_inplace.wgsl"),
     "fn add_latent_exposure(pixel: u32) {}",

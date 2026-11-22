@@ -1,8 +1,8 @@
 pub mod cpu_backend;
 pub mod output;
-pub use output::{DisplayRegion, OutputError, Rgb16Image};
 #[cfg(feature = "wgpu-backend")]
 pub use output::FilmOutput;
+pub use output::{DisplayRegion, OutputError, Rgb16Image};
 mod render;
 pub use render::{FilmRenderOptions, FilmSubmissionPolicy, SourceIdentity};
 #[cfg(feature = "wgpu-backend")]
@@ -47,7 +47,10 @@ pub trait ComputeBackend: Send + Sync {
     /// `colour.XYZ_to_RGB` step-by-step). Pre-combining loses ~1 ULP per
     /// output channel which compounds to ~5e-6 of drift in the bare
     /// chain. GPU may collapse for performance.
-    #[allow(clippy::too_many_arguments, reason = "Keep the separate colour matrices and spectral inputs in the backend boundary.")]
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "Keep the separate colour matrices and spectral inputs in the backend boundary."
+    )]
     fn scan_spectral(
         &self,
         density_cmy: &ImageBuf,
@@ -71,7 +74,10 @@ pub trait ComputeBackend: Send + Sync {
 
     /// Spectral printing: film density CMY → print log-exposure via spectral integration.
     /// GPU backends override this with a compute shader.
-    #[allow(clippy::too_many_arguments, reason = "The spectral inputs and preflash are supplied separately at the backend boundary.")]
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "The spectral inputs and preflash are supplied separately at the backend boundary."
+    )]
     fn print_spectral(
         &self,
         density_cmy: &ImageBuf,
@@ -208,7 +214,9 @@ impl NegativeBleach {
         let black = cmy[0].max(cmy[1]).max(cmy[2]);
         let mut dyes = cmy.map(|v| v + weight * (black - v));
         let cyan_drive = (cmy[0] / f64::from(self.cyan_max)).clamp(0.0, 1.0);
-        dyes[0] = (dyes[0] - f64::from(self.amount) * 0.30 * f64::from(self.cyan_coupling) * cyan_drive).max(0.0);
+        dyes[0] = (dyes[0]
+            - f64::from(self.amount) * 0.30 * f64::from(self.cyan_coupling) * cyan_drive)
+            .max(0.0);
         (dyes, 0.22 * weight)
     }
 }
@@ -510,7 +518,9 @@ pub fn select_backend() -> Box<dyn ComputeBackend> {
         .map(|v| v.to_ascii_lowercase());
     let requested = match requested.as_deref() {
         Some("cuda") => {
-            tracing::warn!("SPEKTRAFILM_BACKEND=cuda is retired; selecting the default backend (Vulkan when available, otherwise CPU)");
+            tracing::warn!(
+                "SPEKTRAFILM_BACKEND=cuda is retired; selecting the default backend (Vulkan when available, otherwise CPU)"
+            );
             None
         }
         other => other,

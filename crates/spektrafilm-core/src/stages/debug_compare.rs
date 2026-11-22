@@ -307,7 +307,10 @@ mod tests {
     /// Note the final scan here bypasses output gamut compression (identity),
     /// so there is no `rgb_out` assertion — the full-chain test covers it.
     #[test]
-    #[allow(clippy::excessive_precision, reason = "Preserve the original reference samples verbatim.")]
+    #[allow(
+        clippy::excessive_precision,
+        reason = "Preserve the original reference samples verbatim."
+    )]
     fn full_pipeline_parity_1x1_linear_184() {
         use crate::params::RuntimeParams;
         use crate::pipeline::Pipeline;

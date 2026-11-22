@@ -274,7 +274,10 @@ impl Profile {
     pub fn is_bw(&self) -> bool {
         self.info.channel_model == "bw"
     }
-    pub(crate) fn negative_bleach(&self, params: &crate::params::FilmRenderingParams) -> Option<spektrafilm_gpu::NegativeBleach> {
+    pub(crate) fn negative_bleach(
+        &self,
+        params: &crate::params::FilmRenderingParams,
+    ) -> Option<spektrafilm_gpu::NegativeBleach> {
         params.negative_silver().map(|[amount, cyan_coupling]| {
             let cyan_max = self
                 .data
@@ -282,7 +285,11 @@ impl Profile {
                 .iter()
                 .filter_map(|row| row.first().copied())
                 .fold(1e-6, f64::max) as f32;
-            spektrafilm_gpu::NegativeBleach { amount, cyan_max, cyan_coupling }
+            spektrafilm_gpu::NegativeBleach {
+                amount,
+                cyan_max,
+                cyan_coupling,
+            }
         })
     }
 
@@ -292,8 +299,11 @@ impl Profile {
 
     pub fn has_hanatos_surface(&self) -> bool {
         let rows = &self.data.hanatos2025_adaptation_surface_params;
-        self.is_filming() && rows.len() == 3
-            && rows.iter().all(|r| r.len() == 15 && r.iter().all(|v| v.is_finite()))
+        self.is_filming()
+            && rows.len() == 3
+            && rows
+                .iter()
+                .all(|r| r.len() == 15 && r.iter().all(|v| v.is_finite()))
     }
     pub fn is_filming(&self) -> bool {
         self.info.stage == "filming"

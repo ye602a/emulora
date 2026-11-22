@@ -93,7 +93,10 @@ pub fn measure_autoexposure_ev(image: &ImageBuf, rgb_to_xyz: &[[f32; 3]; 3], met
         })
         .collect();
 
-    if matches!(method, "balanced" | "center" | "protect_highlights" | "protect_shadows") {
+    if matches!(
+        method,
+        "balanced" | "center" | "protect_highlights" | "protect_shadows"
+    ) {
         let ev = balanced_exposure_ev(&lum, sw, sh, method) as f32;
         tracing::info!(sw, sh, method, ev, "autoexposure");
         return ev;
@@ -546,7 +549,16 @@ pub fn process(
     tc_lut: Option<&TcLut>,
 ) -> ImageBuf {
     let ref_illuminant = select_illuminant(&film.info.reference_illuminant);
-    let log_raw = expose(image, film, params, backend, tc_lut, None, ref_illuminant, 1.0);
+    let log_raw = expose(
+        image,
+        film,
+        params,
+        backend,
+        tc_lut,
+        None,
+        ref_illuminant,
+        1.0,
+    );
     develop(&log_raw, film, params, backend)
 }
 
@@ -624,16 +636,28 @@ mod tests {
         let ramp: Vec<_> = (0..10001)
             .map(|i| 0.184 * 2.0_f64.powf((i - 5000) as f64 / 1000.0))
             .collect();
-        for (method, expected) in [("balanced", 0.0), ("protect_highlights", -2.45), ("protect_shadows", 1.0)] {
+        for (method, expected) in [
+            ("balanced", 0.0),
+            ("protect_highlights", -2.45),
+            ("protect_shadows", 1.0),
+        ] {
             assert!((balanced_exposure_ev(&ramp, 137, 73, method) - expected).abs() < 1e-9);
         }
-        for (ratio, method, limit) in [(4096.0, "protect_highlights", -3.0), (1.0/2048.0, "protect_shadows", 2.0)] {
+        for (ratio, method, limit) in [
+            (4096.0, "protect_highlights", -3.0),
+            (1.0 / 2048.0, "protect_shadows", 2.0),
+        ] {
             let mut samples = vec![0.184; 1000];
             samples[..100].fill(0.184 * ratio);
             let base = balanced_exposure_ev(&samples, 100, 10, "balanced");
             assert!((balanced_exposure_ev(&samples, 100, 10, method) - base - limit).abs() < 1e-10);
         }
-        for method in ["balanced", "center", "protect_highlights", "protect_shadows"] {
+        for method in [
+            "balanced",
+            "center",
+            "protect_highlights",
+            "protect_shadows",
+        ] {
             assert!((balanced_exposure_ev(&[0.0], 1, 1, method) - 12.0).abs() < 1e-10);
         }
     }

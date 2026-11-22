@@ -16,10 +16,8 @@ fn skip_or_fail_if_gpu_required(reason: &str) {
 #[test]
 fn host_device_constructor_and_handle_accessor_are_public() {
     // This compile-time check works even when the machine has no GPU.
-    let _constructor: fn(wgpu::Device, wgpu::Queue) -> WgpuBackend =
-        WgpuBackend::from_device;
-    let _accessor: fn(&WgpuBackend) -> (&wgpu::Device, &wgpu::Queue) =
-        WgpuBackend::compute_device;
+    let _constructor: fn(wgpu::Device, wgpu::Queue) -> WgpuBackend = WgpuBackend::from_device;
+    let _accessor: fn(&WgpuBackend) -> (&wgpu::Device, &wgpu::Queue) = WgpuBackend::compute_device;
 }
 
 #[test]
@@ -31,14 +29,15 @@ fn host_can_request_the_engines_device_requirements() {
         backends: wgpu::Backends::PRIMARY,
         ..wgpu::InstanceDescriptor::new_without_display_handle()
     });
-    let Some(adapter) = pollster::block_on(instance.request_adapter(
-        &wgpu::RequestAdapterOptions {
+    let Some(adapter) =
+        pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
             power_preference: wgpu::PowerPreference::HighPerformance,
             compatible_surface: None,
             force_fallback_adapter: false,
             ..Default::default()
-        },
-    )).ok() else {
+        }))
+        .ok()
+    else {
         skip_or_fail_if_gpu_required("no compatible adapter for descriptor test");
         return;
     };
@@ -61,7 +60,9 @@ fn host_can_request_the_engines_device_requirements() {
         adapter_limits.max_buffer_size
     );
     assert_eq!(
-        descriptor.required_limits.max_compute_invocations_per_workgroup,
+        descriptor
+            .required_limits
+            .max_compute_invocations_per_workgroup,
         adapter_limits.max_compute_invocations_per_workgroup
     );
     assert!(adapter.features().contains(descriptor.required_features));
@@ -95,5 +96,10 @@ fn host_handles_are_reused_without_allocating_a_second_device() {
     });
     encoder.clear_buffer(&buffer, 0, None);
     queue.submit([encoder.finish()]);
-    device.poll(wgpu::PollType::Wait { submission_index: None, timeout: None }).expect("GPU work completion");
+    device
+        .poll(wgpu::PollType::Wait {
+            submission_index: None,
+            timeout: None,
+        })
+        .expect("GPU work completion");
 }

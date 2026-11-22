@@ -3,9 +3,8 @@
 
 use serde::Deserialize;
 use spektrafilm_core::calibrated_output_v1::{
-    finish_exposure_table_v1, positive_rgb16_v1, positive_scan_v1, CalibratedOutputError,
-    NegativeStockV1, PhysicalOutputMappingV1, PhysicalOutputOptionsV1,
-    PhysicalOutputV1,
+    CalibratedOutputError, NegativeStockV1, PhysicalOutputMappingV1, PhysicalOutputOptionsV1,
+    PhysicalOutputV1, finish_exposure_table_v1, positive_rgb16_v1, positive_scan_v1,
 };
 use spektrafilm_core::{
     params::RuntimeParams,
@@ -14,10 +13,10 @@ use spektrafilm_core::{
     stock_setup::{StockDefaults, StockRoute},
 };
 use spektrafilm_gpu::{
+    FilmRenderOptions, SourceIdentity,
     output::{DisplayRegion, FilmOutput, OutputError},
     wgpu::{self, util::DeviceExt},
     wgpu_backend::WgpuBackend,
-    FilmRenderOptions, SourceIdentity,
 };
 use spektrafilm_math::{
     image::ImageBuf,
@@ -73,8 +72,12 @@ struct ScanCurve {
 fn scans(stock: Option<NegativeStockV1>) -> Vec<f32> {
     let calibration: Option<ScanSamples> = stock.map(|stock| {
         let json = match stock {
-            NegativeStockV1::Pro400H => include_str!("../../../data/negative_scan_ap0_v1/pro400h.json"),
-            NegativeStockV1::XTra400 => include_str!("../../../data/negative_scan_ap0_v1/xtra.json"),
+            NegativeStockV1::Pro400H => {
+                include_str!("../../../data/negative_scan_ap0_v1/pro400h.json")
+            }
+            NegativeStockV1::XTra400 => {
+                include_str!("../../../data/negative_scan_ap0_v1/xtra.json")
+            }
         };
         serde_json::from_str(json).unwrap()
     });
@@ -90,7 +93,10 @@ fn scans(stock: Option<NegativeStockV1>) -> Vec<f32> {
         for (channel, curve) in cal.curves.iter().enumerate() {
             for (i, &absorption) in curve.absorption.iter().enumerate() {
                 let scan = (cal.base[channel] * (1. - absorption)) as f32;
-                for (j, sample) in [scan.next_down(), scan, scan.next_up()].into_iter().enumerate() {
+                for (j, sample) in [scan.next_down(), scan, scan.next_up()]
+                    .into_iter()
+                    .enumerate()
+                {
                     values[(3 * i + j) * 3 + channel] = sample;
                 }
             }
@@ -107,7 +113,8 @@ fn cpu_inversion_matches_independent_python_heldout() {
         for (actual, expected) in actual.into_iter().zip(fixture.expected) {
             assert!(
                 (f64::from(actual) - expected).abs() <= 2e-6,
-                "{}: {actual} vs {expected}", fixture.stock
+                "{}: {actual} vs {expected}",
+                fixture.stock
             );
         }
     }
@@ -122,7 +129,11 @@ fn cpu_finish_table_matches_v1_reference_codes() {
         (125, [0, 304, 5369, 48582, 65535, 65535]),
     ] {
         let table = finish_exposure_table_v1(ev);
-        assert_eq!(sample_codes.map(|code| table[code]), expected, "{ev} centi-EV");
+        assert_eq!(
+            sample_codes.map(|code| table[code]),
+            expected,
+            "{ev} centi-EV"
+        );
         assert!(table.is_sorted());
     }
     assert!(finish_exposure_table_v1(0).into_iter().eq(0..=u16::MAX));
@@ -245,7 +256,9 @@ fn read_texture(device: &wgpu::Device, queue: &wgpu::Queue, texture: &wgpu::Text
 
 fn rgb_codes(bytes: &[u8]) -> Vec<u16> {
     bytes
-        .as_chunks::<8>().0.iter()
+        .as_chunks::<8>()
+        .0
+        .iter()
         .flat_map(|rgba| {
             assert_eq!(u16::from_le_bytes([rgba[6], rgba[7]]), 65535);
             [
@@ -276,11 +289,19 @@ fn gpu_matches_cpu_codes_and_retains_owned_output_textures() {
         }),
     ];
     let mut retained = None;
-    for stock in [None, Some(NegativeStockV1::Pro400H), Some(NegativeStockV1::XTra400)] {
+    for stock in [
+        None,
+        Some(NegativeStockV1::Pro400H),
+        Some(NegativeStockV1::XTra400),
+    ] {
         let scan = scans(stock);
         let buffer = input(device, &scan);
         let cpu = stock_name(stock).map_or_else(
-            || scan.iter().map(|&v| (f64::from(v) * 65535. + 0.5) as u16).collect(),
+            || {
+                scan.iter()
+                    .map(|&v| (f64::from(v) * 65535. + 0.5) as u16)
+                    .collect()
+            },
             |stock| positive_rgb16_v1(&scan, stock, 0, None).unwrap(),
         );
         let allowed = if stock.is_some() { 3 } else { 0 };
@@ -290,17 +311,30 @@ fn gpu_matches_cpu_codes_and_retains_owned_output_textures() {
             let mut full = None;
             for region in views {
                 let mut encoder = device.create_command_encoder(&Default::default());
-                let current = output.encode(
-                    device, &mut encoder,
-                    FilmOutput { buffer: &buffer, width: 257, height: 17, cctf_encoding: stock.is_none() },
-                    options(stock, finish, region),
-                ).unwrap();
+                let current = output
+                    .encode(
+                        device,
+                        &mut encoder,
+                        FilmOutput {
+                            buffer: &buffer,
+                            width: 257,
+                            height: 17,
+                            cctf_encoding: stock.is_none(),
+                        },
+                        options(stock, finish, region),
+                    )
+                    .unwrap();
                 complete(device, queue, encoder);
                 let precision = read_texture(device, queue, &current.precision);
                 let display = read_texture(device, queue, &current.display);
                 let codes = rgb_codes(&precision);
                 assert_eq!(display.len(), codes.len() / 3 * 4);
-                for (rgb, rgba) in codes.as_chunks::<3>().0.iter().zip(display.as_chunks::<4>().0) {
+                for (rgb, rgba) in codes
+                    .as_chunks::<3>()
+                    .0
+                    .iter()
+                    .zip(display.as_chunks::<4>().0)
+                {
                     assert_eq!(
                         rgba,
                         &[
@@ -314,10 +348,19 @@ fn gpu_matches_cpu_codes_and_retains_owned_output_textures() {
                 if let Some(view) = region {
                     let full = full.as_ref().unwrap();
                     let cropped = image::imageops::crop_imm(
-                        full, view.crop[0], view.crop[1], view.crop[2], view.crop[3],
-                    ).to_image();
+                        full,
+                        view.crop[0],
+                        view.crop[1],
+                        view.crop[2],
+                        view.crop[3],
+                    )
+                    .to_image();
                     let expected = image::imageops::thumbnail(&cropped, view.width, view.height);
-                    assert_eq!(&codes, expected.as_raw(), "{stock:?} finish {finish} {view:?}");
+                    assert_eq!(
+                        &codes,
+                        expected.as_raw(),
+                        "{stock:?} finish {finish} {view:?}"
+                    );
                 } else {
                     assert_eq!(codes.len(), cpu.len());
                     if finish == 0 {
@@ -330,10 +373,17 @@ fn gpu_matches_cpu_codes_and_retains_owned_output_textures() {
                         base_codes.clone_from(&codes);
                     } else {
                         for (&gpu, &base) in codes.iter().zip(&base_codes) {
-                            assert_eq!(gpu, table[usize::from(base)], "{stock:?} finish {finish} base code {base}");
+                            assert_eq!(
+                                gpu,
+                                table[usize::from(base)],
+                                "{stock:?} finish {finish} base code {base}"
+                            );
                         }
                     }
-                    full = Some(image::ImageBuffer::<image::Rgb<u16>, Vec<u16>>::from_raw(257, 17, codes).unwrap());
+                    full = Some(
+                        image::ImageBuffer::<image::Rgb<u16>, Vec<u16>>::from_raw(257, 17, codes)
+                            .unwrap(),
+                    );
                 }
                 if retained.is_none() {
                     retained = Some((current, precision, display));

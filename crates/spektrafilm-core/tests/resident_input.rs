@@ -70,7 +70,11 @@ fn invalid_input_is_rejected_before_preparation_and_consumer() {
                 .is_none()
         );
         assert!(!called.get());
-        assert!(pipeline().process_resident_borrowed(&image, &CpuBackend).is_none());
+        assert!(
+            pipeline()
+                .process_resident_borrowed(&image, &CpuBackend)
+                .is_none()
+        );
     }
 }
 
@@ -108,9 +112,16 @@ fn ordinary_and_resident_render_never_drop_a_requested_border() {
             overscan,
             ..Default::default()
         });
-        assert_eq!(pipeline.try_process(image.clone(), &CpuBackend).unwrap_err(), error);
         assert_eq!(
-            pipeline.process_resident_with_options(&image, &CpuBackend, Default::default()).unwrap_err(),
+            pipeline
+                .try_process(image.clone(), &CpuBackend)
+                .unwrap_err(),
+            error
+        );
+        assert_eq!(
+            pipeline
+                .process_resident_with_options(&image, &CpuBackend, Default::default())
+                .unwrap_err(),
             error
         );
     }
