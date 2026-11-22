@@ -1,0 +1,39 @@
+[package]
+name = "emulora-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "emulora"
+path = "src/main.rs"
+
+[[bin]]
+name = "emulora-f64"
+path = "src/bin/emulora-f64.rs"
+required-features = ["precision-f64"]
+
+[features]
+precision-f64 = [
+    "emulora-math/precision-f64",
+    "emulora-core/precision-f64",
+    "emulora-gpu/precision-f64",
+]
+
+[dependencies]
+emulora-core.workspace = true
+emulora-gpu.workspace = true
+emulora-math.workspace = true
+clap.workspace = true
+serde_json.workspace = true
+image.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+rayon.workspace = true
+emulora-photo-input.workspace = true
+tempfile = "3"

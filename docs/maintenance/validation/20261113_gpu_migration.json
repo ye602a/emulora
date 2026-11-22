@@ -111,7 +111,7 @@
     "max_absolute_error": 1.1920928955078125e-07,
     "rule": "4*f32::EPSILON*max(1,abs(reference))",
     "hardware_qualification": false,
-    "hosted_confirmation": "https://github.com/ye602a/spektrafilm-rs/actions/runs/43424836925"
+    "hosted_confirmation": "https://github.com/ye602a/emulora/actions/runs/43424836925"
   },
   "local_tests": {
     "cpu_math_model_core": 72,

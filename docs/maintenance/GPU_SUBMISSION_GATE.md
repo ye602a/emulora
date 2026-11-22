@@ -91,7 +91,7 @@ retains the existing two-argument API and standalone behavior.
 
 ## Regression
 
-`crates/spektrafilm-core/tests/submission_gate.rs` uses actual GPU command
+`crates/emulora-core/tests/submission_gate.rs` uses actual GPU command
 submission on one device and its injected handles with the default `WholeChain`
 policy. It verifies:
 
@@ -108,8 +108,8 @@ policy. It verifies:
    and preserve their output values.
 
 ```sh
-SPEKTRAFILM_REQUIRE_GPU=1 cargo test --locked \
-  -p spektrafilm-core -p spektrafilm-gpu --features openblas-src/system \
+EMULORA_REQUIRE_GPU=1 cargo test --locked \
+  -p emulora-core -p emulora-gpu --features openblas-src/system \
   --test submission_gate -- --nocapture
 ```
 

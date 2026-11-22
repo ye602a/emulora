@@ -1,6 +1,6 @@
 # Frozen calibrated negative output v1
 
-`spektrafilm_core::calibrated_output_v1` provides calibrated negative inversion,
+`emulora_core::calibrated_output_v1` provides calibrated negative inversion,
 finish exposure, quantization and display sampling on a host-supplied device.
 The host retains the resulting textures.
 
@@ -28,7 +28,7 @@ original DIR, disables camera diffusion, scan glare, transport gamut mapping and
 transport sharpening, and applies the v1 inversion/toe/shoulder/gamut mapping
 once. Select the opt-in physical stock defaults and supply the transport
 settings in the runtime recipe. See the
-[public host example](../../crates/spektrafilm-core/examples/host_gpu_contract.rs)
+[public host example](../../crates/emulora-core/examples/host_gpu_contract.rs)
 and [physical stock defaults](HOST_GPU_INTEGRATION_CONTRACT.md#physical-stock-defaults).
 
 Both output textures have the requested positive dimensions:
@@ -164,8 +164,8 @@ Verify the data and run the device regressions with:
 
 ```sh
 python tools/verify_data_manifest.py
-SPEKTRAFILM_REQUIRE_GPU=1 cargo test --locked \
-  -p spektrafilm-core -p spektrafilm-gpu --features openblas-src/system \
+EMULORA_REQUIRE_GPU=1 cargo test --locked \
+  -p emulora-core -p emulora-gpu --features openblas-src/system \
   --test calibrated_output_v1
 ```
 

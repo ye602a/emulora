@@ -1,8 +1,8 @@
-# spektrafilm-rs
+# Emulora
 
 [English](README.md) | **简体中文**
 
-spektrafilm-rs 把数码照片当作一次胶片曝光，模拟显影，然后把它印到相纸上，或直接扫描胶片。它是摄影应用 **FPW** 使用的独立 Rust 引擎，也可以单独使用。你可以用命令行处理照片，在桌面界面预览，或把引擎接入自己的应用。FPW 自行固定引擎版本并选择开放的控件。
+Emulora 取自 *Emulsion + Aurora*（感光乳剂与极光），是一款独立的 Rust 物理胶片模拟引擎。它将数码照片当作一次胶片曝光，模拟显影，再印到相纸上或直接扫描胶片。你可以用命令行处理照片，在桌面界面预览，或把引擎接入自己的应用。摄影应用 **FPW** 使用这一引擎，并自行固定引擎版本及选择开放的控件。
 
 ## 现在能用什么
 
@@ -39,22 +39,22 @@ CI 覆盖 Windows 构建和 Linux 软件 Vulkan 计算；其他平台与后端�
 原生依赖、图形界面与导出配置见[构建与使用](docs/USAGE.md)。
 
 ```sh
-git clone https://github.com/ye602a/spektrafilm-rs.git
-cd spektrafilm-rs
-cargo build --locked --release -p spektrafilm-cli --bin spektrafilm
-./target/release/spektrafilm list-profiles --data-dir data
-./target/release/spektrafilm process input.tif -o output.png \
+git clone https://github.com/ye602a/emulora.git
+cd emulora
+cargo build --locked --release -p emulora-cli --bin emulora
+./target/release/emulora list-profiles --data-dir data
+./target/release/emulora process input.tif -o output.png \
     --film kodak_portra_400 --paper kodak_portra_endura --data-dir data
 ```
 
-Windows 下请使用 `target\release\spektrafilm.exe`，并将处理命令写在同一行。
+Windows 下请使用 `target\release\emulora.exe`，并将处理命令写在同一行。
 
 ## 文档
 
 - [引擎批次、上游对照与实测依据](docs/ENGINE_EVOLUTION.md)
 - [构建与使用](docs/USAGE.md)
 - [宿主 GPU 接入](docs/maintenance/HOST_GPU_INTEGRATION_CONTRACT.md)
-- [公开接入示例](crates/spektrafilm-core/examples/host_gpu_contract.rs)
+- [公开接入示例](crates/emulora-core/examples/host_gpu_contract.rs)
 - [兼容性与开发计划](docs/ENGINE_EVOLUTION.md)
 - [胶片引擎实测记录](docs/ENGINE_STUDIES.md)
 - [验证范围与依据](docs/maintenance/VALIDATION.md)
@@ -71,7 +71,7 @@ Windows 下请使用 `target\release\spektrafilm.exe`，并将处理命令写在
 
 代码采用 [GPL-3.0](LICENSE) 许可。光谱数据、配置数据及其衍生内容适用
 [上游署名与 CC BY-SA 4.0 条款](SPEKTRAFILM_DATA_LICENSE.txt)。
-四款黑白负片和 Multigrade IV RC 的授权来源与 RS 相纸校准另有[署名与校准记录](data/SPEKTRALAB_BW_NOTICE.md)。
+四款黑白负片和 Multigrade IV RC 的授权来源与 Emulora 相纸校准另有[署名与校准记录](data/SPEKTRALAB_BW_NOTICE.md)。
 [版本化校准数据的来源记录](data/negative_scan_ap0_v1/PROVENANCE.md)与数据一同保留。
 
 另见[第三方署名与许可](THIRD_PARTY_NOTICES.md)及[随附数据清单](data/MANIFEST.json)。

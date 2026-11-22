@@ -1,4 +1,4 @@
-name: Standalone RS smoke
+name: Emulora standalone smoke
 
 on:
   push:
@@ -15,7 +15,7 @@ jobs:
     name: Windows standalone engine/API
     runs-on: windows-latest
     steps:
-      - name: Check out independent RS
+      - name: Check out Emulora
         uses: actions/checkout@v4
 
       - name: Install Rust stable
@@ -37,7 +37,7 @@ jobs:
         run: ./scripts/tests/package_windows_failures.ps1
 
       - name: Check standalone crates and applications
-        run: cargo check --locked -p spektrafilm-math -p spektrafilm-model -p spektrafilm-core -p spektrafilm-gpu -p spektrafilm-cli -p spektrafilm-gui
+        run: cargo check --locked -p emulora-math -p emulora-model -p emulora-core -p emulora-gpu -p emulora-cli -p emulora-gui
 
       - name: Assert standalone GUI and film engine share wgpu 30
         shell: pwsh
@@ -55,40 +55,40 @@ jobs:
 
 
       - name: Compile migrated GPU test suites
-        run: cargo test --locked -p spektrafilm-gpu --lib --no-run
+        run: cargo test --locked -p emulora-gpu --lib --no-run
 
       - name: Check and exercise host device boundary
-        run: cargo test --locked -p spektrafilm-gpu --test host_device -- --nocapture
+        run: cargo test --locked -p emulora-gpu --test host_device -- --nocapture
 
       - name: Test CPU reference math and film-model crates
-        run: cargo test --locked -p spektrafilm-math -p spektrafilm-model -p spektrafilm-core --lib
+        run: cargo test --locked -p emulora-math -p emulora-model -p emulora-core --lib
 
       - name: Compile full-chain cache and output regressions
-        run: cargo test --locked -p spektrafilm-core -p spektrafilm-gpu --tests --no-run
+        run: cargo test --locked -p emulora-core -p emulora-gpu --tests --no-run
 
       - name: Check physical stock defaults and calibrated output
         run: |
-          cargo test --locked -p spektrafilm-core --test stock_setup
+          cargo test --locked -p emulora-core --test stock_setup
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          cargo test --locked -p spektrafilm-core --test resident_input
+          cargo test --locked -p emulora-core --test resident_input
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          cargo test --locked -p spektrafilm-core --test calibrated_output_v1 cpu_ -- --nocapture
+          cargo test --locked -p emulora-core --test calibrated_output_v1 cpu_ -- --nocapture
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          cargo check --locked -p spektrafilm-core --example host_gpu_contract
+          cargo check --locked -p emulora-core --example host_gpu_contract
 
       - name: Verify engine-owned dependency keys and output geometry
         run: |
-          cargo test --locked -p spektrafilm-gpu --lib negative_cache
+          cargo test --locked -p emulora-gpu --lib negative_cache
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          cargo test --locked -p spektrafilm-gpu --lib output::tests
+          cargo test --locked -p emulora-gpu --lib output::tests
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          cargo test --locked -p spektrafilm-gpu --lib precise_iir_requires_vulkan_even_when_passthrough_is_available
+          cargo test --locked -p emulora-gpu --lib precise_iir_requires_vulkan_even_when_passthrough_is_available
 
   linux-vulkan-software:
     name: Linux Vulkan software compute smoke
     runs-on: ubuntu-24.04
     env:
-      SPEKTRAFILM_REQUIRE_GPU: "1"
+      EMULORA_REQUIRE_GPU: "1"
       WGPU_BACKEND: vulkan
       LIBGL_ALWAYS_SOFTWARE: "1"
     steps:
@@ -105,44 +105,44 @@ jobs:
         run: vulkaninfo --summary
 
       - name: Require a real Vulkan device and submit GPU work
-        run: cargo test --locked -p spektrafilm-gpu --test host_device -- --nocapture
+        run: cargo test --locked -p emulora-gpu --test host_device -- --nocapture
 
       - name: Compare exported spectral cubes with CPU and required Vulkan photo renders
-        run: cargo test --locked -p spektrafilm-cli --test spectral_lut -- --test-threads=1
+        run: cargo test --locked -p emulora-cli --test spectral_lut -- --test-threads=1
 
       - name: Verify 135 exposure, scan transmission and negative cache on Vulkan
-        run: cargo test --locked -p spektrafilm-core --test border_135_gpu -- --test-threads=1
+        run: cargo test --locked -p emulora-core --test border_135_gpu -- --test-threads=1
 
       - name: Verify silver paper grades and resident negative reuse
-        run: cargo test --locked -p spektrafilm-core --test multigrade -- --test-threads=1
+        run: cargo test --locked -p emulora-core --test multigrade -- --test-threads=1
 
       - name: Verify actual source-anchored physical grain on Vulkan
-        run: cargo test --locked -p spektrafilm-gpu --test grain_source -- --nocapture
+        run: cargo test --locked -p emulora-gpu --test grain_source -- --nocapture
 
       - name: Exercise source-mapped and multilayer GPU grain on Vulkan
         run: |
-          cargo test --locked -p spektrafilm-gpu --lib actual_gpu_grain_follows_source_coordinates -- --nocapture
-          cargo test --locked -p spektrafilm-gpu --lib actual_gpu_multilayer_moments_and_controls -- --nocapture
-          cargo test --locked -p spektrafilm-gpu --lib actual_gpu_multilayer_requires_iir_capability_before_cache_or_consumer -- --nocapture
+          cargo test --locked -p emulora-gpu --lib actual_gpu_grain_follows_source_coordinates -- --nocapture
+          cargo test --locked -p emulora-gpu --lib actual_gpu_multilayer_moments_and_controls -- --nocapture
+          cargo test --locked -p emulora-gpu --lib actual_gpu_multilayer_requires_iir_capability_before_cache_or_consumer -- --nocapture
 
       - name: Check GPU work buffers against full physical pipeline
         run: |
-          cargo test --locked -p spektrafilm-gpu --lib work_images_ -- --nocapture
-          cargo test --locked -p spektrafilm-core --test work_images -- --nocapture
+          cargo test --locked -p emulora-gpu --lib work_images_ -- --nocapture
+          cargo test --locked -p emulora-core --test work_images -- --nocapture
 
       - name: Qualify precise IIR against all 1215 f64 reference cases on software Vulkan
-        run: cargo test --locked -p spektrafilm-gpu --lib actual_gpu_iir_matches_f64_reference -- --ignored --nocapture
+        run: cargo test --locked -p emulora-gpu --lib actual_gpu_iir_matches_f64_reference -- --ignored --nocapture
 
       - name: Verify density invalidation and scoped RGB16-region output on Vulkan
         run: |
-          cargo test --locked -p spektrafilm-gpu --lib output_mapping_completes_with_its_submission_and_abandoned_encoding_recovers -- --nocapture
-          cargo test --locked -p spektrafilm-gpu --test output_kernels -- --nocapture
-          cargo test --locked -p spektrafilm-core --test negative_cache --test gpu_output -- --nocapture
+          cargo test --locked -p emulora-gpu --lib output_mapping_completes_with_its_submission_and_abandoned_encoding_recovers -- --nocapture
+          cargo test --locked -p emulora-gpu --test output_kernels -- --nocapture
+          cargo test --locked -p emulora-core --test negative_cache --test gpu_output -- --nocapture
 
       - name: Preserve cooperative cancellation and exact physical output
-        run: cargo test --locked -p spektrafilm-gpu --test cooperative_submission -- --nocapture
+        run: cargo test --locked -p emulora-gpu --test cooperative_submission -- --nocapture
 
       - name: Exercise physical stock defaults, calibrated output, probes and submission gate
         run: |
-          cargo test --locked -p spektrafilm-core --test resident_input --test stock_setup --test calibrated_output_v1 --test probe_isolation --test submission_gate -- --nocapture
-          cargo run --locked -p spektrafilm-core --example host_gpu_contract
+          cargo test --locked -p emulora-core --test resident_input --test stock_setup --test calibrated_output_v1 --test probe_isolation --test submission_gate -- --nocapture
+          cargo run --locked -p emulora-core --example host_gpu_contract

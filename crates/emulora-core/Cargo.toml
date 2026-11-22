@@ -1,0 +1,36 @@
+[package]
+name = "emulora-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+precision-f64 = [
+    "emulora-math/precision-f64",
+    "emulora-gpu/precision-f64",
+    "emulora-model/precision-f64",
+]
+
+[dependencies]
+emulora-math.workspace = true
+emulora-gpu.workspace = true
+emulora-model.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+rayon.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+libm.workspace = true
+image.workspace = true
+
+[target.'cfg(target_os = "macos")'.dependencies]
+cblas = "0.4"
+blas-src = { version = "0.10", features = ["accelerate"] }
+
+[target.'cfg(all(not(target_os = "macos"), not(target_os = "windows")))'.dependencies]
+cblas = "0.4"
+blas-src = { version = "0.10", features = ["openblas"] }

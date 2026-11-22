@@ -3777,26 +3777,26 @@ dependencies = [
 ]
 
 [[package]]
-name = "spektrafilm-cli"
-version = "0.1.2"
+name = "emulora-cli"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "clap",
  "image",
  "rayon",
  "serde_json",
- "spektrafilm-core",
- "spektrafilm-gpu",
- "spektrafilm-math",
- "spektrafilm-photo-input",
+ "emulora-core",
+ "emulora-gpu",
+ "emulora-math",
+ "emulora-photo-input",
  "tempfile",
  "tracing",
  "tracing-subscriber",
 ]
 
 [[package]]
-name = "spektrafilm-core"
-version = "0.1.2"
+name = "emulora-core"
+version = "0.2.0"
 dependencies = [
  "blas-src",
  "cblas",
@@ -3805,16 +3805,16 @@ dependencies = [
  "rayon",
  "serde",
  "serde_json",
- "spektrafilm-gpu",
- "spektrafilm-math",
- "spektrafilm-model",
+ "emulora-gpu",
+ "emulora-math",
+ "emulora-model",
  "thiserror 2.0.18",
  "tracing",
 ]
 
 [[package]]
-name = "spektrafilm-gpu"
-version = "0.1.2"
+name = "emulora-gpu"
+version = "0.2.0"
 dependencies = [
  "accelerate-src",
  "blas-src",
@@ -3823,7 +3823,7 @@ dependencies = [
  "openblas-src",
  "pollster 0.4.0",
  "rayon",
- "spektrafilm-math",
+ "emulora-math",
  "thiserror 2.0.18",
  "tracing",
  "tracing-subscriber",
@@ -3831,8 +3831,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "spektrafilm-gui"
-version = "0.1.2"
+name = "emulora-gui"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "core-graphics 0.24.0",
@@ -3845,18 +3845,18 @@ dependencies = [
  "rayon",
  "rfd",
  "serde_json",
- "spektrafilm-core",
- "spektrafilm-gpu",
- "spektrafilm-math",
- "spektrafilm-photo-input",
+ "emulora-core",
+ "emulora-gpu",
+ "emulora-math",
+ "emulora-photo-input",
  "tempfile",
  "tracing",
  "tracing-subscriber",
 ]
 
 [[package]]
-name = "spektrafilm-math"
-version = "0.1.2"
+name = "emulora-math"
+version = "0.2.0"
 dependencies = [
  "half",
  "libm",
@@ -3868,28 +3868,28 @@ dependencies = [
 ]
 
 [[package]]
-name = "spektrafilm-model"
-version = "0.1.2"
+name = "emulora-model"
+version = "0.2.0"
 dependencies = [
  "rand",
  "rand_distr",
  "rand_mt",
  "rayon",
- "spektrafilm-gpu",
- "spektrafilm-math",
+ "emulora-gpu",
+ "emulora-math",
  "thiserror 2.0.18",
  "tracing",
 ]
 
 [[package]]
-name = "spektrafilm-photo-input"
-version = "0.1.2"
+name = "emulora-photo-input"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "image",
  "rawler",
  "rayon",
- "spektrafilm-math",
+ "emulora-math",
 ]
 
 [[package]]

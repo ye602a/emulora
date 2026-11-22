@@ -1,6 +1,6 @@
 # Developed-negative density cache
 
-The optional cache reuses developed film density while RS owns the stage
+The optional cache reuses developed film density while Emulora owns the stage
 boundary, exact dependencies and publication rules.
 
 ## Stored stage and unchanged rendering
@@ -24,7 +24,7 @@ change in those pixels. An image path, pointer, or mutable "current photo" value
 is insufficient. An absent identity bypasses reuse for that call. It does not
 invent an identity from a buffer address or a sampled image hash.
 
-RS appends its own exact prepared dependencies. The key stores typed bit patterns
+Emulora appends its own exact prepared dependencies. The key stores typed bit patterns
 and sequence lengths, including complete LUT/curve contents. It does not use a
 lossy digest whose collision could select another negative. Equal-value objects
 at different addresses compare equal. Equivalent but differently represented
@@ -98,7 +98,7 @@ waits and output consumption happen outside that mutex. Clearing or replacing th
 entry does not invalidate handles already held by in-flight readers. No request
 writes to the cached buffer, including after another request changes the source.
 
-On a hit, RS also skips CPU conversion and GPU upload of the unused front-pass
+On a hit, Emulora also skips CPU conversion and GPU upload of the unused front-pass
 LUT, film-development curves, uniforms and bind groups. Printing/scanning still
 prepare and consume their current downstream parameters. The snapshot-to-work
 copy remains necessary because downstream processing overwrites its private
@@ -111,7 +111,7 @@ a serialized host render worker.
 ## Validation and limits
 
 Local validation on 2026-11-13 passed **7 CPU unit tests** and **1 complete film-chain
-regression on Mesa software Vulkan** with `SPEKTRAFILM_REQUIRE_GPU=1` (GPU absence
+regression on Mesa software Vulkan** with `EMULORA_REQUIRE_GPU=1` (GPU absence
 cannot produce a skipped success). The independent CPU unit suite covers one-setting-at-a-time upstream invalidation,
 all downstream dependency families, different geometry with equal byte count,
 source and coordinate changes, exact LUT-content identity, disabled/unidentified
@@ -133,8 +133,8 @@ cache behavior; it is not a full-resolution photograph or performance result.
 The local Linux commands used the available system OpenBLAS library:
 
 ```sh
-cargo test --locked -p spektrafilm-gpu --features openblas-src/system --lib negative_cache
-SPEKTRAFILM_REQUIRE_GPU=1 cargo test --locked -p spektrafilm-core -p spektrafilm-gpu --features openblas-src/system --test negative_cache
+cargo test --locked -p emulora-gpu --features openblas-src/system --lib negative_cache
+EMULORA_REQUIRE_GPU=1 cargo test --locked -p emulora-core -p emulora-gpu --features openblas-src/system --test negative_cache
 ```
 
 The default WholeChain output regression also raises cancellation from the submitted command's
@@ -152,6 +152,6 @@ memory occupancy and actual print/scan edit workloads. See the
 The stage boundary and one-plane retention follow FPW's accepted vendored route,
 pinned to `ae3428acd98e39c48784a79dc8f3369ab1236cb1`,
 `wgpu_backend.rs`
-(blob `934e80eb47aa5bf58fa80ee2bc9c4037fe14d459`). The independent RS key and
+(blob `934e80eb47aa5bf58fa80ee2bc9c4037fe14d459`). The independent Emulora key and
 publication controller replace that host's `input_unchanged` boolean with
 engine-owned exact dependencies and per-request concurrency rules.

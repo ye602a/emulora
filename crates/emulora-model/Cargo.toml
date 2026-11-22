@@ -1,0 +1,25 @@
+[package]
+name = "emulora-model"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+precision-f64 = [
+    "emulora-math/precision-f64",
+    "emulora-gpu/precision-f64",
+]
+
+[dependencies]
+emulora-math.workspace = true
+emulora-gpu.workspace = true
+rayon.workspace = true
+rand.workspace = true
+rand_distr.workspace = true
+rand_mt = "5"
+thiserror.workspace = true
+tracing.workspace = true

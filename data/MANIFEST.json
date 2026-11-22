@@ -3,8 +3,8 @@
   "files": [
     {
       "path": "CHANGELOG.txt",
-      "bytes": 1072,
-      "sha256": "6bc0539997d0fc6e4720979c11dc3a072956a477585698ab68e4963e14bb6fa5",
+      "bytes": 1202,
+      "sha256": "bcb69fa7fa341c6ec66ac190efd83a763ef926b096aa58a8544e25ea0b23d3a8",
       "category": "data-documentation",
       "license": "GPL-3.0-only"
     },

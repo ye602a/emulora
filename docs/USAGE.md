@@ -21,10 +21,10 @@ Cargo feature unification. Those backends are not qualified by the Vulkan suite.
 ## CLI
 
 ```sh
-cargo build --locked --release -p spektrafilm-cli --bin spektrafilm
-./target/release/spektrafilm --help
-./target/release/spektrafilm list-profiles --data-dir data
-./target/release/spektrafilm process input.tif -o output.png \
+cargo build --locked --release -p emulora-cli --bin emulora
+./target/release/emulora --help
+./target/release/emulora list-profiles --data-dir data
+./target/release/emulora process input.tif -o output.png \
     --film kodak_portra_400 --paper kodak_portra_endura --data-dir data
 ```
 
@@ -48,13 +48,13 @@ In the GUI, select a monochrome film and open **Exposure → Camera filter**. Fo
 - `off` (default) preserves the original stock response and previous recipe results. `clear` selects the new measured monochrome response without glass. Use **clear** as the reference for filter comparisons. Older rendering mapped a missing log-sensitivity sample to 0 and thus a linear sensitivity of 1. Measured mode gives unmeasured wavelengths zero weight while retaining a genuine measured log value of 0.
 - `wratten8` (yellow) and `wratten12` (deep yellow) give progressively darker blues and lighter warm colors on B&W prints with neutral exposure compensation. Use No. 8 for gentler separation, No. 12 for a stronger effect. [Tri-X photo comparison and transmission data](ENGINE_STUDIES.md#yellow-filters-on-black-and-white-prints)
 - The yellow filters and the red `wratten25` and `wratten29` filters apply lens transmission to film sensitivity before exposure. The B-3 transmission percentages are interpolated on the 5 nm engine grid. We treat the unreported short-wave transmission as zero and hold the 700 nm value through 780 nm. Our No. 25 grid matches LAB's 81 samples to 1.2e-16 absolute. The red filter values were independently transcribed from [Repacholi's B-3 tables](https://www.mat.uc.pt/~rps/photos/filter-data.html).
-- With `compensate_filter: false` (default) the glass costs exposure. With `true` RS restores the camera raw response to a linear 0.184 neutral in the selected input primaries. `Pipeline::filter_factor_ev()` reports the required extra exposure in stops in either case. The normal camera EV control remains available. Metering reads the source. Print normalization uses the bare measured stock, and modeled gate-external fog bypasses the lens. A host changing the filter or its compensation uses checked refresh as with any other calibration input.
+- With `compensate_filter: false` (default) the glass costs exposure. With `true` Emulora restores the camera raw response to a linear 0.184 neutral in the selected input primaries. `Pipeline::filter_factor_ev()` reports the required extra exposure in stops in either case. The normal camera EV control remains available. Metering reads the source. Print normalization uses the bare measured stock, and modeled gate-external fog bypasses the lens. A host changing the filter or its compensation uses checked refresh as with any other calibration input.
 - Enabling measured response is an appearance change. These options require a spectral constructor and a B&W film. A cold build with glass prepares the bare reference and filtered camera front from the same loaded resource. The runtime uses one front on CPU and resident GPU.
 
 **To match SpektraLab Windows 1.3.4-beta.3** with Multigrade IV RC grade 2, use the [clear lens](../recipes/spektralab/mg2-clear.json), [No. 8](../recipes/spektralab/trix400-mg2-w8.json) or [No. 12](../recipes/spektralab/trix400-mg2-w12.json) recipe. All three passed on Tri-X 400, T-Max 100, Acros II and HP5 Plus. The yellow recipes retain their original filenames. Select the film with `--film`. All recipes use manual exposure, grain off and the reference print/output settings. From the repository root:
 
 ```sh
-spektrafilm process photo.tif --film kodak_tri_x_400 --paper ilford_multigrade_iv_rc --params recipes/spektralab/trix400-mg2-w8.json -o print.png
+emulora process photo.tif --film kodak_tri_x_400 --paper ilford_multigrade_iv_rc --params recipes/spektralab/trix400-mg2-w8.json -o print.png
 ```
 
 The reference comparison used linear ProPhoto RGB TIFF input and encoded sRGB output. Selecting the yellow filter alone in an existing recipe preserves that recipe's own paper and scanner settings. [Verified scope](ENGINE_STUDIES.md#lab-reference-prints-for-the-yellow-filters)
@@ -82,7 +82,7 @@ Tri-X 400, T-Max 100, Acros II and HP5 Plus select Ilford Multigrade IV RC as th
 For the CLI, save `{"print_render":{"paper_grade":"00"}}` as `soft.json`, then run:
 
 ```sh
-spektrafilm process photo.png --film kodak_tri_x_400 --params soft.json -o soft-print.png
+emulora process photo.png --film kodak_tri_x_400 --params soft.json -o soft-print.png
 ```
 
 The same recipe works with `export-lut`. Grade IDs are strings so 00 and 0 stay distinct. A graded print requires the TH-KG3 illuminant. The grade sets neutral filtration and a calibrated exposure multiplier. Manual print exposure and filter shifts remain relative trims. An explicit grade with ordinary paper returns a construction error. A direct film scan bypasses paper controls. Changing grades requests a calibrated pipeline rebuild. On resident Vulkan, the existing developed negative remains reusable with the same source identity.
@@ -102,7 +102,7 @@ Hosts with an exclusively owned pipeline can switch the recipe using `Pipeline::
 `export-lut` accepts the same film, target paper, `--scan-film` and `--params` as `process`. An explicit scan selects the film scan even if a paper is supplied. An explicit paper selects printing ahead of the JSON scan flag. With neither flag, both commands honor the saved route and use the film's target paper for printing. A direct negative scan yields the engine's transmission scan. The engine also exposes versioned negative inversion and calibrated finish through its host API.
 
 ```sh
-./target/release/spektrafilm export-lut --film kodak_portra_400 \
+./target/release/emulora export-lut --film kodak_portra_400 \
     --paper kodak_portra_endura --params look.json --size 65 -o portra.cube
 ```
 
@@ -117,26 +117,26 @@ Both commands report spectral initialization failures. `Pipeline::try_process` r
 Build separately to keep the default f32 applications intact:
 
 ```sh
-cargo build --locked --release -p spektrafilm-cli \
-    --features precision-f64 --bin spektrafilm-f64 --target-dir target/f64
-SPEKTRAFILM_BACKEND=cpu ./target/f64/release/spektrafilm-f64 \
+cargo build --locked --release -p emulora-cli \
+    --features precision-f64 --bin emulora-f64 --target-dir target/f64
+EMULORA_BACKEND=cpu ./target/f64/release/emulora-f64 \
     process input.tif -o output.png --film kodak_portra_400 \
     --paper kodak_portra_endura --data-dir data
 ```
 
-In PowerShell, set `$env:SPEKTRAFILM_BACKEND = "cpu"` before invoking
-`target\f64\release\spektrafilm-f64.exe`.
+In PowerShell, set `$env:EMULORA_BACKEND = "cpu"` before invoking
+`target\f64\release\emulora-f64.exe`.
 
 ## Preview GUI
 
 ```sh
-cargo build --locked --release -p spektrafilm-gui
-./target/release/spektrafilm-gui
+cargo build --locked --release -p emulora-gui
+./target/release/emulora-gui
 ```
 
 The GUI provides image loading, profile selection, effect controls, zoom/pan and
 preview saving. **Save** writes the preview; **Export** reruns processing through
-the f64 CPU helper. Build the f64 binary above and point `SPEKTRAFILM_F64_CLI` to
+the f64 CPU helper. Build the f64 binary above and point `EMULORA_F64_CLI` to
 its path before launching the GUI. The helper can also be found next to the GUI
 or on `PATH`.
 
@@ -146,18 +146,18 @@ separate from numerical and interactive-GUI qualification.
 
 ## Backends
 
-`SPEKTRAFILM_BACKEND` accepts `wgpu` or `cpu`. By default the engine tries Vulkan
+`EMULORA_BACKEND` accepts `wgpu` or `cpu`. By default the engine tries Vulkan
 through wgpu and uses CPU if a GPU backend is unavailable. The former `cuda`
 setting logs a warning and follows the same default selection.
 
 ## Embed the engine
 
 Start with the [host integration contract](maintenance/HOST_GPU_INTEGRATION_CONTRACT.md)
-and [public example](../crates/spektrafilm-core/examples/host_gpu_contract.rs).
+and [public example](../crates/emulora-core/examples/host_gpu_contract.rs).
 The example uses bundled profiles and the engine's public APIs:
 
 ```sh
-cargo run --locked -p spektrafilm-core --example host_gpu_contract
+cargo run --locked -p emulora-core --example host_gpu_contract
 ```
 
 Keep the engine revision, resource identity and output route together when
@@ -166,11 +166,11 @@ for what has been tested and what requires application-specific acceptance.
 
 ## Arctic beta04
 
-In the GUI select `arctic2026beta04` under **RGB→raw upsampling**. CLI recipes select the same ID in `settings.rgb_to_raw_method`. An explicit `arctic2026alpha02` recipe now reports an unsupported method. Change its ID to adopt the new look, or use RS at `43763e7` with the corresponding resources to reproduce the old look.
+In the GUI select `arctic2026beta04` under **RGB→raw upsampling**. CLI recipes select the same ID in `settings.rgb_to_raw_method`. An explicit `arctic2026alpha02` recipe now reports an unsupported method. Change its ID to adopt the new look, or use Emulora at `43763e7` with the corresponding resources to reproduce the old look.
 
-RS ships Andrea Volpato's beta04 reflectance table and descriptor unchanged from [experimental revision 28bf883](https://github.com/andreavolpato/spektrafilm/tree/28bf883/src/spektrafilm/data/luts/spectral_upsampling). It keeps the RS D65 projection, film-illuminant relighting, exposure calibration and neutral print filters. This corresponds to the table-only beta row of the [photographic study](ENGINE_STUDIES.md#arctic-alpha02-and-beta04-batch-13).
+Emulora ships Andrea Volpato's beta04 reflectance table and descriptor unchanged from [experimental revision 28bf883](https://github.com/andreavolpato/spektrafilm/tree/28bf883/src/spektrafilm/data/luts/spectral_upsampling). It keeps the Emulora D65 projection, film-illuminant relighting, exposure calibration and neutral print filters. This corresponds to the table-only beta row of the [photographic study](ENGINE_STUDIES.md#arctic-alpha02-and-beta04-batch-13).
 
-FPW main at `e1d0759` builds both new and saved film recipes through [the FPW adapter](https://github.com/ye602a/fursuit-photo-workflow/blob/e1d0759/native/crates/fpw-runtime/src/film.rs). It starts from the [RS defaults at the host pin](https://github.com/ye602a/spektrafilm-rs/blob/1947ee8/crates/spektrafilm-core/src/params.rs), with no method override. FPW uses Hanatos 2025. The bundled FPW table, RS table and Python experimental Hanatos 2025 irradiance table share Git blob `7b81b9d23f8f4c599c6b2ae3d949e9a2d6f3c38a`. Python main and experimental default to Hanatos 2025. The Linux OFX v0.3.12 manual (pp. 21, 38) specifies Hanatos 2026 as its default. This RS update leaves the host pin and resources unchanged.
+FPW main at `e1d0759` builds both new and saved film recipes through [the FPW adapter](https://github.com/ye602a/fursuit-photo-workflow/blob/e1d0759/native/crates/fpw-runtime/src/film.rs). It starts from the [engine defaults at the historical host pin](https://github.com/ye602a/emulora/blob/1947ee8/crates/spektrafilm-core/src/params.rs), with no method override. FPW uses Hanatos 2025. The bundled FPW table, Emulora table and Python experimental Hanatos 2025 irradiance table share Git blob `7b81b9d23f8f4c599c6b2ae3d949e9a2d6f3c38a`. Python main and experimental default to Hanatos 2025. The Linux OFX v0.3.12 manual (pp. 21, 38) specifies Hanatos 2026 as its default. This Emulora update leaves the host pin and resources unchanged.
 
 The released beta table has upstream Git blob `50689049562f59d8a71b8ff70b2d82965b3404ce`. At 480×144 on Portra 400 / Portra Endura and Ektar 100 / Endura Premier, CPU and Vulkan each reproduced their own pre-upgrade CLI control with this table byte-for-byte in the raw output. Comparing CPU to Vulkan gave maximum displayed differences of 5 and 12 sRGB codes respectively, also present in the controls.
 
@@ -182,7 +182,7 @@ For pixel-level comparisons of direct negative scans across CPU and Vulkan, set 
 
 ## Negative bleach bypass
 
-For a color negative, set **Negative bleach bypass** in the standalone film controls or use `{"film_render":{"bleach_bypass":0.5}}` in a spectral CLI recipe. Zero preserves the original look. At full strength the red and white costume in the comparison lost saturation and the white fur shifted toward cyan. Start at half strength for a gentler effect. This affects direct film scans and every subsequent optical print. A host changing this value must prepare the new recipe. The RS resident cache handles negative invalidation. [Same-photo comparison](ENGINE_STUDIES.md#negative-and-print-bleach-bypass-on-the-same-photograph)
+For a color negative, set **Negative bleach bypass** in the standalone film controls or use `{"film_render":{"bleach_bypass":0.5}}` in a spectral CLI recipe. Zero preserves the original look. At full strength the red and white costume in the comparison lost saturation and the white fur shifted toward cyan. Start at half strength for a gentler effect. This affects direct film scans and every subsequent optical print. A host changing this value must prepare the new recipe. The Emulora resident cache handles negative invalidation. [Same-photo comparison](ENGINE_STUDIES.md#negative-and-print-bleach-bypass-on-the-same-photograph)
 
 **Cyan dye loss** controls the cyan-forming dye loss when negative bypass is active. The default of 1 reproduces existing recipes. For white fur or fabric turning cyan, try 0.5, or 0 to isolate the retained silver and dye-mixing effects. Values up to 2 exaggerate the loss. A full-bypass recipe with the loss switched off is `{"film_render":{"bleach_bypass":1,"leuco_cyan_coupling":0}}`. [Photo and gray-wedge sweep](ENGINE_STUDIES.md#negative-silver-preset-and-cyan-loss-sweep)
 
@@ -223,7 +223,7 @@ These modes meter linear input before film exposure. They estimate one exposure 
 
 ### Film exposure latitude
 
-Use `spektrafilm process photo.png --film kodak_portra_400 --paper kodak_portra_endura --latitude -o print.png` when changing stock, paper or exposure on a backlit scene. The CLI reports the usable neutral stop range relative to 18.4% gray and the fractions of the rendered samples near the medium's black and white ends. The ordinary output image keeps its requested recipe. A direct slide scan also supports the report. A transmission negative or a medium with no measurable positive black returns a diagnostic error.
+Use `emulora process photo.png --film kodak_portra_400 --paper kodak_portra_endura --latitude -o print.png` when changing stock, paper or exposure on a backlit scene. The CLI reports the usable neutral stop range relative to 18.4% gray and the fractions of the rendered samples near the medium's black and white ends. The ordinary output image keeps its requested recipe. A direct slide scan also supports the report. A transmission negative or a medium with no measurable positive black returns a diagnostic error.
 
 The JSON line includes two views. `scene` estimates placement from linear input before development using LAB's channel-weighted brightness. `output` counts the samples in the finished image against the measured luminance thresholds. Use the latter for brightly colored fur, stage lighting and saturated clothing. Both sample up to 1024 positions per axis by stride; counts are relative to the valid sample count. Zero/dark-only or invalid RGB samples are excluded from the scene estimate. Black output pixels count as shadows. These are boundaries on a neutral tone ramp; texture can survive past them and an individual color channel can clip earlier.
 

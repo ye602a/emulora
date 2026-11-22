@@ -8,10 +8,10 @@ clouds, microstructure, source-coordinate sampling and precise recursive IIR.
 The migration uses the FPW-vendored engine snapshot
 `ae3428acd98e39c48784a79dc8f3369ab1236cb1`, including the GPL-3.0-attributed
 SpektraLab algorithm at `99c2d5c9883be485085895157279cc7c4eaa8db6`.
-[PR #6](https://github.com/ye602a/spektrafilm-rs/pull/6) introduced it as
+[PR #6](https://github.com/ye602a/emulora/pull/6) introduced it as
 `c487cb3a724ae7f6c05d8eac45c86d3394859eda`.
 
-Source comparison at RS `e57d0d1a33dadb2fd647201f49e497c14c1d7a9e` confirmed
+Source comparison at Emulora `e57d0d1a33dadb2fd647201f49e497c14c1d7a9e` confirmed
 identical Git blobs for `grain_layers.rs`, `layered_grain.rs`,
 `grain_layers.wgsl`, `grain_iir.comp` and `grain_iir.spv`. The original SPIR-V
 blob is `e23544d20d7f402a70b7005fb7531721793870e3`. The Rust IIR wrapper only
@@ -50,16 +50,16 @@ and variance `0.020058962077850902` against analytic variance
 
 The long IIR test is ignored during ordinary test runs and must be invoked
 explicitly. All 1,215 cases passed in
-[CI](https://github.com/ye602a/spektrafilm-rs/actions/runs/43434521405), with
+[CI](https://github.com/ye602a/emulora/actions/runs/43434521405), with
 maximum absolute error `1.1920928955078125e-7`. The tolerance is
 `4*f32::EPSILON*max(1,abs(reference))` for each sample.
 
 ```sh
-SPEKTRAFILM_REQUIRE_GPU=1 cargo test --locked -p spektrafilm-gpu --test grain_source
-SPEKTRAFILM_REQUIRE_GPU=1 cargo test --locked -p spektrafilm-gpu --lib actual_gpu_grain_follows_source_coordinates
-SPEKTRAFILM_REQUIRE_GPU=1 cargo test --locked -p spektrafilm-gpu --lib actual_gpu_multilayer_moments_and_controls
-SPEKTRAFILM_REQUIRE_GPU=1 cargo test --locked -p spektrafilm-gpu --lib actual_gpu_multilayer_requires_iir_capability_before_cache_or_consumer
-SPEKTRAFILM_REQUIRE_GPU=1 cargo test --locked -p spektrafilm-gpu --lib actual_gpu_iir_matches_f64_reference -- --ignored --nocapture
+EMULORA_REQUIRE_GPU=1 cargo test --locked -p emulora-gpu --test grain_source
+EMULORA_REQUIRE_GPU=1 cargo test --locked -p emulora-gpu --lib actual_gpu_grain_follows_source_coordinates
+EMULORA_REQUIRE_GPU=1 cargo test --locked -p emulora-gpu --lib actual_gpu_multilayer_moments_and_controls
+EMULORA_REQUIRE_GPU=1 cargo test --locked -p emulora-gpu --lib actual_gpu_multilayer_requires_iir_capability_before_cache_or_consumer
+EMULORA_REQUIRE_GPU=1 cargo test --locked -p emulora-gpu --lib actual_gpu_iir_matches_f64_reference -- --ignored --nocapture
 ```
 
 These are software-Vulkan numerical results. Target-device qualification and

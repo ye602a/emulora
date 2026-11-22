@@ -1,6 +1,6 @@
 # Host GPU integration
 
-RS owns film/print/scanner processing, physical grain, calibrated output and
+Emulora owns film/print/scanner processing, physical grain, calibrated output and
 engine caches. Hosts supply prepared input, rendering choices, source identity
 and cancellation signals, and own application state and final frame publication.
 
@@ -42,7 +42,7 @@ does not require changing saved rendering identities when behavior is preserved.
 
 Resident requests perform constant-time image-layout/device-limit checks and
 cooperative cancellation reads. Source identity comes from the host's immutable
-prepared-input generation; RS does not hash the photograph. Density-cache hits
+prepared-input generation; Emulora does not hash the photograph. Density-cache hits
 compare exact parameter tables without allocating a temporary key or uploading
 the skipped front-pass LUT. Cache bypasses do not traverse those tables.
 
@@ -68,7 +68,7 @@ upload/readback staging are outside them. Allocation reuse never establishes
 valid pixels. A density miss uploads the complete prepared input; an exact hit
 copies the immutable density into the request's private plane.
 
-`FilmRenderOptions::source` identifies immutable prepared pixels. RS adds the
+`FilmRenderOptions::source` identifies immutable prepared pixels. Emulora adds the
 exact pre-print stage dependencies and controls cache publication. Hosts must
 change source identity when those pixels change, without maintaining a second
 film-parameter invalidation table.
@@ -98,7 +98,7 @@ and compiled pipelines without saving or restoring global photo-cache state.
 | Multilayer grain and precise Vulkan IIR | [GRAIN_MULTILAYER_MIGRATION.md](GRAIN_MULTILAYER_MIGRATION.md) |
 | Resource content identity | [Bundled resources](#bundled-resources) |
 
-The [public host example](../../crates/spektrafilm-core/examples/host_gpu_contract.rs)
+The [public host example](../../crates/emulora-core/examples/host_gpu_contract.rs)
 exercises paper, slide and calibrated-negative routes with bundled resources.
 Current test evidence is in [VALIDATION.md](VALIDATION.md).
 
@@ -132,6 +132,6 @@ A host that owns metering can set camera.auto_exposure=false, pass the recipe
 camera EV once and set enlarger.print_exposure_compensation=false. A host can
 also use the standalone meter and read-only film latitude probe.
 
-For a future host pre-development auto adjustment, supply the resulting linear frame to both the film render and scene measurement. Keep the RS meter off. If the host has applied the gain to pixels, camera EV carries only the photographer's additional film trim. Alternatively a host can supply untouched pixels and fold a global gain into the camera trim once when using the paper route with print exposure compensation off. A local tone adjustment must travel in the pixels. The prepared source identity must change with the preprocessed pixels so a cached scene histogram or negative cannot outlive that adjustment. Manual film EV and enlarger compensation are included in the probed medium. Applying manual EV to the scene samples again would double-count it. Any deliberately enabled RS meter contributes only its measured auto EV to these samples.
+For a future host pre-development auto adjustment, supply the resulting linear frame to both the film render and scene measurement. Keep the Emulora meter off. If the host has applied the gain to pixels, camera EV carries only the photographer's additional film trim. Alternatively a host can supply untouched pixels and fold a global gain into the camera trim once when using the paper route with print exposure compensation off. A local tone adjustment must travel in the pixels. The prepared source identity must change with the preprocessed pixels so a cached scene histogram or negative cannot outlive that adjustment. Manual film EV and enlarger compensation are included in the probed medium. Applying manual EV to the scene samples again would double-count it. Any deliberately enabled Emulora meter contributes only its measured auto EV to these samples.
 
 For resident work, measure the small neutral ramp on the existing backend. The isolated probe leaves the retained photo negative and work planes alone. A host already holding its scene histogram can compare bins directly to shadow_ev and highlight_ev. A host with GPU-only final textures need not read back a full photo to use the medium boundaries.

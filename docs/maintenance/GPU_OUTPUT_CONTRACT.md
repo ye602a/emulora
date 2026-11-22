@@ -6,10 +6,10 @@ The output kernels preserve the FPW engine snapshot at
 `ae3428acd98e39c48784a79dc8f3369ab1236cb1`.
 The migrated files retain their exact Git blob identities:
 
-| RS file | FPW Git blob |
+| Emulora file | FPW Git blob |
 | --- | --- |
-| `crates/spektrafilm-shaders/wgsl/film_display.wgsl` | `99c58ba9e2e8514537395c805cbc1628883c6e4e` |
-| `crates/spektrafilm-shaders/wgsl/film_quantize.wgsl` | `81903151d3a160002e6d187081063458f087eb74` |
+| `crates/emulora-shaders/wgsl/film_display.wgsl` | `99c58ba9e2e8514537395c805cbc1628883c6e4e` |
+| `crates/emulora-shaders/wgsl/film_quantize.wgsl` | `81903151d3a160002e6d187081063458f087eb74` |
 
 The full-resolution film, DIR, grain, paper, scan, glare, sharpening and final
 clamp/transfer passes execute before either output kernel. A display crop does
@@ -33,7 +33,7 @@ Reduction also rejects any output block containing more than 65,537 samples
 across one row, because the preserved shader accumulates that row's RGB16 codes
 in u32. It evaluates the existing f32 block boundaries, so wide panoramas with
 smaller blocks and 1:1 extraction remain valid. The caller can choose another
-output size or a separate CPU path after this explicit error. RS does not
+output size or a separate CPU path after this explicit error. Emulora does not
 silently replace the accepted shader or change its arithmetic. Bounding the
 full source RGB channel count also bounds the shader's integer row-major index
 and sample-count products; its crop scaling itself uses f32 arithmetic.
@@ -60,20 +60,20 @@ above one (including positive infinity) map to 65535. It uses integer operations
 on the f32 significand. Replacing it with an f32 multiply can move samples
 across half-code boundaries and change accepted export bytes. The shader's
 two-dimensional dispatch and `row_stride` support outputs larger than one
-dispatch row, subject to the device limits checked by RS.
+dispatch row, subject to the device limits checked by Emulora.
 
 ## Scoped same-device consumption
 
 A GPU consumer records work after the complete interleaved RGB f32 chain in
-the same command encoder. RS owns the plane and its work-buffer lease. The
-callback receives a scoped output view and an RS-owned command encoder; it
+the same command encoder. Emulora owns the plane and its work-buffer lease. The
+callback receives a scoped output view and an Emulora-owned command encoder; it
 only records copies or computation into its own destination on the same
 device. Pixels are not yet ready for CPU access or publication inside the
-callback. RS submits and waits for that work before returning the callback
+callback. Emulora submits and waits for that work before returning the callback
 value and allowing the plane to return to the reusable work-buffer cache.
 
 The caller publishes or displays its own destination texture/buffer only after
-the whole method returns `Ok`. It retains that destination, not RS's source plane.
+the whole method returns `Ok`. It retains that destination, not Emulora's source plane.
 Saving a cloned source handle, recording a later submission that reads it, or
 publishing an in-flight source plane violates the lease contract. Consumer
 recording does not require CPU readback of the full f32 image. Cancellation or
@@ -100,7 +100,7 @@ This does not introduce CPU readback into the scoped GPU-texture route.
 
 ## Validation
 
-`cargo test --locked -p spektrafilm-gpu --test output_kernels` executes both
+`cargo test --locked -p emulora-gpu --test output_kernels` executes both
 production shaders and checks:
 
 - RGB16 values immediately surrounding every half-code rounding boundary,
@@ -109,14 +109,14 @@ production shaders and checks:
 - Exact 1:1 crop values, odd crop dimensions, noninteger reduction ratios,
   one-pixel output and an edge pixel against the established area-block rule.
 
-CI sets `SPEKTRAFILM_REQUIRE_GPU=1`, so missing Vulkan is a failure instead of a
+CI sets `EMULORA_REQUIRE_GPU=1`, so missing Vulkan is a failure instead of a
 skipped success. Geometry rejection is covered by unit checks in `output.rs`.
 On 2026-11-13 both kernel tests passed on the local Mesa Vulkan adapter with
-`SPEKTRAFILM_REQUIRE_GPU=1` (no skipped or ignored tests); both geometry tests
+`EMULORA_REQUIRE_GPU=1` (no skipped or ignored tests); both geometry tests
 also passed. Linux linked the installed OpenBLAS through the existing
 `openblas-src/system` feature; no Cargo dependency or lockfile change was needed.
 
-`crates/spektrafilm-core/tests/gpu_output.rs` additionally passed four full-chain
+`crates/emulora-core/tests/gpu_output.rs` additionally passed four full-chain
 tests on the local Mesa Vulkan adapter on the same date. The Portra 400 to
 Portra Endura fixture explicitly enables the migrated multilayer model and
 checks both linear and sRGB-encoded output with allocation/density caches off

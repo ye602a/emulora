@@ -1,8 +1,8 @@
-# spektrafilm-rs
+# Emulora
 
 **English** | [简体中文](README.zh-CN.md)
 
-spektrafilm-rs exposes a digital photograph onto simulated film, develops it, then prints it on photographic paper or scans the film directly. It is the independently maintained Rust engine used by **FPW**. You can also process photos with the CLI, preview them in the desktop GUI, or embed the engine in another application. FPW selects its own engine revision and controls.
+Emulora combines *emulsion* and *aurora*. It is an independent Rust engine for physical film simulation. It exposes a digital photograph onto simulated film, develops it, then prints it on photographic paper or scans the film directly. **FPW** uses the engine at its own pinned revision. You can also process photos with the CLI, preview them in the desktop GUI, or embed the engine in another application.
 
 ## What you can use today
 
@@ -40,22 +40,22 @@ compute are covered by CI; other platform/backend combinations need separate
 qualification. See [build and usage](docs/USAGE.md) for native dependencies and GUI/export setup.
 
 ```sh
-git clone https://github.com/ye602a/spektrafilm-rs.git
-cd spektrafilm-rs
-cargo build --locked --release -p spektrafilm-cli --bin spektrafilm
-./target/release/spektrafilm list-profiles --data-dir data
-./target/release/spektrafilm process input.tif -o output.png \
+git clone https://github.com/ye602a/emulora.git
+cd emulora
+cargo build --locked --release -p emulora-cli --bin emulora
+./target/release/emulora list-profiles --data-dir data
+./target/release/emulora process input.tif -o output.png \
     --film kodak_portra_400 --paper kodak_portra_endura --data-dir data
 ```
 
-On Windows, use `target\release\spektrafilm.exe` and run the process command on one line.
+On Windows, use `target\release\emulora.exe` and run the process command on one line.
 
 ## Documentation
 
 - [Current engine work and upstream comparisons](docs/ENGINE_EVOLUTION.md)
 - [Build and usage](docs/USAGE.md)
 - [Host GPU integration](docs/maintenance/HOST_GPU_INTEGRATION_CONTRACT.md)
-- [Public integration example](crates/spektrafilm-core/examples/host_gpu_contract.rs)
+- [Public integration example](crates/emulora-core/examples/host_gpu_contract.rs)
 - [Compatibility and development plan](docs/ENGINE_EVOLUTION.md)
 - [Film engine measurements](docs/ENGINE_STUDIES.md)
 - [Validation scope and evidence](docs/maintenance/VALIDATION.md)
@@ -72,7 +72,7 @@ includes the SpektraLab contribution.
 
 Code: [GPL-3.0](LICENSE). Spectral data, profiles and their derivatives:
 [upstream attribution and CC BY-SA 4.0 terms](SPEKTRAFILM_DATA_LICENSE.txt).
-SpektraLab still negatives and Multigrade IV RC have [separate attribution and RS calibration notes](data/SPEKTRALAB_BW_NOTICE.md).
+SpektraLab still negatives and Multigrade IV RC have [separate attribution and Emulora calibration notes](data/SPEKTRALAB_BW_NOTICE.md).
 [Versioned calibration provenance](data/negative_scan_ap0_v1/PROVENANCE.md)
 is retained alongside the data.
 

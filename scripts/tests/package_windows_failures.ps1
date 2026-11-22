@@ -9,9 +9,9 @@ if ([System.Environment]::OSVersion.Platform -ne [System.PlatformID]::Win32NT) {
 $PSNativeCommandUseErrorActionPreference = $false
 
 $repository = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-$tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("spektrafilm packaging test " + [Guid]::NewGuid().ToString("N"))
+$tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("emulora packaging test " + [Guid]::NewGuid().ToString("N"))
 $savedEnvironment = @{}
-foreach ($name in @("PATH", "SPEKTRAFILM_TEST_CARGO_COUNT", "SPEKTRAFILM_TEST_CARGO_FAIL_AT", "SPEKTRAFILM_EMBED_MANIFEST")) {
+foreach ($name in @("PATH", "EMULORA_TEST_CARGO_COUNT", "EMULORA_TEST_CARGO_FAIL_AT", "EMULORA_EMBED_MANIFEST")) {
     $savedEnvironment[$name] = [System.Environment]::GetEnvironmentVariable($name, "Process")
 }
 
@@ -23,10 +23,10 @@ try {
 @echo off
 setlocal EnableExtensions
 set "attempt=0"
-if exist "%SPEKTRAFILM_TEST_CARGO_COUNT%" set /p attempt=<"%SPEKTRAFILM_TEST_CARGO_COUNT%"
+if exist "%EMULORA_TEST_CARGO_COUNT%" set /p attempt=<"%EMULORA_TEST_CARGO_COUNT%"
 set /a attempt+=1 >nul
->"%SPEKTRAFILM_TEST_CARGO_COUNT%" echo %attempt%
-if "%attempt%"=="%SPEKTRAFILM_TEST_CARGO_FAIL_AT%" exit /b 37
+>"%EMULORA_TEST_CARGO_COUNT%" echo %attempt%
+if "%attempt%"=="%EMULORA_TEST_CARGO_FAIL_AT%" exit /b 37
 exit /b 0
 '@ | Set-Content -LiteralPath $mockCargo -Encoding ASCII
     $env:PATH = $mockBin + [System.IO.Path]::PathSeparator + $savedEnvironment["PATH"]
@@ -55,22 +55,22 @@ exit /b 0
         }
         $packager = Join-Path $scriptDir "package_windows_app.ps1"
         Copy-Item -LiteralPath (Join-Path $repository "scripts\package_windows_app.ps1") -Destination $packager
-        Copy-Item -LiteralPath (Join-Path $repository "assets\spektrafilm-icon.jpg") -Destination $assetDir
+        Copy-Item -LiteralPath (Join-Path $repository "assets\emulora-icon.png") -Destination $assetDir
         [System.IO.File]::WriteAllText((Join-Path $dataDir "fixture.json"), "{}")
 
         # Old build artifacts are deliberately present. A failing rebuild must
         # not embed them, edit their icons, or replace the previous package.
-        $guiPath = Join-Path $releaseDir "spektrafilm-gui.exe"
-        $f64Path = Join-Path $releaseDir "spektrafilm-f64.exe"
+        $guiPath = Join-Path $releaseDir "emulora-gui.exe"
+        $f64Path = Join-Path $releaseDir "emulora-f64.exe"
         $publishedPath = Join-Path $distDir "previous-package.txt"
         [System.IO.File]::WriteAllText($guiPath, "stale GUI executable")
         [System.IO.File]::WriteAllText($f64Path, "stale f64 executable")
         [System.IO.File]::WriteAllText($publishedPath, "previous accepted package")
 
         $counter = Join-Path $fixture "cargo calls.txt"
-        $env:SPEKTRAFILM_TEST_CARGO_COUNT = $counter
-        $env:SPEKTRAFILM_TEST_CARGO_FAIL_AT = [string]$case.FailAt
-        $env:SPEKTRAFILM_EMBED_MANIFEST = "preserved-test-manifest"
+        $env:EMULORA_TEST_CARGO_COUNT = $counter
+        $env:EMULORA_TEST_CARGO_FAIL_AT = [string]$case.FailAt
+        $env:EMULORA_EMBED_MANIFEST = "preserved-test-manifest"
         $arguments = @{ BuildTargetDir = $targetDir; DistDir = $distDir }
         if ($case.Aio) {
             $arguments["Aio"] = $true
@@ -96,7 +96,7 @@ exit /b 0
             [System.IO.File]::ReadAllText($publishedPath) -ne "previous accepted package") {
             throw "$($case.Name): packaging replaced the previous package."
         }
-        if ($env:SPEKTRAFILM_EMBED_MANIFEST -ne "preserved-test-manifest") {
+        if ($env:EMULORA_EMBED_MANIFEST -ne "preserved-test-manifest") {
             throw "$($case.Name): packaging did not restore its embedding environment."
         }
         Write-Host "PASS: $($case.Name) stops before packaging stale artifacts."

@@ -1,4 +1,4 @@
-# Third-party notices
+# Emulora third-party notices
 
 ## Code and numerical references
 

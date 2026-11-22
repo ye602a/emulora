@@ -19,3 +19,7 @@ SpektraLab profiles and measurements by SpektraLab / Hanze Qiu
 https://github.com/JamesQiu2005/SpektraLab
 https://github.com/JamesQiu2005
 Licensed CC BY-SA 4.0. See SPEKTRALAB_BW_NOTICE.md for adaptation details.
+
+2026-11-22 (WP-E1b)
+- The independent engine became Emulora (0.2.0). All bundled data payloads
+  were carried forward unchanged.

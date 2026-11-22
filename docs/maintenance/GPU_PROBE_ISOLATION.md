@@ -13,7 +13,7 @@ Pass `isolate_photo_caches: true` for the probe invocation:
 let output = point.process_resident_with_options(
     &neutral_ramp,
     &backend,
-    spektrafilm_gpu::FilmRenderOptions {
+    emulora_gpu::FilmRenderOptions {
         isolate_photo_caches: true,
         cancellation: Some(stop),
         ..Default::default()
@@ -62,7 +62,7 @@ and restoring global caches, it also supports overlapping and nested calls.
 
 ## Executable regression
 
-`crates/spektrafilm-core/tests/probe_isolation.rs` uses the real spectral
+`crates/emulora-core/tests/probe_isolation.rs` uses the real spectral
 Portra 400 / Portra Endura pipeline and one backend/device. Expectations are
 computed with retention disabled before both photo caches are populated. The
 test then checks exact channel equality and real cache hit/store/byte counters:
@@ -82,12 +82,12 @@ test then checks exact channel equality and real cache hit/store/byte counters:
 Run on a Vulkan-capable host with system OpenBLAS using:
 
 ```sh
-SPEKTRAFILM_REQUIRE_GPU=1 cargo test --locked \
-  -p spektrafilm-core -p spektrafilm-gpu --features openblas-src/system \
+EMULORA_REQUIRE_GPU=1 cargo test --locked \
+  -p emulora-core -p emulora-gpu --features openblas-src/system \
   --test probe_isolation -- --nocapture
 ```
 
-`SPEKTRAFILM_REQUIRE_GPU=1` makes lack of a GPU a failure instead of a skipped
+`EMULORA_REQUIRE_GPU=1` makes lack of a GPU a failure instead of a skipped
 success. Software Vulkan validates the real command submission, buffer lifetime,
 and pixel behavior here. Real surface interaction and host image acceptance
 remain separate integration checks; see [VALIDATION.md](VALIDATION.md).

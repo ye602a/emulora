@@ -2,13 +2,13 @@
 
 ## Standalone spectral export (2026-11-18)
 
-On Windows with Rust 1.99.1 and RTX 3060 Ti Vulkan, the following focused checks passed. The first Cargo test command used `SPEKTRAFILM_REQUIRE_GPU=1`. Its 19 cases include actual CPU/Vulkan CLI comparisons, invalid requests and protection of previously written files. The f64 command separately exercises the CPU node comparison. The CLI now uses the already locked tempfile crate for same-directory replacement.
+On Windows with Rust 1.99.1 and RTX 3060 Ti Vulkan, the following focused checks passed. The first Cargo test command used `EMULORA_REQUIRE_GPU=1`. Its 19 cases include actual CPU/Vulkan CLI comparisons, invalid requests and protection of previously written files. The f64 command separately exercises the CPU node comparison. The CLI now uses the already locked tempfile crate for same-directory replacement.
 
 ```sh
-cargo test --locked -p spektrafilm-cli --test spectral_lut -p spektrafilm-core --test resident_input --test border_135_gpu --test gpu_output --test stock_setup --test probe_isolation --test negative_cache -- --test-threads=1
-cargo test --locked -p spektrafilm-cli --features precision-f64 --test spectral_lut cube_matches_independent_cpu_photo_pixels
-cargo check --locked -p spektrafilm-gui
-cargo build --locked -p spektrafilm-cli --bin spektrafilm
+cargo test --locked -p emulora-cli --test spectral_lut -p emulora-core --test resident_input --test border_135_gpu --test gpu_output --test stock_setup --test probe_isolation --test negative_cache -- --test-threads=1
+cargo test --locked -p emulora-cli --features precision-f64 --test spectral_lut cube_matches_independent_cpu_photo_pixels
+cargo check --locked -p emulora-gui
+cargo build --locked -p emulora-cli --bin emulora
 ```
 
 At that revision, the resource checks verified 55 shared resources, three calibration artifacts and seven frozen source/fixture hashes. The [photo and ramp measurements](../ENGINE_STUDIES.md#spectral-cube-export) include the recipe and reproduction commands. No host release or new calibrated look was qualified.
@@ -61,7 +61,7 @@ boundaries; the accepted shader kernels, profiles and calibration tables are
 unchanged.
 
 Local verification used Rust 1.100.0, wgpu 30.0.1, system OpenBLAS and Mesa 25.0.7
-llvmpipe Vulkan (LLVM 19.1.7), with `SPEKTRAFILM_REQUIRE_GPU=1`:
+llvmpipe Vulkan (LLVM 19.1.7), with `EMULORA_REQUIRE_GPU=1`:
 
 - All 121 math/model/core/GPU library and integration tests passed. The one
   ignored IIR test was run explicitly: all 1,215 cases passed with maximum
@@ -83,9 +83,9 @@ handling coverage, not installation or launch qualification of a native package.
 
 ## Recorded baseline
 
-[PR #9](https://github.com/ye602a/spektrafilm-rs/pull/9) merged as
+[PR #9](https://github.com/ye602a/emulora/pull/9) merged as
 `1cd33b5af4a1a8dd48644962b66ea5b7e787c313`. Its implementation tree passed
-[Windows and required Linux Vulkan CI](https://github.com/ye602a/spektrafilm-rs/actions/runs/43434521405)
+[Windows and required Linux Vulkan CI](https://github.com/ye602a/emulora/actions/runs/43434521405)
 on 2026-11-13. The workflow is
 [standalone-engine-smoke.yml](../../.github/workflows/standalone-engine-smoke.yml).
 
@@ -102,7 +102,7 @@ on 2026-11-13. The workflow is
 | Resource/source checks | 55 shared resources, 3 calibration artifacts and 7 frozen source hashes passed |
 
 Linux CI used Mesa llvmpipe Vulkan (LLVM 20.1.2), with
-`SPEKTRAFILM_REQUIRE_GPU=1`; GPU absence was a failure. Local validation used
+`EMULORA_REQUIRE_GPU=1`; GPU absence was a failure. Local validation used
 Rust 1.100.0, wgpu 30.0.1 and Mesa 25.0.7 llvmpipe (LLVM 19) on Debian 13.
 Local f64 core/GPU and CPU-only GPU-crate checks also passed.
 
@@ -112,7 +112,7 @@ finish and region cases. The Python-heldout tolerance remains `2e-6`, and the
 negative CPU/GPU comparison retains its original maximum of 3 RGB16 codes.
 See [output validation details](CALIBRATED_OUTPUT_V1.md).
 
-An earlier separately compiled RS revision,
+An earlier separately compiled Emulora revision,
 `85eb835a0116b8ef77beb4952ae80272a21b0b8a`, supplied eight synthetic full-chain
 baselines. All 5,952 f32 values matched byte-for-byte after checking identical
 inputs, resolved parameters, geometry and source transforms. The preserved
@@ -122,7 +122,7 @@ hashes and scope; it is an engine comparison, not a full application benchmark.
 A separate compiled-reference comparison also matched all **41,295 f32 channels**
 across ten synthetic full-chain cases (five routes with local/source sampling),
 with maximum absolute error and RMSE both zero. The
-[archived qualification record](https://github.com/ye602a/spektrafilm-rs/blob/7f156e2b437a7667f82a0b19e1cde93413988122/docs/maintenance/validation/fpw_vendor_20261113/REPORT.md)
+[archived qualification record](https://github.com/ye602a/emulora/blob/7f156e2b437a7667f82a0b19e1cde93413988122/docs/maintenance/validation/fpw_vendor_20261113/REPORT.md)
 retains source identities, dependency locks and reproduction steps. This was a
 fresh build of the pinned reference numerical sources on software Vulkan, not
 validation of a deployed application binary.
@@ -141,18 +141,18 @@ For Linux with system OpenBLAS:
 
 ```sh
 
-SPEKTRAFILM_REQUIRE_GPU=1 cargo test --locked \
-  -p spektrafilm-math -p spektrafilm-model -p spektrafilm-core -p spektrafilm-gpu \
+EMULORA_REQUIRE_GPU=1 cargo test --locked \
+  -p emulora-math -p emulora-model -p emulora-core -p emulora-gpu \
   --features openblas-src/system --lib --tests
 
-SPEKTRAFILM_REQUIRE_GPU=1 cargo test --locked \
-  -p spektrafilm-gpu --features openblas-src/system --lib \
+EMULORA_REQUIRE_GPU=1 cargo test --locked \
+  -p emulora-gpu --features openblas-src/system --lib \
   actual_gpu_iir_matches_f64_reference -- --ignored --nocapture
 
 cargo build --locked \
-  -p spektrafilm-core -p spektrafilm-gpu --features openblas-src/system \
+  -p emulora-core -p emulora-gpu --features openblas-src/system \
   --example host_gpu_contract
-SPEKTRAFILM_REQUIRE_GPU=1 target/debug/examples/host_gpu_contract
+EMULORA_REQUIRE_GPU=1 target/debug/examples/host_gpu_contract
 ```
 
 Other supported platforms use their normal BLAS configuration.
