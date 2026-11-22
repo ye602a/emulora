@@ -4,7 +4,17 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      - README.md
+      - README.zh-CN.md
+      - assets/emulora-banner.png
+      - assets/emulora-banner-zh-CN.png
   pull_request:
+    paths-ignore:
+      - README.md
+      - README.zh-CN.md
+      - assets/emulora-banner.png
+      - assets/emulora-banner-zh-CN.png
   workflow_dispatch:
 
 permissions:
