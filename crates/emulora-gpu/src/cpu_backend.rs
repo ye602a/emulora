@@ -1,7 +1,7 @@
-use rayon::prelude::*;
 use emulora_math::image::ImageBuf;
 use emulora_math::precision::{Scalar, from_f32, from_f64, to_f32};
 use emulora_math::spectral;
+use rayon::prelude::*;
 
 use crate::{ComputeBackend, Lut3D};
 

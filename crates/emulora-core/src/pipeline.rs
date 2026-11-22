@@ -643,9 +643,8 @@ impl Pipeline {
                 spectral_service::compute_tc_lut(spectra, response)
             };
             if params.settings.apply_hanatos2025_adaptation_surface {
-                let (x, y) = emulora_math::spectral::illuminant_to_xy(select_illuminant(
-                    &front_illuminant,
-                ));
+                let (x, y) =
+                    emulora_math::spectral::illuminant_to_xy(select_illuminant(&front_illuminant));
                 spectral_service::apply_hanatos_surface(
                     &mut lut,
                     &film.data.hanatos2025_adaptation_surface_params,
@@ -657,9 +656,8 @@ impl Pipeline {
                 params.io.input_gamut_compress.knee,
             )?;
             let lut = if compression.is_active() {
-                let (x, y) = emulora_math::spectral::illuminant_to_xy(select_illuminant(
-                    &front_illuminant,
-                ));
+                let (x, y) =
+                    emulora_math::spectral::illuminant_to_xy(select_illuminant(&front_illuminant));
                 compression.remap(&lut, [x, y])
             } else {
                 lut
@@ -1174,8 +1172,7 @@ impl Pipeline {
     fn prepare_border_135(
         &self,
         image: &ImageBuf,
-    ) -> Result<Option<emulora_gpu::FilmBorderGpuParams>, emulora_gpu::output::OutputError>
-    {
+    ) -> Result<Option<emulora_gpu::FilmBorderGpuParams>, emulora_gpu::output::OutputError> {
         if self.params.film_render.negative_silver()
             != self
                 .calibration
@@ -1454,13 +1451,10 @@ impl Pipeline {
             .map(|i| viewing_illu[i] * emulora_math::spectral::CMF_Y[i] as f64)
             .sum();
         let viewing_white = emulora_math::spectral::illuminant_xyz_f64(viewing_illu_f32);
-        let output_white = emulora_math::spectral::colorspace_white_xyz_f64(
-            &self.params.io.output_color_space,
-        );
-        let adapt = emulora_math::colorspace::chromatic_adaptation_matrix_f64(
-            viewing_white,
-            output_white,
-        );
+        let output_white =
+            emulora_math::spectral::colorspace_white_xyz_f64(&self.params.io.output_color_space);
+        let adapt =
+            emulora_math::colorspace::chromatic_adaptation_matrix_f64(viewing_white, output_white);
         let base_xyz_to_rgb = match self.params.io.output_color_space.as_str() {
             "sRGB" => emulora_math::colorspace::XYZ_TO_SRGB_F64,
             "ProPhoto RGB" => emulora_math::colorspace::XYZ_TO_PROPHOTO_F64,
@@ -1833,8 +1827,8 @@ impl Pipeline {
     /// After the GPU fast path returns linear RGB, apply sRGB encoding + clip
     /// (the only post-scan op when no scanner blur/unsharp/glare is active).
     fn apply_post_scan(&self, mut rgb: ImageBuf) -> ImageBuf {
-        use rayon::prelude::*;
         use emulora_math::precision::from_f64;
+        use rayon::prelude::*;
         let zero = from_f64(0.0);
         let one = from_f64(1.0);
         if self.params.io.output_cctf_encoding {

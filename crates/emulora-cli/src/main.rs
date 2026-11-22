@@ -180,10 +180,7 @@ fn cmd_process(
 
     let t = Instant::now();
     let photo = emulora_photo_input::load_photo(input)?;
-    if matches!(
-        photo.primaries,
-        emulora_photo_input::InputPrimaries::Srgb
-    ) {
+    if matches!(photo.primaries, emulora_photo_input::InputPrimaries::Srgb) {
         params.io.input_color_space = "sRGB".into();
         params.io.input_cctf_decoding = false;
     }
@@ -442,16 +439,10 @@ fn cmd_export_lut(
         cube,
         "LUT_3D_SIZE {size}\nDOMAIN_MIN 0 0 0\nDOMAIN_MAX 1 1 1"
     )?;
-    let samples = emulora_core::lut_bake::bake_3d_lut(
-        film,
-        print,
-        params,
-        data_dir,
-        size,
-        backend.as_ref(),
-    )
-    .map_err(anyhow::Error::msg)
-    .context("baking spectral LUT")?;
+    let samples =
+        emulora_core::lut_bake::bake_3d_lut(film, print, params, data_dir, size, backend.as_ref())
+            .map_err(anyhow::Error::msg)
+            .context("baking spectral LUT")?;
     // Publish the whole cube in one rename, including when replacing an
     // existing look or when two exports target the same destination.
     let parent = output

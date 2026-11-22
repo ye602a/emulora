@@ -1,12 +1,12 @@
 // Viewing glare simulation.
 // Adds a small fraction of randomized blurred illuminant to simulate surface reflections.
 
-use rand::SeedableRng;
-use rand::rngs::StdRng;
-use rand_distr::{Distribution, LogNormal};
 use emulora_math::gaussian;
 use emulora_math::image::ImageBuf;
 use emulora_math::precision::{Scalar, from_f32, from_f64};
+use rand::SeedableRng;
+use rand::rngs::StdRng;
+use rand_distr::{Distribution, LogNormal};
 
 /// Generate the per-pixel glare_amount field (lognormal sampled, then blurred, then /100).
 ///

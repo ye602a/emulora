@@ -1,13 +1,13 @@
-/// Scanning stage: convert print/film density back to RGB.
-///
-/// Dispatches the spectral integration to the GPU backend when available.
-use rayon::prelude::*;
 use emulora_gpu::ComputeBackend;
 use emulora_math::colorspace;
 use emulora_math::image::ImageBuf;
 use emulora_math::pchip3d::{pchip_interp, prepare_pchip_3d};
 use emulora_math::precision::{Scalar, from_f64};
 use emulora_math::spectral;
+/// Scanning stage: convert print/film density back to RGB.
+///
+/// Dispatches the spectral integration to the GPU backend when available.
+use rayon::prelude::*;
 
 use crate::params::RuntimeParams;
 use crate::profile::Profile;
@@ -449,8 +449,7 @@ pub(crate) fn scan_with_negative(
     // Unsharp mask
     let [usm_sigma, usm_amount] = params.scanner.unsharp_mask;
     if usm_sigma > 0.0 && usm_amount > 0.0 {
-        rgb =
-            emulora_model::diffusion::apply_unsharp_mask(&rgb, usm_sigma, usm_amount, backend);
+        rgb = emulora_model::diffusion::apply_unsharp_mask(&rgb, usm_sigma, usm_amount, backend);
     }
 
     // CCTF encoding + clip.

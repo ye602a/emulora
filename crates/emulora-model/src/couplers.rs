@@ -1,10 +1,10 @@
 // DIR (Development Inhibitor Release) coupler model.
 // Handles same-layer and inter-layer inhibition with spatial diffusion.
 
-use rayon::prelude::*;
 use emulora_gpu::ComputeBackend;
 use emulora_math::image::ImageBuf;
 use emulora_math::precision::from_f64;
+use rayon::prelude::*;
 
 use crate::density_curves::normalize_density_curves;
 

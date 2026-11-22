@@ -1,7 +1,6 @@
 //! Calibrated output is checked against the scalar CPU implementation and
 //! independently evaluated Python samples bundled with the calibration.
 
-use serde::Deserialize;
 use emulora_core::calibrated_output_v1::{
     CalibratedOutputError, NegativeStockV1, PhysicalOutputMappingV1, PhysicalOutputOptionsV1,
     PhysicalOutputV1, finish_exposure_table_v1, positive_rgb16_v1, positive_scan_v1,
@@ -22,6 +21,7 @@ use emulora_math::{
     image::ImageBuf,
     precision::{from_f32, to_f32},
 };
+use serde::Deserialize;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 

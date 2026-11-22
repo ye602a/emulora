@@ -14,13 +14,13 @@ use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
 use eframe::egui;
-use rayon::prelude::*;
 use emulora_core::params::RuntimeParams;
 use emulora_core::pipeline::Pipeline;
 use emulora_core::profile;
 use emulora_gpu::ComputeBackend;
 use emulora_math::image::ImageBuf;
 use emulora_math::precision::{Scalar, from_f32, to_f32};
+use rayon::prelude::*;
 
 const PREVIEW_DEBOUNCE: Duration = Duration::from_millis(120);
 const IN_FLIGHT_REPAINT: Duration = Duration::from_millis(16);
@@ -654,10 +654,7 @@ impl App {
         };
         let default_name = match &self.image_path {
             Some(p) => {
-                let stem = p
-                    .file_stem()
-                    .and_then(|s| s.to_str())
-                    .unwrap_or("emulora");
+                let stem = p.file_stem().and_then(|s| s.to_str()).unwrap_or("emulora");
                 format!("{stem}_{}_emulora.png", self.film_name)
             }
             None => "emulora.png".into(),
@@ -2038,11 +2035,7 @@ fn make_preview_texture_data(out: &ImageBuf) -> PreviewTextureData {
 /// clamped to [0, 1] and sRGB-encoded when `output_cctf_encoding` is on.
 fn make_texture(ctx: &egui::Context, preview: PreviewTextureData) -> egui::TextureHandle {
     let color_image = egui::ColorImage::from_rgba_unmultiplied(preview.size, &preview.rgba);
-    ctx.load_texture(
-        "emulora-output",
-        color_image,
-        egui::TextureOptions::LINEAR,
-    )
+    ctx.load_texture("emulora-output", color_image, egui::TextureOptions::LINEAR)
 }
 
 /// Locate the f64-built `emulora` CLI binary. Search order:
@@ -2061,9 +2054,7 @@ fn locate_f64_cli() -> Result<PathBuf, String> {
         if path.is_file() {
             return Ok(path);
         }
-        return Err(format!(
-            "EMULORA_F64_CLI points at {p} but no such file"
-        ));
+        return Err(format!("EMULORA_F64_CLI points at {p} but no such file"));
     }
     if let Ok(exe) = std::env::current_exe()
         && let Some(dir) = exe.parent()

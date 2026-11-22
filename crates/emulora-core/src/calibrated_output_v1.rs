@@ -9,13 +9,13 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
 };
 
-use serde::Deserialize;
 use emulora_gpu::{
     FilmChainParams, FilmRenderOptions,
     output::{DisplayRegion, FilmOutput, OutputError, output_channel_count},
     wgpu::{self, util::DeviceExt},
     wgpu_backend::WgpuBackend,
 };
+use serde::Deserialize;
 
 pub const NEGATIVE_SCAN_AP0_V1: &str = "negative_scan_ap0_v1";
 

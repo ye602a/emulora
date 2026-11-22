@@ -463,10 +463,7 @@ mod tests {
         ) {
             Ok(adapter) => adapter,
             Err(error) => {
-                assert!(
-                    std::env::var_os("EMULORA_REQUIRE_GPU").is_none(),
-                    "{error}"
-                );
+                assert!(std::env::var_os("EMULORA_REQUIRE_GPU").is_none(), "{error}");
                 eprintln!("SKIP: no Vulkan adapter for grain capability test: {error}");
                 return;
             }

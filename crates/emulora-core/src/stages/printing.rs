@@ -1,11 +1,11 @@
-/// Printing stage: enlarge the film negative onto virtual paper.
-///
-/// Uses the pre-computed enlarger illuminant and exposure normalization factor.
-use rayon::prelude::*;
 use emulora_gpu::ComputeBackend;
 use emulora_math::image::ImageBuf;
 use emulora_math::pchip3d::{PreparedPchip3d, pchip_interp, prepare_pchip_3d};
 use emulora_math::precision::from_f64;
+/// Printing stage: enlarge the film negative onto virtual paper.
+///
+/// Uses the pre-computed enlarger illuminant and exposure normalization factor.
+use rayon::prelude::*;
 
 use crate::params::RuntimeParams;
 use crate::profile::Profile;
@@ -260,12 +260,7 @@ pub fn expose_calibrated(
         );
         let dm = edf.to_model();
         lin = if backend.is_gpu() {
-            emulora_model::diffusion::apply_diffusion_filter_blur(
-                &lin,
-                &dm,
-                pix_um as f64,
-                backend,
-            )
+            emulora_model::diffusion::apply_diffusion_filter_blur(&lin, &dm, pix_um as f64, backend)
         } else {
             emulora_model::diffusion::apply_diffusion_filter_um(&lin, &dm, pix_um as f64)
         };

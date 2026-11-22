@@ -1,10 +1,10 @@
 //! File input shared by the standalone photo CLI and GUI.
 use anyhow::{Context, Result, bail};
-use rayon::prelude::*;
 use emulora_math::{
     image::ImageBuf,
     precision::{from_f32, srgb_decode},
 };
+use rayon::prelude::*;
 use std::path::Path;
 
 pub const RAW_EXTENSIONS: &[&str] = &[

@@ -5,9 +5,9 @@ use crate::{
     pipeline::Pipeline,
     stages::filming::{input_colorspace_to_xyz, measure_autoexposure_ev},
 };
-use serde::Serialize;
 use emulora_gpu::ComputeBackend;
 use emulora_math::{image::ImageBuf, precision::from_f64};
+use serde::Serialize;
 
 const GRAY: f64 = 0.184;
 const SAMPLES: usize = 1024;

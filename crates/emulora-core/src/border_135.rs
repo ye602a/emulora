@@ -1,7 +1,7 @@
 //! Raster placement and film coordinates for a basic 135 border.
 
-use serde::{Deserialize, Serialize};
 use emulora_gpu::output::DisplayRegion;
+use serde::{Deserialize, Serialize};
 
 const SHOULDER_MM: f32 = 5.5;
 const PERFORATION_PITCH_MM: f32 = 4.75;
@@ -259,8 +259,7 @@ impl Border135 {
         self,
         content: [u32; 2],
         film_format_mm: f32,
-    ) -> Result<Option<emulora_gpu::FilmBorderGpuParams>, emulora_gpu::output::OutputError>
-    {
+    ) -> Result<Option<emulora_gpu::FilmBorderGpuParams>, emulora_gpu::output::OutputError> {
         use emulora_gpu::{FilmBorderGpuParams, output::OutputError};
         let Some(layout) = self
             .layout(content, film_format_mm)

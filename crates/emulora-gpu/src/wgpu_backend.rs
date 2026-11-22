@@ -2651,11 +2651,8 @@ impl ComputeBackend for WgpuBackend {
         // into a single matmul — small visible-spectrum precision drop
         // that's acceptable for preview. The CPU path keeps the two-step
         // for export bit-parity with Python.
-        let rgb_to_adapted_xyz = emulora_math::spectral::build_rgb_to_adapted_xyz(
-            color_space,
-            ref_illuminant,
-            cat16,
-        );
+        let rgb_to_adapted_xyz =
+            emulora_math::spectral::build_rgb_to_adapted_xyz(color_space, ref_illuminant, cat16);
         let rgb_to_adapted_xyz = &rgb_to_adapted_xyz;
         let n_pixels = image.pixel_count() as u32;
         let lut_size = tc_lut.size as u32;

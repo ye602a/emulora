@@ -1,13 +1,13 @@
-/// Filming stage: expose the digital image onto virtual film.
-///
-/// Full Hanatos2025 path: RGB → XYZ → xy chromaticity → tc coordinates →
-/// 2D LUT lookup (spectra × sensitivity) → per-channel film raw exposure.
-use rayon::prelude::*;
 use emulora_gpu::ComputeBackend;
 use emulora_math::colorspace;
 use emulora_math::image::ImageBuf;
 use emulora_math::precision::{from_f32, from_f64, to_f32};
 use emulora_math::spectral::{self, TcLut};
+/// Filming stage: expose the digital image onto virtual film.
+///
+/// Full Hanatos2025 path: RGB → XYZ → xy chromaticity → tc coordinates →
+/// 2D LUT lookup (spectra × sensitivity) → per-channel film raw exposure.
+use rayon::prelude::*;
 use std::time::Instant;
 
 use crate::params::RuntimeParams;
@@ -391,12 +391,7 @@ pub fn expose(
     if df.active {
         let dm = df.to_model();
         raw = if backend.is_gpu() {
-            emulora_model::diffusion::apply_diffusion_filter_blur(
-                &raw,
-                &dm,
-                pix_um as f64,
-                backend,
-            )
+            emulora_model::diffusion::apply_diffusion_filter_blur(&raw, &dm, pix_um as f64, backend)
         } else {
             emulora_model::diffusion::apply_diffusion_filter_um(&raw, &dm, pix_um as f64)
         };
@@ -517,9 +512,8 @@ pub fn develop(
         // f32 storage in `GrainParams` would otherwise truncate to ~7
         // decimals and shift every Poisson lambda by ~5e-8, producing a
         // visibly different grain pattern.
-        let norm_curves_f64 = emulora_model::density_curves::normalize_density_curves_f64(
-            &film.density_curves_f64(),
-        );
+        let norm_curves_f64 =
+            emulora_model::density_curves::normalize_density_curves_f64(&film.density_curves_f64());
         let density_max = emulora_model::density_curves::max_density_f64(&norm_curves_f64);
         density_cmy = emulora_model::grain::apply_grain_to_density(
             &density_cmy,

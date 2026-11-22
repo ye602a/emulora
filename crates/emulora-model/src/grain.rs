@@ -1,11 +1,11 @@
 // Stochastic grain generation.
 // Poisson-binomial particle model with dye cloud blur and lognormal micro-structure.
 
-use rayon::prelude::*;
 use emulora_gpu::ComputeBackend;
 use emulora_math::gaussian;
 use emulora_math::image::ImageBuf;
 use emulora_math::precision::{Scalar, ZERO, from_f64};
+use rayon::prelude::*;
 use std::time::Instant;
 
 fn stage_timings_enabled() -> bool {
