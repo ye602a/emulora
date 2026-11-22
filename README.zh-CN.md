@@ -1,6 +1,8 @@
-# Emulora
+![Emulora · 物理胶片模拟引擎。基于 spektrafilm 开发。](assets/emulora-banner-zh-CN.png)
 
 [English](README.md) | **简体中文**
+
+胶片模拟基于 [**spektrafilm**](https://github.com/andreavolpato/spektrafilm) 开发。
 
 Emulora 取自 *Emulsion + Aurora*（感光乳剂与极光），是一款独立的 Rust 物理胶片模拟引擎。它将数码照片当作一次胶片曝光，模拟显影，再印到相纸上或直接扫描胶片。你可以用命令行处理照片，在桌面界面预览，或把引擎接入自己的应用。摄影应用 **FPW** 使用这一引擎，并自行固定引擎版本及选择开放的控件。
 

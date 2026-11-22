@@ -40,8 +40,13 @@ fn main() -> eframe::Result<()> {
     let backend: Arc<dyn ComputeBackend> = Arc::from(backend);
     let initial_image = std::env::args().nth(1).map(PathBuf::from);
 
+    let icon =
+        eframe::icon_data::from_png_bytes(include_bytes!("../../../assets/emulora-icon.png"))
+            .expect("valid embedded Emulora icon");
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default().with_inner_size([1400.0, 900.0]),
+        viewport: egui::ViewportBuilder::default()
+            .with_inner_size([1400.0, 900.0])
+            .with_icon(icon),
         renderer: gui_renderer(),
         // egui's default device descriptor hardcodes
         // `max_texture_dimension_2d: 8192`, so uploading the preview of an

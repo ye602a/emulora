@@ -1,6 +1,8 @@
-# Emulora
+![Emulora — Physical film simulation. Built on spektrafilm.](assets/emulora-banner.png)
 
 **English** | [简体中文](README.zh-CN.md)
+
+Film simulation built on [**spektrafilm**](https://github.com/andreavolpato/spektrafilm).
 
 Emulora combines *emulsion* and *aurora*. It is an independent Rust engine for physical film simulation. It exposes a digital photograph onto simulated film, develops it, then prints it on photographic paper or scans the film directly. **FPW** uses the engine at its own pinned revision. You can also process photos with the CLI, preview them in the desktop GUI, or embed the engine in another application.
 
